@@ -1,0 +1,424 @@
+"""Daily ingestion, scoring, and notification pipeline runner."""
+
+from datetime import datetime, timezone
+import zoneinfo
+from typing import Any, Dict, List, Optional
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.bot.formatters import build_job_inline_keyboard, chunk_message, escape, format_job_card
+from src.bot.telegram_client import TelegramClient
+from src.core.config import settings
+from src.core.logging import logger
+from src.engine.deduplication import DeduplicationEngine, compute_url_hash
+from src.engine.eligibility import GeographicEligibilityEngine
+from src.engine.gemini_extractor import GeminiJobExtractor
+from src.engine.matching import MatchingEngine
+from src.models import (
+    CandidateProfile,
+    DailyRun,
+    GeographicEligibility,
+    Job,
+    JobStatusTracker,
+    NotificationLog,
+    NotificationStatus,
+    NotificationType,
+    RunStatus,
+    SeniorityLevel,
+    Source,
+    SourceSyncLog,
+    WorkplaceType,
+)
+from src.services.profile_service import get_or_create_candidate_profile
+from src.sources.base import BaseSourceAdapter, NormalizedJobData, RawJobData
+from src.sources.registry import SourceRegistry, create_default_registry
+
+
+class DailyPipelineRunner:
+    """Orchestrates the 09:00 Africa/Cairo daily job discovery and matching pipeline."""
+
+    def __init__(
+        self,
+        registry: Optional[SourceRegistry] = None,
+        telegram_client: Optional[TelegramClient] = None,
+        gemini_extractor: Optional[GeminiJobExtractor] = None,
+    ):
+        self.registry = registry or create_default_registry()
+        self.telegram = telegram_client or TelegramClient()
+        self.gemini = gemini_extractor or GeminiJobExtractor()
+        self.eligibility_engine = GeographicEligibilityEngine(candidate_country=settings.CANDIDATE_COUNTRY)
+        self.matching_engine = MatchingEngine()
+
+    def get_cairo_date_key(self) -> str:
+        """Return current date formatted YYYY-MM-DD in Africa/Cairo IANA timezone."""
+        cairo_tz = zoneinfo.ZoneInfo("Africa/Cairo")
+        now_cairo = datetime.now(cairo_tz)
+        return now_cairo.strftime("%Y-%m-%d")
+
+    async def execute_daily_run(
+        self,
+        session: AsyncSession,
+        force: bool = False,
+        target_chat_id: Optional[int] = None,
+    ) -> DailyRun:
+        """
+        Execute all 11 steps of the daily job discovery and notification pipeline.
+        Enforces database-level idempotency lock via DailyRun.run_key.
+        """
+        date_str = self.get_cairo_date_key()
+        run_key = f"daily-digest-{date_str}"
+        started_at = datetime.now(timezone.utc)
+
+        # -------------------------------------------------------------
+        # Step 1: Database-backed run lock / unique daily run key
+        # -------------------------------------------------------------
+        stmt_run = select(DailyRun).where(DailyRun.run_key == run_key)
+        res_run = await session.execute(stmt_run)
+        daily_run = res_run.scalar_one_or_none()
+
+        if daily_run:
+            if daily_run.status == RunStatus.COMPLETED and not force:
+                logger.info(f"Daily run {run_key} has already completed successfully. Skipping to prevent duplicate digest.")
+                return daily_run
+            if daily_run.status == RunStatus.IN_PROGRESS and not force:
+                logger.warning(f"Daily run {run_key} is currently in progress. Skipping concurrent run.")
+                return daily_run
+            daily_run.status = RunStatus.IN_PROGRESS
+            daily_run.started_at = started_at
+        else:
+            daily_run = DailyRun(
+                run_date=date_str,
+                run_key=run_key,
+                status=RunStatus.IN_PROGRESS,
+                started_at=started_at,
+            )
+            session.add(daily_run)
+
+        await session.commit()
+        await session.refresh(daily_run)
+
+        # -------------------------------------------------------------
+        # Step 2: Load profile and active source config
+        # -------------------------------------------------------------
+        profile = await get_or_create_candidate_profile(session)
+        recipient_chat_id = target_chat_id or settings.TELEGRAM_OWNER_ID
+
+        metrics: Dict[str, Any] = {"sources": {}}
+        total_discovered = 0
+        total_new = 0
+        newly_saved_jobs: List[Job] = []
+
+        # -------------------------------------------------------------
+        # Step 3 & 4: Fetch enabled sources concurrently with isolation
+        # -------------------------------------------------------------
+        adapters = self.registry.list_adapters()
+        for adapter in adapters:
+            meta = adapter.source_metadata()
+            source_start = datetime.now(timezone.utc)
+            source_name = meta.name
+
+            # Ensure source record exists in DB
+            stmt_s = select(Source).where(Source.name == source_name)
+            res_s = await session.execute(stmt_s)
+            source_rec = res_s.scalar_one_or_none()
+            if not source_rec:
+                source_rec = Source(
+                    name=source_name,
+                    source_type=meta.source_type,
+                    base_url=meta.base_url,
+                    doc_url=meta.doc_url,
+                    is_enabled=True,
+                    attribution_text=meta.attribution_requirement,
+                )
+                session.add(source_rec)
+                await session.commit()
+                await session.refresh(source_rec)
+
+            if not source_rec.is_enabled:
+                logger.info(f"Source {source_name} is disabled. Skipping.")
+                continue
+
+            fetched_count = 0
+            new_count = 0
+            status_str = "SUCCESS"
+            error_str = None
+
+            try:
+                raw_jobs = await adapter.fetch_jobs()
+                fetched_count = len(raw_jobs)
+                total_discovered += fetched_count
+
+                for raw in raw_jobs:
+                    normalized: NormalizedJobData = adapter.normalize(raw)
+
+                    # Deduplication check
+                    existing, match_type = await DeduplicationEngine.find_existing_job(session, normalized)
+                    if existing:
+                        # Update last_seen_at
+                        existing.last_seen_at = datetime.now(timezone.utc)
+                        continue
+
+                    # Step 5: Gemini extraction for missing attributes if budget permits
+                    if (
+                        settings.GEMINI_EXTRACTION_ENABLED
+                        and (normalized.required_skills == [] or normalized.seniority == SeniorityLevel.UNKNOWN)
+                    ):
+                        try:
+                            ai_attrs = await self.gemini.extract_attributes(
+                                title=normalized.title,
+                                description=normalized.description_text,
+                                company=normalized.company,
+                            )
+                            if ai_attrs.seniority != SeniorityLevel.UNKNOWN:
+                                normalized.seniority = ai_attrs.seniority
+                            if ai_attrs.workplace_type != WorkplaceType.UNKNOWN:
+                                normalized.workplace_type = ai_attrs.workplace_type
+                            if ai_attrs.required_skills:
+                                normalized.required_skills = ai_attrs.required_skills
+                            if ai_attrs.required_experience_years is not None:
+                                normalized.required_experience_years = ai_attrs.required_experience_years
+                        except Exception as ai_exc:
+                            logger.warning(f"Gemini extraction skipped for {normalized.title}: {ai_exc}")
+
+                    # Step 6: Geographic Eligibility Classification
+                    eligibility, elig_reason = self.eligibility_engine.classify(
+                        raw_location=normalized.raw_location,
+                        workplace_type=normalized.workplace_type,
+                        remote_scope=normalized.remote_scope,
+                        eligible_countries=normalized.eligible_countries,
+                        excluded_countries=normalized.excluded_countries,
+                        description_text=normalized.description_text,
+                    )
+
+                    # Step 6: Deterministic 0-100 Scoring
+                    match_result = self.matching_engine.evaluate(
+                        job_title=normalized.title,
+                        job_description=normalized.description_text,
+                        job_skills=normalized.required_skills,
+                        seniority=normalized.seniority,
+                        employment_type=normalized.employment_type,
+                        eligibility=eligibility,
+                        published_at=normalized.published_at,
+                        required_experience_years=normalized.required_experience_years,
+                        profile=profile,
+                    )
+
+                    # Create and persist new Job record
+                    url_hash = compute_url_hash(normalized.original_application_url or normalized.source_url)
+                    job_record = Job(
+                        source_id=source_rec.id,
+                        source_name=source_name,
+                        source_job_id=normalized.source_job_id,
+                        source_url=normalized.source_url,
+                        canonical_url_hash=url_hash,
+                        original_application_url=normalized.original_application_url,
+                        company=normalized.company,
+                        title=normalized.title,
+                        description_text=normalized.description_text,
+                        description_html=normalized.description_html,
+                        raw_location=normalized.raw_location,
+                        country_codes=normalized.country_codes,
+                        workplace_type=normalized.workplace_type,
+                        remote_scope=normalized.remote_scope,
+                        eligible_countries=normalized.eligible_countries,
+                        excluded_countries=normalized.excluded_countries,
+                        seniority=normalized.seniority,
+                        employment_type=normalized.employment_type,
+                        salary_min=normalized.salary_min,
+                        salary_max=normalized.salary_max,
+                        salary_currency=normalized.salary_currency,
+                        salary_period=normalized.salary_period,
+                        required_skills=normalized.required_skills,
+                        preferred_skills=normalized.preferred_skills,
+                        required_experience_years=normalized.required_experience_years,
+                        published_at=normalized.published_at,
+                        first_seen_at=datetime.now(timezone.utc),
+                        last_seen_at=datetime.now(timezone.utc),
+                        is_active=True,
+                        eligibility=eligibility,
+                        eligibility_reason=elig_reason,
+                        match_score=match_result.score,
+                        match_band=match_result.band,
+                        score_breakdown=match_result.breakdown.model_dump(),
+                        match_reasons=match_result.reasons,
+                        skill_gaps=match_result.skill_gaps,
+                        match_confidence=match_result.confidence,
+                        raw_payload=normalized.raw_payload,
+                    )
+                    session.add(job_record)
+                    await session.flush()
+
+                    # Attach ApplicationTracker
+                    tracker = JobStatusTracker(job_id=job_record.id)
+                    session.add(tracker)
+
+                    new_count += 1
+                    total_new += 1
+                    newly_saved_jobs.append(job_record)
+
+            except Exception as exc:
+                status_str = "FAILED"
+                error_str = str(exc)
+                logger.error(f"Source {source_name} failed during daily run: {exc}")
+
+            # Record source sync log
+            duration = int((datetime.now(timezone.utc) - source_start).total_seconds())
+            source_rec.last_sync_at = datetime.now(timezone.utc)
+            source_rec.last_sync_status = status_str
+            source_rec.last_sync_error = error_str
+
+            sync_log = SourceSyncLog(
+                source_id=source_rec.id,
+                run_id=daily_run.id,
+                status=status_str,
+                jobs_fetched=fetched_count,
+                jobs_normalized=fetched_count,
+                jobs_new=new_count,
+                duration_seconds=duration,
+                error_message=error_str,
+            )
+            session.add(sync_log)
+            await session.commit()
+
+            metrics["sources"][source_name] = {
+                "status": status_str,
+                "fetched": fetched_count,
+                "new": new_count,
+                "duration_seconds": duration,
+            }
+
+        # -------------------------------------------------------------
+        # Step 8: Select jobs not previously notified and above threshold
+        # -------------------------------------------------------------
+        notified_count = 0
+        if recipient_chat_id and profile.digest_enabled:
+            # Query un-notified jobs
+            stmt_unnotified = (
+                select(Job)
+                .outerjoin(NotificationLog, Job.id == NotificationLog.job_id)
+                .where(
+                    Job.is_active == True,
+                    Job.match_score >= profile.digest_threshold,
+                    NotificationLog.id == None,
+                )
+                .order_by(Job.match_score.desc())
+            )
+            res_unnotified = await session.execute(stmt_unnotified)
+            eligible_for_digest = res_unnotified.scalars().all()
+
+            # Separate into 3 explicit categories:
+            # 1. Egypt-eligible / Worldwide remote
+            # 2. Regional remote (needs verification)
+            # 3. Relocation required
+            sec_egypt_worldwide: List[Job] = []
+            sec_regional: List[Job] = []
+            sec_relocation: List[Job] = []
+
+            for j in eligible_for_digest:
+                if j.eligibility in (GeographicEligibility.EGYPT_ELIGIBLE, GeographicEligibility.REMOTE_WORLDWIDE):
+                    sec_egypt_worldwide.append(j)
+                elif j.eligibility == GeographicEligibility.REMOTE_REGION_POSSIBLE:
+                    sec_regional.append(j)
+                elif j.eligibility == GeographicEligibility.RELOCATION_REQUIRED:
+                    sec_relocation.append(j)
+
+            total_digest_jobs = len(sec_egypt_worldwide) + len(sec_regional) + len(sec_relocation)
+
+            # Step 9: Send daily Telegram digest
+            if total_digest_jobs == 0:
+                # Send truthful zero-results report
+                zero_text = f"""📊 <b>تقرير النشرة اليومية / Daily Digest Summary ({date_str})</b>
+توقيت القاهرة: 09:00 Africa/Cairo
+
+📭 <b>لا توجد فرص عمل جديدة تطابق معايير ملفك الشخصي اليوم (الحد الأدنى: {profile.digest_threshold:.0f}/100).</b>
+
+🔍 <b>حالة المصادر اليوم / Source Health:</b>
+"""
+                for s_name, s_met in metrics["sources"].items():
+                    zero_text += f"• {s_name}: {s_met['status']} (تم فحص {s_met['fetched']} إعلان)\n"
+
+                zero_text += "\nسنقوم بالبحث مرة أخرى غداً في التاسعة صباحاً."
+                await self.telegram.send_message(chat_id=recipient_chat_id, text=zero_text)
+
+                n_log = NotificationLog(
+                    run_id=daily_run.id,
+                    notification_type=NotificationType.ZERO_RESULTS,
+                    telegram_chat_id=recipient_chat_id,
+                    status=NotificationStatus.SENT,
+                )
+                session.add(n_log)
+                await session.commit()
+            else:
+                # Send introduction header
+                intro_text = f"""🌅 <b>النشرة اليومية لفرص العمل / Daily Job Digest</b>
+📅 التاريخ: <b>{date_str}</b> | توقيت القاهرة: <b>09:00</b>
+🎯 الأولوية: <b>{escape(profile.priority_target)}</b>
+
+تم اكتشاف <b>{total_digest_jobs}</b> فرص مؤهلة وجديدة لملفك:
+"""
+                await self.telegram.send_message(chat_id=recipient_chat_id, text=intro_text)
+
+                # Function to send section cards
+                async def dispatch_section(title_banner: str, job_list: List[Job]):
+                    if not job_list:
+                        return
+                    await self.telegram.send_message(chat_id=recipient_chat_id, text=title_banner)
+                    for j in job_list:
+                        card = format_job_card(j)
+                        markup = build_job_inline_keyboard(j)
+                        msg_res = await self.telegram.send_message(
+                            chat_id=recipient_chat_id,
+                            text=card,
+                            reply_markup=markup,
+                        )
+                        msg_id = msg_res.get("result", {}).get("message_id")
+
+                        # Step 10: Persist NotificationLog
+                        n_log = NotificationLog(
+                            run_id=daily_run.id,
+                            job_id=j.id,
+                            notification_type=NotificationType.DAILY_DIGEST,
+                            telegram_chat_id=recipient_chat_id,
+                            telegram_message_id=msg_id,
+                            status=NotificationStatus.SENT,
+                        )
+                        session.add(n_log)
+                        await session.commit()
+
+                # Dispatch Category 1
+                if sec_egypt_worldwide:
+                    await dispatch_section(
+                        f"🇪🇬 <b>الفرص المؤهلة لمصر والعمل عن بُعد عالمياً ({len(sec_egypt_worldwide)}):</b>",
+                        sec_egypt_worldwide,
+                    )
+
+                # Dispatch Category 2
+                if sec_regional:
+                    await dispatch_section(
+                        f"⚠️ <b>فرص العمل عن بُعد الإقليمية (تحتاج التحقق من قبول المتقدمين من مصر) ({len(sec_regional)}):</b>",
+                        sec_regional,
+                    )
+
+                # Dispatch Category 3
+                if sec_relocation:
+                    await dispatch_section(
+                        f"✈️ <b>فرص عمل تتطلب الانتقال خارج مصر (غير مفترضة مسبقاً) ({len(sec_relocation)}):</b>",
+                        sec_relocation,
+                    )
+
+                notified_count = total_digest_jobs
+
+        # -------------------------------------------------------------
+        # Step 11: Record run metrics, counts, and completion
+        # -------------------------------------------------------------
+        daily_run.status = RunStatus.COMPLETED
+        daily_run.completed_at = datetime.now(timezone.utc)
+        daily_run.jobs_discovered = total_discovered
+        daily_run.jobs_new = total_new
+        daily_run.jobs_notified = notified_count
+        daily_run.metrics = metrics
+
+        await session.commit()
+        await session.refresh(daily_run)
+        logger.info(f"Daily run {run_key} completed successfully: discovered={total_discovered}, new={total_new}, notified={notified_count}")
+        return daily_run
