@@ -106,6 +106,7 @@ class DailyPipelineRunner:
         metrics: Dict[str, Any] = {"sources": {}}
         total_discovered = 0
         total_new = 0
+        gemini_requests_count = 0
         newly_saved_jobs: List[Job] = []
 
         # -------------------------------------------------------------
@@ -159,11 +160,18 @@ class DailyPipelineRunner:
                         continue
 
                     # Step 5: Gemini extraction for missing attributes if budget permits
+                    is_candidate_target = any(
+                        term.lower() in normalized.title.lower()
+                        for term in (profile.target_role_terms + profile.target_technology_terms)
+                    )
                     if (
                         settings.GEMINI_EXTRACTION_ENABLED
+                        and gemini_requests_count < settings.GEMINI_MAX_REQUESTS_PER_RUN
+                        and is_candidate_target
                         and (normalized.required_skills == [] or normalized.seniority == SeniorityLevel.UNKNOWN)
                     ):
                         try:
+                            gemini_requests_count += 1
                             ai_attrs = await self.gemini.extract_attributes(
                                 title=normalized.title,
                                 description=normalized.description_text,
