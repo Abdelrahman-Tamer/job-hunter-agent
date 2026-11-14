@@ -647,6 +647,8 @@ export class ProfileComponent implements OnInit {
         github_url: this.githubUrl,
         confirmed_skills: this.confirmedSkills(),
         target_skills: this.targetSkills(),
+        projects: this.projects(),
+        experiences: this.experiences(),
       })
       .subscribe({
         next: () => {

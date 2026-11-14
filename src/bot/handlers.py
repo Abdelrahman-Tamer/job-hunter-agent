@@ -178,6 +178,9 @@ Welcome, {escape(profile.priority_target)} candidate.
 
     async def _cmd_profile(self, chat_id: int, session: AsyncSession) -> None:
         profile = await get_or_create_candidate_profile(session)
+        if not profile.confirmed_skills or not profile.full_name:
+            profile = await apply_verified_cv_to_profile(session)
+
         name_str = f"<b>{escape(profile.full_name)}</b>\n" if profile.full_name else ""
         confirmed_str = ", ".join(profile.confirmed_skills) if profile.confirmed_skills else "لا توجد بعد (Empty until verified from CV)"
         target_str = ", ".join(profile.target_skills) if profile.target_skills else "None"

@@ -178,6 +178,7 @@ async def apply_verified_cv_to_profile(session: AsyncSession) -> CandidateProfil
     profile.languages = ["Arabic (Native)", "English (Professional Working)"]
     profile.soft_skills = ["Problem Solving", "Communication", "Teamwork", "Time Management", "Attention to Detail", "Fast Learning"]
     profile.linkedin_url = "https://www.linkedin.com/in/abd-el-rahman-emam"
+    profile.github_url = "https://github.com/Abdelrahman-Tamer"
     await session.commit()
     await session.refresh(profile)
     return profile

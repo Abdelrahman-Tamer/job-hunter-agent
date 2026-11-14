@@ -12,14 +12,26 @@ from fastapi.staticfiles import StaticFiles
 from src.api.routes import health, jobs, profile, runs, sources, tracker
 from src.bot.bot_service import TelegramBotService
 from src.core.config import settings
+from src.core.database import async_session_factory
 from src.core.logging import logger
 from src.scheduler.cron import JobSchedulerService
+from src.services.profile_service import apply_verified_cv_to_profile, get_or_create_candidate_profile
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifecycle: initialize scheduler and background Telegram polling."""
     logger.info("Initializing Job Hunter Agent backend services...")
+
+    # Ensure database is primed with verified CV facts if empty
+    try:
+        async with async_session_factory() as session:
+            p = await get_or_create_candidate_profile(session)
+            if not p.confirmed_skills or not p.full_name:
+                await apply_verified_cv_to_profile(session)
+                logger.info("Primed database with verified candidate profile (Abdelrahman Emam).")
+    except Exception as exc:
+        logger.warning(f"Failed to auto-prime profile on startup: {exc}")
 
     # Start APScheduler (09:00 Africa/Cairo)
     scheduler_service = JobSchedulerService()
