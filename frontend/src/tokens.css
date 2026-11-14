@@ -11,9 +11,11 @@
      ========================================================================= */
   --color-bg-canvas: #090c13;
   --color-bg-surface: #111520;
+  --color-bg-surface-glass: rgba(17, 21, 32, 0.82);
   --color-bg-surface-elevated: #171d2b;
+  --color-bg-surface-elevated-glass: rgba(23, 29, 43, 0.88);
   --color-bg-surface-muted: #131824;
-  --color-bg-glass: rgba(17, 21, 32, 0.94);
+  --color-bg-glass: rgba(17, 21, 32, 0.85);
 
   /* Primary Brand Action (Cobalt / Sapphire) */
   --color-brand-primary: #2563eb;
@@ -30,37 +32,40 @@
   --color-text-inverse: #090c13;
 
   /* Borders & Dividers */
-  --color-border-subtle: rgba(255, 255, 255, 0.07);
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
   --color-border-default: rgba(255, 255, 255, 0.12);
   --color-border-hover: rgba(255, 255, 255, 0.22);
   --color-border-focus: #3b82f6;
 
   /* Semantic Feedback */
   --color-success: #10b981;
-  --color-success-bg: rgba(16, 185, 129, 0.1);
+  --color-success-bg: rgba(16, 185, 129, 0.12);
   --color-success-text: #34d399;
-  --color-success-border: rgba(16, 185, 129, 0.25);
+  --color-success-border: rgba(16, 185, 129, 0.28);
 
   --color-warning: #f59e0b;
-  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-warning-bg: rgba(245, 158, 11, 0.12);
   --color-warning-text: #fbbf24;
-  --color-warning-border: rgba(245, 158, 11, 0.25);
+  --color-warning-border: rgba(245, 158, 11, 0.28);
 
   --color-error: #ef4444;
-  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-error-bg: rgba(239, 68, 68, 0.12);
   --color-error-text: #f87171;
-  --color-error-border: rgba(239, 68, 68, 0.25);
+  --color-error-border: rgba(239, 68, 68, 0.28);
 
   --color-info: #0ea5e9;
-  --color-info-bg: rgba(14, 165, 233, 0.1);
+  --color-info-bg: rgba(14, 165, 233, 0.12);
   --color-info-text: #38bdf8;
-  --color-info-border: rgba(14, 165, 233, 0.25);
+  --color-info-border: rgba(14, 165, 233, 0.28);
 
   /* Shadows */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  --selection-bg: rgba(37, 99, 235, 0.45);
+  --selection-color: #ffffff;
 }
 
 [data-theme="light"] {
@@ -69,9 +74,11 @@
      ========================================================================= */
   --color-bg-canvas: #f8fafc;
   --color-bg-surface: #ffffff;
+  --color-bg-surface-glass: rgba(255, 255, 255, 0.88);
   --color-bg-surface-elevated: #f1f5f9;
+  --color-bg-surface-elevated-glass: rgba(241, 245, 249, 0.92);
   --color-bg-surface-muted: #f8fafc;
-  --color-bg-glass: rgba(255, 255, 255, 0.94);
+  --color-bg-glass: rgba(255, 255, 255, 0.88);
 
   /* Primary Brand Action (Cobalt / Sapphire) */
   --color-brand-primary: #2563eb;
@@ -88,9 +95,9 @@
   --color-text-inverse: #ffffff;
 
   /* Borders & Dividers */
-  --color-border-subtle: rgba(0, 0, 0, 0.06);
-  --color-border-default: rgba(0, 0, 0, 0.1);
-  --color-border-hover: rgba(0, 0, 0, 0.18);
+  --color-border-subtle: rgba(0, 0, 0, 0.07);
+  --color-border-default: rgba(0, 0, 0, 0.11);
+  --color-border-hover: rgba(0, 0, 0, 0.2);
   --color-border-focus: #2563eb;
 
   /* Semantic Feedback */
@@ -116,9 +123,12 @@
 
   /* Shadows */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.1);
+
+  --selection-bg: rgba(37, 99, 235, 0.2);
+  --selection-color: #0f172a;
 }
 
 :root {
@@ -162,10 +172,11 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-pill: 9999px;
+  --radius-full: 9999px;
 
   /* =========================================================================
      Motion Tokens
      ========================================================================= */
-  --motion-fast: 0.12s cubic-bezier(0.16, 1, 0.3, 1);
-  --motion-base: 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-fast: 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-base: 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }

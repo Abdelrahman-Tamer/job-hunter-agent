@@ -156,7 +156,9 @@ interface StatusTab {
       padding: 6px 14px;
       border-radius: var(--radius-pill);
       border: 1px solid var(--color-border-subtle);
-      background: var(--color-bg-surface);
+      background: var(--color-bg-surface-elevated-glass);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       color: var(--color-text-secondary);
       font-size: var(--text-xs);
       font-weight: 600;
@@ -167,18 +169,21 @@ interface StatusTab {
     .tab-btn:hover {
       color: var(--color-text-primary);
       border-color: var(--color-border-hover);
+      background: var(--color-bg-surface-muted);
     }
     .tab-btn.active {
       color: #ffffff;
       background: var(--color-brand-primary);
       border-color: transparent;
+      box-shadow: 0 1px 6px rgba(37, 99, 235, 0.35);
     }
     .tab-count {
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.18);
       padding: 1px 6px;
       border-radius: var(--radius-pill);
       font-size: var(--text-2xs);
       font-family: var(--font-mono);
+      font-weight: 700;
     }
 
     /* Items Grid */
@@ -188,7 +193,9 @@ interface StatusTab {
       gap: var(--space-3);
     }
     .tracked-card {
-      background-color: var(--color-bg-surface);
+      background-color: var(--color-bg-surface-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border: 1px solid var(--color-border-default);
       border-radius: var(--radius-lg);
       padding: var(--space-4);
@@ -197,6 +204,12 @@ interface StatusTab {
       align-items: center;
       gap: var(--space-4);
       box-shadow: var(--shadow-xs);
+      transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+    }
+    .tracked-card:hover {
+      border-color: var(--color-border-hover);
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
     }
     .item-main {
       display: flex;

@@ -8,14 +8,18 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ThemeService } from '../../services/theme.service';
 
-interface Particle {
+interface Dot {
+  originX: number;
+  originY: number;
   x: number;
   y: number;
   vx: number;
   vy: number;
   baseRadius: number;
-  alpha: number;
+  highlight: number; // 0 to 1 for glow & scale on hover
+  phase: number;
 }
 
 @Component({
@@ -44,20 +48,31 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvas') canvasRef!: ElementRef<HTMLCanvasElement>;
 
   private readonly ngZone = inject(NgZone);
+  private readonly theme = inject(ThemeService);
 
   private ctx: CanvasRenderingContext2D | null = null;
   private animFrameId: number | null = null;
-  private particles: Particle[] = [];
+  private dots: Dot[] = [];
   private width = 0;
   private height = 0;
+  private dpr = 1;
+
+  // Pointer tracking
   private mouseX = -9999;
   private mouseY = -9999;
+  private targetMouseX = -9999;
+  private targetMouseY = -9999;
+  private isPointerInside = false;
+
   private isTabVisible = true;
   private prefersReducedMotion = false;
+  private time = 0;
 
   private readonly boundResize = () => this.resize();
-  private readonly boundMouseMove = (e: MouseEvent) => this.onMouseMove(e);
-  private readonly boundMouseLeave = () => this.onMouseLeave();
+  private readonly boundPointerMove = (e: PointerEvent) => this.onPointerMove(e);
+  private readonly boundPointerLeave = () => this.onPointerLeave();
+  private readonly boundTouchMove = (e: TouchEvent) => this.onTouchMove(e);
+  private readonly boundTouchEnd = () => this.onPointerLeave();
   private readonly boundVisibility = () => this.onVisibilityChange();
 
   ngAfterViewInit(): void {
@@ -71,19 +86,21 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
     this.ctx = canvas.getContext('2d', { alpha: true });
 
     this.resize();
-    this.initParticles();
 
-    // Run outside Angular change detection zone for 60fps performance
+    // Run animation and pointer listeners outside Angular change detection zone
     this.ngZone.runOutsideAngular(() => {
       window.addEventListener('resize', this.boundResize, { passive: true });
-      window.addEventListener('mousemove', this.boundMouseMove, { passive: true });
-      window.addEventListener('mouseleave', this.boundMouseLeave, { passive: true });
+      window.addEventListener('pointermove', this.boundPointerMove, { passive: true });
+      window.addEventListener('pointerleave', this.boundPointerLeave, { passive: true });
+      window.addEventListener('touchmove', this.boundTouchMove, { passive: true });
+      window.addEventListener('touchend', this.boundTouchEnd, { passive: true });
+      window.addEventListener('touchcancel', this.boundTouchEnd, { passive: true });
       document.addEventListener('visibilitychange', this.boundVisibility);
 
       if (!this.prefersReducedMotion) {
         this.loop();
       } else {
-        this.renderStaticFrame();
+        this.drawStaticGrid();
       }
     });
   }
@@ -96,8 +113,11 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
 
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.boundResize);
-      window.removeEventListener('mousemove', this.boundMouseMove);
-      window.removeEventListener('mouseleave', this.boundMouseLeave);
+      window.removeEventListener('pointermove', this.boundPointerMove);
+      window.removeEventListener('pointerleave', this.boundPointerLeave);
+      window.removeEventListener('touchmove', this.boundTouchMove);
+      window.removeEventListener('touchend', this.boundTouchEnd);
+      window.removeEventListener('touchcancel', this.boundTouchEnd);
       document.removeEventListener('visibilitychange', this.boundVisibility);
     }
   }
@@ -105,48 +125,71 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
   private resize(): void {
     if (!this.canvasRef) return;
     const canvas = this.canvasRef.nativeElement;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     this.width = window.innerWidth;
     this.height = window.innerHeight;
 
-    canvas.width = Math.floor(this.width * dpr);
-    canvas.height = Math.floor(this.height * dpr);
+    canvas.width = Math.floor(this.width * this.dpr);
+    canvas.height = Math.floor(this.height * this.dpr);
 
     if (this.ctx) {
-      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     }
 
-    if (this.particles.length === 0) {
-      this.initParticles();
-    }
+    this.initDotGrid();
   }
 
-  private initParticles(): void {
+  private initDotGrid(): void {
     const isMobile = this.width < 768;
-    const count = isMobile ? 24 : Math.min(54, Math.floor((this.width * this.height) / 25000));
-    this.particles = [];
+    // Spacing: 32px on wide desktop, 26px on mobile
+    const gap = isMobile ? 26 : 32;
+    const cols = Math.ceil(this.width / gap) + 1;
+    const rows = Math.ceil(this.height / gap) + 1;
 
-    for (let i = 0; i < count; i++) {
-      this.particles.push({
-        x: Math.random() * this.width,
-        y: Math.random() * this.height,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
-        baseRadius: 1.2 + Math.random() * 1.4,
-        alpha: 0.18 + Math.random() * 0.32,
-      });
+    const offsetX = (this.width - (cols - 1) * gap) / 2;
+    const offsetY = (this.height - (rows - 1) * gap) / 2;
+
+    this.dots = [];
+    const baseRadius = isMobile ? 1.15 : 1.35;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const ox = offsetX + c * gap;
+        const oy = offsetY + r * gap;
+        this.dots.push({
+          originX: ox,
+          originY: oy,
+          x: ox,
+          y: oy,
+          vx: 0,
+          vy: 0,
+          baseRadius,
+          highlight: 0,
+          phase: (ox * 0.015 + oy * 0.02) % (Math.PI * 2),
+        });
+      }
     }
   }
 
-  private onMouseMove(e: MouseEvent): void {
-    this.mouseX = e.clientX;
-    this.mouseY = e.clientY;
+  private onPointerMove(e: PointerEvent): void {
+    this.targetMouseX = e.clientX;
+    this.targetMouseY = e.clientY;
+    this.isPointerInside = true;
   }
 
-  private onMouseLeave(): void {
-    this.mouseX = -9999;
-    this.mouseY = -9999;
+  private onTouchMove(e: TouchEvent): void {
+    if (e.touches && e.touches.length > 0) {
+      this.targetMouseX = e.touches[0].clientX;
+      this.targetMouseY = e.touches[0].clientY;
+      this.isPointerInside = true;
+    }
+  }
+
+  private onPointerLeave(): void {
+    this.isPointerInside = false;
+    this.targetMouseX = -9999;
+    this.targetMouseY = -9999;
   }
 
   private onVisibilityChange(): void {
@@ -165,12 +208,72 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.time += 1;
+    this.updatePhysics();
     this.drawFrame();
+
     this.animFrameId = requestAnimationFrame(() => this.loop());
   }
 
-  private renderStaticFrame(): void {
-    this.drawFrame();
+  private updatePhysics(): void {
+    // Smooth mouse interpolation for liquid feel
+    if (this.isPointerInside) {
+      this.mouseX += (this.targetMouseX - this.mouseX) * 0.25;
+      this.mouseY += (this.targetMouseY - this.mouseY) * 0.25;
+    } else {
+      this.mouseX = -9999;
+      this.mouseY = -9999;
+    }
+
+    const isMobile = this.width < 768;
+    const repulsionRadius = isMobile ? 95 : 135;
+    const repulsionRadiusSq = repulsionRadius * repulsionRadius;
+    const maxRepulsionForce = isMobile ? 4.2 : 6.0;
+
+    // Physics parameters for organic spring
+    const springK = 0.042;
+    const damping = 0.86;
+
+    for (let i = 0; i < this.dots.length; i++) {
+      const dot = this.dots[i];
+
+      // 1. Subtle idle harmonic breath so it stays alive
+      const idleWaveY = Math.sin(this.time * 0.02 + dot.phase) * 0.5;
+      const targetOriginY = dot.originY + idleWaveY;
+
+      // 2. Mouse Repulsion Force
+      if (this.isPointerInside) {
+        const dx = dot.x - this.mouseX;
+        const dy = dot.y - this.mouseY;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq < repulsionRadiusSq && distSq > 0.01) {
+          const dist = Math.sqrt(distSq);
+          // Inverse non-linear falloff
+          const factor = Math.pow(1 - dist / repulsionRadius, 1.6);
+          const force = factor * maxRepulsionForce;
+
+          dot.vx += (dx / dist) * force;
+          dot.vy += (dy / dist) * force;
+
+          // Boost highlight
+          dot.highlight = Math.max(dot.highlight, factor);
+        }
+      }
+
+      // 3. Hooke's Law Spring Return to Origin
+      const ax = (dot.originX - dot.x) * springK;
+      const ay = (targetOriginY - dot.y) * springK;
+
+      dot.vx = (dot.vx + ax) * damping;
+      dot.vy = (dot.vy + ay) * damping;
+
+      dot.x += dot.vx;
+      dot.y += dot.vy;
+
+      // Decay highlight smoothly
+      dot.highlight *= 0.91;
+    }
   }
 
   private drawFrame(): void {
@@ -179,58 +282,59 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
 
     ctx.clearRect(0, 0, this.width, this.height);
 
-    const maxDist = 130;
-    const mouseRadius = 140;
+    const isDark = this.theme.isDark();
 
-    // 1. Update and draw particles
-    for (let i = 0; i < this.particles.length; i++) {
-      const p = this.particles[i];
+    // Palette values based on current theme
+    // Dark: slate-500 base dots, electric cyan-blue on hover
+    // Light: slate-400 base dots, cobalt-blue on hover
+    const baseR = isDark ? 148 : 100;
+    const baseG = isDark ? 163 : 116;
+    const baseB = isDark ? 184 : 139;
+    const baseAlpha = isDark ? 0.17 : 0.15;
 
-      if (!this.prefersReducedMotion) {
-        p.x += p.vx;
-        p.y += p.vy;
+    const activeR = isDark ? 96 : 37;
+    const activeG = isDark ? 165 : 99;
+    const activeB = isDark ? 250 : 235;
 
-        // Wrap around bounds softly
-        if (p.x < -10) p.x = this.width + 10;
-        else if (p.x > this.width + 10) p.x = -10;
-        if (p.y < -10) p.y = this.height + 10;
-        else if (p.y > this.height + 10) p.y = -10;
+    for (let i = 0; i < this.dots.length; i++) {
+      const dot = this.dots[i];
+      const h = dot.highlight;
 
-        // Gentle interactive mouse deflection
-        const dx = p.x - this.mouseX;
-        const dy = p.y - this.mouseY;
-        const distToMouse = Math.sqrt(dx * dx + dy * dy);
+      // Interpolate radius: slightly expands when near mouse
+      const r = dot.baseRadius + h * 1.1;
 
-        if (distToMouse < mouseRadius && distToMouse > 0) {
-          const force = (1 - distToMouse / mouseRadius) * 0.8;
-          p.x += (dx / distToMouse) * force;
-          p.y += (dy / distToMouse) * force;
-        }
+      // Interpolate color and alpha
+      let color: string;
+      if (h > 0.02) {
+        const curR = Math.round(baseR + (activeR - baseR) * h);
+        const curG = Math.round(baseG + (activeG - baseG) * h);
+        const curB = Math.round(baseB + (activeB - baseB) * h);
+        const alpha = Math.min(baseAlpha + h * (isDark ? 0.65 : 0.6), 0.85);
+        color = `rgba(${curR}, ${curG}, ${curB}, ${alpha})`;
+      } else {
+        color = `rgba(${baseR}, ${baseG}, ${baseB}, ${baseAlpha})`;
       }
 
-      // Draw particle dot with subtle glowing tint
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.baseRadius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(56, 189, 248, ${p.alpha})`;
+      ctx.arc(dot.x, dot.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
       ctx.fill();
+    }
+  }
 
-      // Draw constellation connections to nearby nodes
-      for (let j = i + 1; j < this.particles.length; j++) {
-        const p2 = this.particles[j];
-        const cdx = p.x - p2.x;
-        const cdy = p.y - p2.y;
-        const dist = Math.sqrt(cdx * cdx + cdy * cdy);
+  private drawStaticGrid(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
 
-        if (dist < maxDist) {
-          const lineAlpha = (1 - dist / maxDist) * 0.14;
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.strokeStyle = `rgba(56, 189, 248, ${lineAlpha})`;
-          ctx.lineWidth = 0.8;
-          ctx.stroke();
-        }
-      }
+    ctx.clearRect(0, 0, this.width, this.height);
+    const isDark = this.theme.isDark();
+    ctx.fillStyle = isDark ? 'rgba(148, 163, 184, 0.17)' : 'rgba(100, 116, 139, 0.15)';
+
+    for (let i = 0; i < this.dots.length; i++) {
+      const dot = this.dots[i];
+      ctx.beginPath();
+      ctx.arc(dot.originX, dot.originY, dot.baseRadius, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }

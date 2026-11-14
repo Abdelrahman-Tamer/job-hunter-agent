@@ -256,6 +256,9 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
 
     /* Filters Panel */
     .filters-panel {
+      background-color: var(--color-bg-surface-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       padding: var(--space-4);
       display: flex;
       flex-direction: column;
@@ -277,16 +280,8 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       color: var(--color-text-muted);
       pointer-events: none;
     }
-    html[dir="rtl"] .search-icon {
-      left: auto;
-      right: 12px;
-    }
     .search-input {
       padding-left: 36px;
-    }
-    html[dir="rtl"] .search-input {
-      padding-left: 12px;
-      padding-right: 36px;
     }
     .search-btn {
       flex-shrink: 0;
@@ -304,18 +299,22 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       gap: var(--space-3-5);
     }
     .job-card {
-      background-color: var(--color-bg-surface);
+      background-color: var(--color-bg-surface-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border: 1px solid var(--color-border-default);
       border-radius: var(--radius-lg);
       padding: var(--space-4);
       display: flex;
       flex-direction: column;
-      gap: var(--space-2-5);
+      gap: var(--space-3);
       box-shadow: var(--shadow-xs);
-      transition: border-color var(--motion-fast);
+      transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
     }
     .job-card:hover {
       border-color: var(--color-border-hover);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
     }
     .job-card.excellent {
       border-color: rgba(16, 185, 129, 0.35);

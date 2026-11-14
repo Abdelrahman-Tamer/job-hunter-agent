@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { TelegramService } from './core/services/telegram.service';
 import { ThemeService } from './core/services/theme.service';
 import { IconComponent, IconName } from './core/components/icon/icon.component';
+import { AntigravityCanvasComponent } from './core/components/antigravity-canvas/antigravity-canvas.component';
 
 interface NavItem {
   path: string;
@@ -20,6 +21,7 @@ interface NavItem {
     RouterLink,
     RouterLinkActive,
     IconComponent,
+    AntigravityCanvasComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',

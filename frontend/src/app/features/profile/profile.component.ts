@@ -366,7 +366,9 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       border: 1px solid var(--color-border-subtle);
       border-radius: var(--radius-md);
       padding: var(--space-3-5);
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-surface-elevated-glass);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       margin-bottom: var(--space-4);
     }
     .skills-header {
@@ -452,18 +454,20 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     /* Dropzone */
     .dropzone {
       border: 2px dashed var(--color-border-default);
-      border-radius: var(--radius-md);
+      border-radius: var(--radius-lg);
       padding: var(--space-6) var(--space-4);
       text-align: center;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: var(--space-2-5);
-      background-color: var(--color-bg-surface-elevated);
-      transition: border-color var(--motion-fast);
+      background-color: var(--color-bg-surface-elevated-glass);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: border-color var(--motion-fast), background-color var(--motion-fast);
       cursor: pointer;
     }
-    .dropzone.dragover {
+    .dropzone:hover, .dropzone.dragover {
       border-color: var(--color-brand-accent);
       background-color: var(--color-brand-subtle);
     }

@@ -191,7 +191,9 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
 
     /* Executive Header */
     .action-header {
-      background-color: var(--color-bg-surface);
+      background-color: var(--color-bg-surface-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--color-border-default);
       border-radius: var(--radius-lg);
       padding: var(--space-5);
@@ -199,7 +201,11 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       justify-content: space-between;
       align-items: center;
       gap: var(--space-4);
-      box-shadow: var(--shadow-xs);
+      box-shadow: var(--shadow-sm);
+      transition: border-color var(--motion-fast);
+    }
+    .action-header:hover {
+      border-color: var(--color-border-hover);
     }
     .header-main {
       display: flex;
@@ -234,7 +240,9 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       width: 100%;
     }
     .metric-card {
-      background-color: var(--color-bg-surface);
+      background-color: var(--color-bg-surface-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--color-border-default);
       border-radius: var(--radius-lg);
       padding: var(--space-3-5, 14px) var(--space-4);
@@ -242,12 +250,18 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       align-items: center;
       gap: var(--space-3);
       box-shadow: var(--shadow-xs);
+      transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+    }
+    .metric-card:hover {
+      border-color: var(--color-border-hover);
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
     }
     .metric-icon-box {
       width: 38px;
       height: 38px;
       border-radius: var(--radius-md);
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-surface-elevated-glass);
       border: 1px solid var(--color-border-subtle);
       display: flex;
       align-items: center;
@@ -344,17 +358,21 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       gap: var(--space-3);
     }
     .job-item-card {
-      background-color: var(--color-bg-surface-elevated);
+      background-color: var(--color-bg-surface-elevated-glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-3-5);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
       display: flex;
       flex-direction: column;
-      gap: var(--space-2);
-      transition: border-color var(--motion-fast);
+      gap: var(--space-2-5);
+      transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
     }
     .job-item-card:hover {
       border-color: var(--color-border-hover);
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
     }
     .job-item-header {
       display: flex;
