@@ -62,7 +62,7 @@ class TelegramBotDispatcher:
             return
 
         parts = text.split(maxsplit=1)
-        command = parts[0].lower()
+        command = parts[0].lower().split("@")[0]
         args = parts[1] if len(parts) > 1 else ""
 
         if command == "/start":
@@ -83,9 +83,9 @@ class TelegramBotDispatcher:
             await self._cmd_toggle_digest(chat_id, enabled=False, session=session)
         elif command == "/resume":
             await self._cmd_toggle_digest(chat_id, enabled=True, session=session)
-        elif command in ("/wipe", "/reset"):
+        elif command in ("/wipe", "/reset", "/clear"):
             await self._cmd_wipe(chat_id, session)
-        elif command in ("/run", "/crawl"):
+        elif command in ("/run", "/crawl", "/trigger"):
             await self._cmd_trigger_run(chat_id, session)
         elif command == "/help":
             await self._cmd_help(chat_id)
@@ -331,21 +331,22 @@ All legacy jobs have been deleted.
             )
 
     async def _cmd_help(self, chat_id: int) -> None:
-        help_text = """📖 <b>أوامر Job Hunter Agent المتاحة:</b>
+        help_text = """📖 <b>BottaJobs Commands & Controls:</b>
 
-/today - استعراض أبرز الفرص المتطابقة اليوم
-/run - تشغيل الفحص والبحث الفوري الآن
-/wipe - مسح جميع الوظائف السابقة للبدء ببيانات نظيفة
-/search [كلمة] - البحث في الوظائف النشطة
-/profile - عرض وتفاصيل الملف الشخصي للمرشح
-/settings - إعدادات النشرة ومواعيد الإرسال
-/saved - عرض الوظائف المحفوظة
-/applied - عرض الوظائف التي قمت بالتقديم عليها
-/pause - إيقاف النشرة اليومية مؤقتاً
-/resume - استئناف النشرة اليومية
-/help - عرض هذه المساعدة
+• <b>/today</b> — View top matched jobs for today (Score ≥ 60%)
+• <b>/run</b> — Trigger immediate scraping & matching cycle
+• <b>/profile</b> — View candidate profile & verified CV skills
+• <b>/search &lt;query&gt;</b> — Search active jobs (e.g. <code>/search Angular</code>)
+• <b>/saved</b> — View your bookmarked / saved jobs
+• <b>/applied</b> — View your job application pipeline status
+• <b>/settings</b> — View search targets, location, & rules
+• <b>/wipe</b> — Wipe legacy jobs & reload verified CV profile
+• <b>/pause</b> — Pause daily morning digest (09:00 AM Cairo)
+• <b>/resume</b> — Resume daily morning digest
+• <b>/help</b> — Show this command manual
 
-🔒 <i>ملاحظة: البوت لا يقوم بالتقديم التلقائي نيابة عنك لحماية خصوصيتك وضمان جودة التقديم.</i>
+🔒 <i>Security Note: BottaJobs never auto-applies on your behalf to protect candidate authenticity and profile safety.</i>
+💡 <i>Tip: Tap the <code>/</code> button to view quick commands.</i>
 """
         await self.client.send_message(chat_id=chat_id, text=help_text)
 
