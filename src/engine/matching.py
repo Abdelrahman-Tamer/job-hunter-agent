@@ -95,33 +95,33 @@ class MatchingEngine:
         role_score = 0.0
         if not is_software_or_tech:
             role_score = 0.0
-            gaps.append("المسمى الوظيفي: وظيفة غير برمجية تماماً وخارج مجال هندسة البرمجيات (-20 نقطة)")
+            gaps.append("Role title: Non-software role outside the technical engineering domain (-20 pts)")
         elif "angular" in title_lower:
             role_score = 20.0
             reasons.append("Exact target match: Title explicitly mentions Angular.")
         elif any(f in title_lower for f in ["frontend", "front-end", "front end", "ui engineer", "web developer"]):
             role_score = 18.0
             reasons.append("Primary domain match: Frontend / Web Development role.")
-            gaps.append("المسمى الوظيفي: عام (Frontend/Web) وليس مخصصاً لـ Angular حصراً (-2 نقطة)")
+            gaps.append("Role title: General web/frontend focus, not exclusively Angular (-2 pts)")
         elif any(f in title_lower for f in ["fullstack", "full stack", "full-stack"]):
             role_score = 16.0
-            reasons.append("مجال الويب والواجهات: دور Full-Stack يغطي تطوير الويب.")
-            gaps.append("المسمى الوظيفي: Full-Stack ويشمل متطلبات باك إند بجانب الواجهات (-4 نقاط)")
+            reasons.append("Web engineering: Full-stack role covering modern frontend.")
+            gaps.append("Role title: Full-stack role with backend scope alongside frontend (-4 pts)")
         elif any(r.lower() in title_lower for r in profile.target_role_terms):
             role_score = 15.0
             reasons.append("Approved target role family match (Software Engineering).")
-            gaps.append(f"المسمى الوظيفي: ({job_title}) يركز على هندسة البرمجيات العامة (-5 نقاط)")
+            gaps.append(f"Role title: ({job_title}) targets general software engineering (-5 pts)")
         elif "angular" in desc_lower:
             role_score = 14.0
             reasons.append("Angular mentioned prominently in role description.")
-            gaps.append("المسمى الوظيفي: لا يذكر Angular في العنوان وإنما داخل الوصف (-6 نقاط)")
+            gaps.append("Role title: Angular is not in the job title (mentioned in description) (-6 pts)")
         elif any(f in desc_lower for f in ["frontend", "javascript", "typescript"]):
             role_score = 10.0
             reasons.append("Frontend technologies required in job description.")
-            gaps.append("المسمى الوظيفي: دور تقني غير مخصص لواجهات Angular (-10 نقاط)")
+            gaps.append("Role title: Technical role not dedicated to Angular frontend (-10 pts)")
         else:
             role_score = 5.0
-            gaps.append("Role title is tangential to Frontend/Angular target (-15 نقطة)")
+            gaps.append("Role title: Tangential to Frontend/Angular target (-15 pts)")
 
         # -------------------------------------------------------------
         # 2. Confirmed Skills / Tech overlap (max 25)
@@ -169,7 +169,7 @@ class MatchingEngine:
                 missing_display = ", ".join(missing_sorted[:5])
                 deduction = 25.0 - skills_score
                 if deduction > 0.0:
-                    gaps.append(f"مهارات مطلوبة تنقصك بالـ CV: {missing_display}{' وغيرها' if len(missing_sorted) > 5 else ''} (-{deduction:.1f} نقطة)")
+                    gaps.append(f"Missing required skills from CV: {missing_display}{' and others' if len(missing_sorted) > 5 else ''} (-{deduction:.1f} pts)")
 
         # Note target skill alignment transparently without awarding confirmed skill points
         target_set = {s.lower().strip() for s in (profile.target_skills or [])}
@@ -189,17 +189,17 @@ class MatchingEngine:
         if is_student_only and not is_graduate_friendly:
             is_student_conflict = True
             exp_score = 4.0
-            gaps.append("Job appears restricted to currently-enrolled students; candidate is already a graduate (-16 نقطة)")
+            gaps.append("Job appears restricted to currently-enrolled students; candidate is already a graduate (-16 pts)")
         elif seniority in (SeniorityLevel.GRADUATE, SeniorityLevel.ENTRY, SeniorityLevel.JUNIOR, SeniorityLevel.INTERNSHIP):
             exp_score = 18.0
             reasons.append(f"Seniority ({seniority.value}) matches entry/graduate profile.")
         elif seniority in (SeniorityLevel.ASSOCIATE, SeniorityLevel.MID):
             exp_score = 14.0
             reasons.append(f"Mid/Associate seniority ({seniority.value}); feasible with demonstrated project proficiency.")
-            gaps.append(f"المستوى المطلوب متوسط ({seniority.value}) بينما ملفك مسجل كـ Junior (-6 نقاط)")
+            gaps.append(f"Seniority requested is mid-level ({seniority.value}) vs. junior/entry candidate profile (-6 pts)")
         elif seniority in (SeniorityLevel.SENIOR, SeniorityLevel.LEAD, SeniorityLevel.STAFF, SeniorityLevel.PRINCIPAL, SeniorityLevel.MANAGER):
             exp_score = 6.0
-            gaps.append(f"مستوى الخبرة المطلوب ({seniority.value}) يشترط خبرة صناعية عميقة (-14 نقطة)")
+            gaps.append(f"Seniority requested ({seniority.value}) requires advanced production experience (-14 pts)")
         else:
             # Seniority UNKNOWN
             exp_score = 12.0
@@ -211,7 +211,7 @@ class MatchingEngine:
                 reasons.append(f"Experience requirement ({required_experience_years:.0f}y) is accessible.")
             elif required_experience_years > 2.0:
                 exp_score = min(exp_score, 8.0)
-                gaps.append(f"سنوات الخبرة المطلوبة ({required_experience_years:.0f}+ سنوات) تفوق سنة واحدة (-12 نقطة)")
+                gaps.append(f"Experience required ({required_experience_years:.0f}+ years) exceeds 1-2 years (-12 pts)")
 
         # -------------------------------------------------------------
         # 4. Work Eligibility & Location (max 20)
@@ -224,23 +224,23 @@ class MatchingEngine:
         elif eligibility == GeographicEligibility.REMOTE_WORLDWIDE:
             elig_score = 19.0
             reasons.append("Worldwide remote: Applicants in Egypt permitted.")
-            gaps.append("عمل ريموت عالمي: يتطلب التنسيق مع مناطق زمنية دولية (-1 نقطة)")
+            gaps.append("Worldwide remote: May require international timezone alignment (-1 pt)")
         elif eligibility == GeographicEligibility.REMOTE_REGION_POSSIBLE:
             elig_score = 12.0
             reasons.append("Regional remote (EMEA/MENA): Egypt hiring likely but requires verification.")
             confidence_factors.append(0.7)
-            gaps.append("نطاق العمل عن بُعد إقليمي: يتطلب التحقق من إمكانية التوظيف في مصر (-8 نقاط)")
+            gaps.append("Regional remote: Requires employer confirmation for Egypt hiring (-8 pts)")
         elif eligibility == GeographicEligibility.RELOCATION_REQUIRED:
             elig_score = 0.0
             reasons.append("Relocation required to destination country; relocation willingness not assumed.")
-            gaps.append("وظيفة مكتبية خارج مصر وتتطلب الانتقال للدولة الأخرى (-20 نقطة)")
+            gaps.append("On-site outside Egypt: Requires physical relocation (-20 pts)")
         elif eligibility == GeographicEligibility.NOT_ELIGIBLE:
             elig_score = 0.0
-            gaps.append("Hard filter: Candidate is not geographically eligible (-20 نقطة)")
+            gaps.append("Hard filter: Candidate is not geographically eligible (-20 pts)")
         else:
             elig_score = 10.0
             confidence_factors.append(0.5)
-            gaps.append("Geographic eligibility is unconfirmed/unknown (-10 نقاط)")
+            gaps.append("Geographic eligibility is unconfirmed/unknown (-10 pts)")
 
         # -------------------------------------------------------------
         # 5. Employment-Type Fit (max 10)
@@ -252,10 +252,10 @@ class MatchingEngine:
             reasons.append("Full-time employment opportunity.")
         elif employment_type in (EmploymentType.CONTRACT, EmploymentType.INTERNSHIP):
             emp_score = 8.0
-            gaps.append(f"نوع التعاقد: {employment_type.value} وليس دواماً كاملاً دائماً (-2 نقطة)")
+            gaps.append(f"Contract type: {employment_type.value} rather than permanent full-time (-2 pts)")
         elif employment_type == EmploymentType.PART_TIME:
             emp_score = 6.0
-            gaps.append("نوع التعاقد: دوام جزئي وليس دواماً كاملاً (-4 نقاط)")
+            gaps.append("Contract type: Part-time rather than full-time (-4 pts)")
 
         # -------------------------------------------------------------
         # 6. Freshness & Source Evidence Quality (max 5)
@@ -270,16 +270,16 @@ class MatchingEngine:
                 reasons.append("Recently published listing (≤ 3 days ago).")
             elif age_days <= 7:
                 fresh_score = 4.0
-                gaps.append(f"تاريخ النشر: نُشرت منذ {age_days} أيام (الدرجة الكاملة لأول 3 أيام فقط) (-1 نقطة)")
+                gaps.append(f"Posting age: Published {age_days} days ago (full score for ≤ 3 days) (-1 pt)")
             elif age_days <= 14:
                 fresh_score = 3.0
-                gaps.append(f"تاريخ النشر: نُشرت منذ {age_days} يوماً (-2 نقطة)")
+                gaps.append(f"Posting age: Published {age_days} days ago (-2 pts)")
             elif age_days <= 30:
                 fresh_score = 2.0
-                gaps.append(f"تاريخ النشر: نُشرت منذ {age_days} يوماً (-3 نقاط)")
+                gaps.append(f"Posting age: Published {age_days} days ago (-3 pts)")
             else:
                 fresh_score = 1.0
-                gaps.append(f"تاريخ النشر: إعلان قديم نُشر منذ {age_days} يوماً (-4 نقاط)")
+                gaps.append(f"Posting age: Older posting ({age_days} days ago) (-4 pts)")
         else:
             fresh_score = 3.0
             confidence_factors.append(0.8)
