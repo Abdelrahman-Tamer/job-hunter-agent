@@ -284,14 +284,17 @@ Welcome, {escape(profile.priority_target)} candidate.
         # Ensure verified profile is active
         profile = await apply_verified_cv_to_profile(session)
 
+        sample_skills = ", ".join(profile.confirmed_skills[:5]) + ("..." if len(profile.confirmed_skills) > 5 else "")
+        exp_text = f"{profile.experience_years} سنة" if profile.experience_years is not None else "غير محدد"
+
         msg = f"""🧹 <b>تم مسح جميع الوظائف السابقة بنجاح!</b>
 All legacy jobs have been deleted.
 
 👤 <b>الملف المعتمد للبحث الآن:</b>
-• المرشح: {escape(profile.full_name or 'Abdelrahman Emam')}
-• التخصص: {escape(profile.priority_target)}
-• المهارات المؤكدة: {len(profile.confirmed_skills)} مهارة (Angular, TypeScript, RxJS, REST APIs, ...)
-• الخبرة الموثقة: {profile.experience_years} سنة
+• المرشح: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
+• التخصص: <b>{escape(profile.priority_target)}</b>
+• المهارات المؤكدة: <b>{len(profile.confirmed_skills)} مهارة</b> ({escape(sample_skills)})
+• الخبرة الموثقة: <b>{exp_text}</b>
 
 🚀 لبدء فحص المصادر والبحث عن الوظائف المتطابقة مع الـ CV فوراً، أرسل:
 /run"""
@@ -299,17 +302,19 @@ All legacy jobs have been deleted.
 
     async def _cmd_trigger_run(self, chat_id: int, session: AsyncSession) -> None:
         """Trigger an on-demand discovery and matching run."""
+        profile = await get_or_create_candidate_profile(session)
         await self.client.send_message(
             chat_id=chat_id,
             text="⏳ <b>جاري فحص المصادر واكتشاف الوظائف ومطابقتها مع ملفك...</b>\nRunning discovery pipeline. Please wait 15-30 seconds...",
         )
         from src.scheduler.runner import DailyPipelineRunner
         runner = DailyPipelineRunner()
-        run_record = await runner.execute_daily_run(session, force=True)
+        run_record = await runner.execute_daily_run(session, force=True, target_chat_id=chat_id)
 
+        min_score = min(60.0, profile.digest_threshold)
         stmt = (
             select(Job)
-            .where(Job.is_active == True, Job.match_score >= 70.0)
+            .where(Job.is_active == True, Job.match_score >= min_score)
             .order_by(Job.match_score.desc())
             .limit(5)
         )
