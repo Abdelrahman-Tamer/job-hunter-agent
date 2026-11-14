@@ -21,12 +21,8 @@ interface StatusTab {
       <!-- Header -->
       <header class="tracker-header">
         <div>
-          <div class="pipeline-tag">
-            <span class="pipeline-pulse"></span>
-            <span>Personal ATS Pipeline</span>
-          </div>
-          <h1>Application Pipeline</h1>
-          <p class="subtitle">Track and organize your active job applications stage by stage</p>
+          <h1>Application Tracker</h1>
+          <p class="subtitle">Monitor and organize your job applications across every stage</p>
         </div>
       </header>
 
@@ -66,8 +62,7 @@ interface StatusTab {
                   <span class="company-name">{{ item.company }}</span>
                 </div>
                 <span class="match-score">
-                  <app-icon name="sparkles" [size]="12"></app-icon>
-                  {{ item.match_score }}%
+                  {{ roundScore(item.match_score) }}% match
                 </span>
               </div>
 
@@ -76,7 +71,7 @@ interface StatusTab {
               <div class="meta-bottom-row">
                 <span class="status-stage-pill" [attr.data-status]="item.status">
                   <span class="stage-dot"></span>
-                  {{ item.status }}
+                  {{ formatStatus(item.status) }}
                 </span>
                 <span class="date-text" *ngIf="item.applied_at">
                   <app-icon name="calendar" [size]="12"></app-icon>
@@ -110,9 +105,9 @@ interface StatusTab {
                 target="_blank"
                 rel="noopener noreferrer"
                 (click)="onOpenLink($event, item.original_application_url)"
-                class="btn btn-secondary btn-sm"
+                class="btn btn-primary btn-sm"
               >
-                <span>View Link</span>
+                <span>View Role</span>
                 <app-icon name="external-link" [size]="12"></app-icon>
               </a>
             </div>
@@ -127,26 +122,6 @@ interface StatusTab {
       flex-direction: column;
       gap: var(--space-4);
       width: 100%;
-    }
-
-    .pipeline-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: var(--text-2xs);
-      font-family: var(--font-mono);
-      font-weight: 600;
-      color: var(--color-brand-accent);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 3px;
-    }
-    .pipeline-pulse {
-      width: 6px;
-      height: 6px;
-      border-radius: var(--radius-full);
-      background-color: var(--color-brand-accent);
-      box-shadow: 0 0 8px var(--color-brand-accent);
     }
 
     .tracker-header h1 {
@@ -418,6 +393,24 @@ export class TrackerComponent implements OnInit {
     if (this.telegram.isTelegram()) {
       event.preventDefault();
       this.telegram.openLink(url);
+    }
+  }
+
+  roundScore(score: number): number {
+    return Math.round(score);
+  }
+
+  formatStatus(status: string): string {
+    switch (status) {
+      case 'DISCOVERED': return 'Discovered';
+      case 'SAVED': return 'Saved';
+      case 'INTERESTED': return 'Interested';
+      case 'APPLIED': return 'Applied';
+      case 'INTERVIEW': return 'Interview';
+      case 'OFFER': return 'Offer';
+      case 'REJECTED': return 'Rejected';
+      case 'ARCHIVED': return 'Archived';
+      default: return status;
     }
   }
 }

@@ -18,7 +18,7 @@ interface Dot {
   vx: number;
   vy: number;
   baseRadius: number;
-  highlight: number; // 0 to 1 for glow & scale on hover
+  highlight: number;
   phase: number;
 }
 
@@ -57,7 +57,7 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
   private height = 0;
   private dpr = 1;
 
-  // Pointer tracking
+  // Smooth pointer interpolation
   private mouseX = -9999;
   private mouseY = -9999;
   private targetMouseX = -9999;
@@ -87,7 +87,7 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
 
     this.resize();
 
-    // Run animation and pointer listeners outside Angular change detection zone
+    // Run outside Angular change detection zone for 60fps performance
     this.ngZone.runOutsideAngular(() => {
       window.addEventListener('resize', this.boundResize, { passive: true });
       window.addEventListener('pointermove', this.boundPointerMove, { passive: true });
@@ -142,8 +142,7 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
 
   private initDotGrid(): void {
     const isMobile = this.width < 768;
-    // Spacing: 32px on wide desktop, 26px on mobile
-    const gap = isMobile ? 26 : 32;
+    const gap = isMobile ? 28 : 34;
     const cols = Math.ceil(this.width / gap) + 1;
     const rows = Math.ceil(this.height / gap) + 1;
 
@@ -151,7 +150,7 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
     const offsetY = (this.height - (rows - 1) * gap) / 2;
 
     this.dots = [];
-    const baseRadius = isMobile ? 1.15 : 1.35;
+    const baseRadius = isMobile ? 1.05 : 1.25;
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -166,7 +165,7 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
           vy: 0,
           baseRadius,
           highlight: 0,
-          phase: (ox * 0.015 + oy * 0.02) % (Math.PI * 2),
+          phase: (ox * 0.012 + oy * 0.018) % (Math.PI * 2),
         });
       }
     }
@@ -216,32 +215,32 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   private updatePhysics(): void {
-    // Smooth mouse interpolation for liquid feel
+    // Ultra-smooth exponential pointer interpolation
     if (this.isPointerInside) {
-      this.mouseX += (this.targetMouseX - this.mouseX) * 0.25;
-      this.mouseY += (this.targetMouseY - this.mouseY) * 0.25;
+      this.mouseX += (this.targetMouseX - this.mouseX) * 0.18;
+      this.mouseY += (this.targetMouseY - this.mouseY) * 0.18;
     } else {
       this.mouseX = -9999;
       this.mouseY = -9999;
     }
 
     const isMobile = this.width < 768;
-    const repulsionRadius = isMobile ? 95 : 135;
+    const repulsionRadius = isMobile ? 100 : 130;
     const repulsionRadiusSq = repulsionRadius * repulsionRadius;
-    const maxRepulsionForce = isMobile ? 4.2 : 6.0;
+    const maxRepulsionForce = isMobile ? 3.5 : 4.8;
 
-    // Physics parameters for organic spring
-    const springK = 0.042;
-    const damping = 0.86;
+    // Fluid spring parameters
+    const springK = 0.038;
+    const damping = 0.88;
 
     for (let i = 0; i < this.dots.length; i++) {
       const dot = this.dots[i];
 
-      // 1. Subtle idle harmonic breath so it stays alive
-      const idleWaveY = Math.sin(this.time * 0.02 + dot.phase) * 0.5;
+      // Subtle resting harmonic oscillation
+      const idleWaveY = Math.sin(this.time * 0.015 + dot.phase) * 0.35;
       const targetOriginY = dot.originY + idleWaveY;
 
-      // 2. Mouse Repulsion Force
+      // Mouse repulsion
       if (this.isPointerInside) {
         const dx = dot.x - this.mouseX;
         const dy = dot.y - this.mouseY;
@@ -249,19 +248,17 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
 
         if (distSq < repulsionRadiusSq && distSq > 0.01) {
           const dist = Math.sqrt(distSq);
-          // Inverse non-linear falloff
-          const factor = Math.pow(1 - dist / repulsionRadius, 1.6);
+          const factor = Math.pow(1 - dist / repulsionRadius, 1.8);
           const force = factor * maxRepulsionForce;
 
           dot.vx += (dx / dist) * force;
           dot.vy += (dy / dist) * force;
 
-          // Boost highlight
           dot.highlight = Math.max(dot.highlight, factor);
         }
       }
 
-      // 3. Hooke's Law Spring Return to Origin
+      // Hooke's Law Spring return
       const ax = (dot.originX - dot.x) * springK;
       const ay = (targetOriginY - dot.y) * springK;
 
@@ -271,8 +268,7 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
       dot.x += dot.vx;
       dot.y += dot.vy;
 
-      // Decay highlight smoothly
-      dot.highlight *= 0.91;
+      dot.highlight *= 0.92;
     }
   }
 
@@ -284,13 +280,11 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
 
     const isDark = this.theme.isDark();
 
-    // Palette values based on current theme
-    // Dark: slate-500 base dots, electric cyan-blue on hover
-    // Light: slate-400 base dots, cobalt-blue on hover
+    // Quiet, elegant dot palette
     const baseR = isDark ? 148 : 100;
     const baseG = isDark ? 163 : 116;
     const baseB = isDark ? 184 : 139;
-    const baseAlpha = isDark ? 0.17 : 0.15;
+    const baseAlpha = isDark ? 0.14 : 0.12;
 
     const activeR = isDark ? 96 : 37;
     const activeG = isDark ? 165 : 99;
@@ -300,16 +294,14 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
       const dot = this.dots[i];
       const h = dot.highlight;
 
-      // Interpolate radius: slightly expands when near mouse
-      const r = dot.baseRadius + h * 1.1;
+      const r = dot.baseRadius + h * 0.9;
 
-      // Interpolate color and alpha
       let color: string;
       if (h > 0.02) {
         const curR = Math.round(baseR + (activeR - baseR) * h);
         const curG = Math.round(baseG + (activeG - baseG) * h);
         const curB = Math.round(baseB + (activeB - baseB) * h);
-        const alpha = Math.min(baseAlpha + h * (isDark ? 0.65 : 0.6), 0.85);
+        const alpha = Math.min(baseAlpha + h * (isDark ? 0.5 : 0.45), 0.75);
         color = `rgba(${curR}, ${curG}, ${curB}, ${alpha})`;
       } else {
         color = `rgba(${baseR}, ${baseG}, ${baseB}, ${baseAlpha})`;
@@ -328,7 +320,7 @@ export class AntigravityCanvasComponent implements AfterViewInit, OnDestroy {
 
     ctx.clearRect(0, 0, this.width, this.height);
     const isDark = this.theme.isDark();
-    ctx.fillStyle = isDark ? 'rgba(148, 163, 184, 0.17)' : 'rgba(100, 116, 139, 0.15)';
+    ctx.fillStyle = isDark ? 'rgba(148, 163, 184, 0.14)' : 'rgba(100, 116, 139, 0.12)';
 
     for (let i = 0; i < this.dots.length; i++) {
       const dot = this.dots[i];

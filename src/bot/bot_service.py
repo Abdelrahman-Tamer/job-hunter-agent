@@ -33,19 +33,19 @@ class TelegramBotService:
         self.is_running = True
         logger.info("Starting Telegram Bot long-polling service...")
 
-        # Register official Telegram bot command menu
+        # Register official Telegram bot command menu in English
         try:
             await self.client.set_my_commands([
-                {"command": "start", "description": "🎛️ لوحة التحكم الرئيسية | Control Center"},
-                {"command": "today", "description": "📋 أفضل فرص متطابقة مع الـ CV اليوم"},
-                {"command": "run", "description": "🚀 فحص فوري للمصادر العالمية والمحلية"},
-                {"command": "filters", "description": "🔍 تصفية سريعة (Angular / Junior / Remote)"},
-                {"command": "search", "description": "🔎 بحث مخصص في الوظائف المتاحة"},
-                {"command": "profile", "description": "👤 استعراض مهاراتك والـ CV المعتمد"},
-                {"command": "saved", "description": "⭐ الوظائف المحفوظة في قائمتك المفضلة"},
-                {"command": "applied", "description": "📝 سجل التقديمات والمتابعة"},
-                {"command": "settings", "description": "⚙️ إعدادات النشرة اليومية والتنبيهات"},
-                {"command": "help", "description": "📖 دليل استخدام البوت والأوامر"},
+                {"command": "start", "description": "🎛️ Launch interactive control center"},
+                {"command": "today", "description": "📋 Top verified job matches today"},
+                {"command": "run", "description": "🚀 Run live multi-source discovery scan"},
+                {"command": "filters", "description": "🔍 Smart presets (Angular, Remote, Junior)"},
+                {"command": "search", "description": "🔎 Search opportunities by keyword or stack"},
+                {"command": "profile", "description": "👤 View verified skills & CV credentials"},
+                {"command": "saved", "description": "⭐ Bookmarked opportunities"},
+                {"command": "applied", "description": "📝 Tracked application pipeline"},
+                {"command": "settings", "description": "⚙️ Configure daily digest & alerts"},
+                {"command": "help", "description": "📖 User guide and command manual"},
             ])
             logger.info("Registered Telegram command menu successfully.")
         except Exception as exc:

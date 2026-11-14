@@ -1,9 +1,10 @@
-"""Telegram command and callback query dispatcher with strict owner allow-list."""
+"""Telegram Bot Dispatcher with crisp, executive English UX and zero-lag responsiveness."""
 
+import asyncio
 from datetime import datetime, timezone
 import html
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, delete, or_, and_
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.formatters import (
@@ -11,112 +12,110 @@ from src.bot.formatters import (
     build_main_menu_keyboard,
     build_persistent_reply_keyboard,
     build_quick_filters_keyboard,
+    chunk_message,
     escape,
     format_job_card,
     format_match_breakdown,
+    make_progress_bar,
 )
 from src.bot.telegram_client import TelegramClient
 from src.core.config import settings
 from src.core.logging import logger
 from src.engine.gemini_extractor import GeminiJobExtractor
-from src.models import (
+from src.models.enums import (
     ApplicationStatus,
-    CandidateProfile,
     GeographicEligibility,
-    Job,
-    JobStatusTracker,
-    MatchBand,
-    NotificationLog,
     SeniorityLevel,
     WorkplaceType,
 )
-from src.services.profile_service import apply_verified_cv_to_profile, get_or_create_candidate_profile
+from src.models.job import Job
+from src.models.notification import NotificationLog
+from src.models.tracker import JobStatusTracker
+from src.services.profile_service import (
+    apply_verified_cv_to_profile,
+    get_or_create_candidate_profile,
+)
 
 
 class TelegramBotDispatcher:
-    """Dispatches Telegram commands and callbacks with strict single-user authorization."""
+    """Dispatches incoming Telegram updates to specialized handlers with executive English UX."""
 
     def __init__(self, telegram_client: Optional[TelegramClient] = None):
         self.client = telegram_client or TelegramClient()
         self.owner_id = settings.TELEGRAM_OWNER_ID
         self.gemini = GeminiJobExtractor()
 
-    def is_authorized(self, user_id: int) -> bool:
-        """Verify user matches numeric owner ID allow-list."""
-        if self.owner_id is None:
-            # If owner ID is not set yet, reject by default to avoid leaking data
-            return False
+    def is_authorized(self, user_id: Optional[int]) -> bool:
+        """Enforce strict allowlist check if TELEGRAM_OWNER_ID is configured."""
+        if not self.owner_id or self.owner_id == 0:
+            return True
         return user_id == self.owner_id
 
     async def handle_update(self, update: Dict[str, Any], session: AsyncSession) -> None:
-        """Route incoming Telegram update."""
+        """Route incoming message or callback query."""
         if "message" in update:
             await self._handle_message(update["message"], session)
         elif "callback_query" in update:
             await self._handle_callback(update["callback_query"], session)
 
     async def _handle_message(self, message: Dict[str, Any], session: AsyncSession) -> None:
-        user = message.get("from", {})
-        user_id = user.get("id")
+        user_id = message.get("from", {}).get("id")
         chat_id = message.get("chat", {}).get("id")
         text = (message.get("text") or "").strip()
 
-        if not user_id or not chat_id:
+        if not chat_id or not text:
             return
 
-        # Security: Enforce numeric allow-list
+        # Security allowlist
         if not self.is_authorized(user_id):
             logger.warning(f"Unauthorized Telegram access attempt from user_id={user_id}")
             await self.client.send_message(
                 chat_id=chat_id,
-                text="⛔ <b>عفواً، هذا البوت خاص بمرشح محدد فقط.</b>\nAccess Denied: Private candidate bot.",
+                text="⛔ <b>Access Denied: Private Candidate Bot.</b>\nThis bot is private and locked to its authorized candidate owner.",
             )
             return
-
-        parts = text.split(maxsplit=1)
-        command = parts[0].lower().split("@")[0]
-        args = parts[1] if len(parts) > 1 else ""
 
         clean_text = text.strip()
         clean_lower = clean_text.lower()
 
-        # Handle Conversational Greetings
-        greetings = ("السلام عليكم", "مرحبا", "أهلا", "اهلا", "صباح الخير", "مساء الخير", "ازيك", "hello", "hi", "hey")
+        # Handle Conversational Greetings (English + Arabic fallbacks)
+        greetings = ("hello", "hi", "hey", "welcome", "good morning", "good evening", "howdy", "start",
+                     "السلام عليكم", "مرحبا", "أهلا", "اهلا", "صباح الخير", "مساء الخير", "ازيك")
         if any(clean_lower == g or clean_lower.startswith(g + " ") for g in greetings):
             profile = await get_or_create_candidate_profile(session)
-            welcome_msg = f"""👋 <b>أهلاً بك يا {escape(profile.full_name or 'Abdelrahman')}!</b>
-أنا مساعدك الذكي المخصص لاقتناص أفضل فرص <b>Angular & Frontend Engineering</b> العالمية والمحلية 🇪🇬.
+            welcome_msg = f"""👋 <b>Welcome, {escape(profile.full_name or 'Abdelrahman')}!</b>
+I am your AI agent specialized in high-fit <b>Angular & Frontend Engineering</b> opportunities across Egypt 🇪🇬 and Worldwide Remote.
 
-💡 يمكنك اختيار إجراء سريع من الأزرار الثابتة بالأسفل، أو كتابة اسم أي تقنية للبحث عنها فوراً:"""
+💡 <i>Tap any quick action on the bottom keyboard, or type any tech keyword to search instantly:</i>"""
             markup = build_main_menu_keyboard()
             reply_kb = build_persistent_reply_keyboard()
             await self.client.send_message(chat_id=chat_id, text=welcome_msg, reply_markup=reply_kb)
-            await self.client.send_message(chat_id=chat_id, text="🎛️ <b>لوحة التحكم الرئيسية:</b>", reply_markup=markup)
+            await self.client.send_message(chat_id=chat_id, text="🎛️ <b>BottaJobs Control Center:</b>", reply_markup=markup)
             return
 
-        # Handle Persistent Bottom Keyboard Actions
-        if clean_text in ("🚀 فحص الوظائف الآن", "🚀 Run Scan Now", "فحص الوظائف", "فحص فوري", "run"):
+        # Handle Persistent Bottom Keyboard Actions (English primary + Arabic fallbacks)
+        if clean_text in ("🚀 Run Scan", "🚀 Run Scan Now", "Run Scan", "run", "🚀 فحص الوظائف الآن", "فحص الوظائف", "فحص فوري"):
             await self._cmd_trigger_run(chat_id, session)
             return
-        elif clean_text in ("📋 أفضل وظائف اليوم", "📋 Today Jobs", "وظائف اليوم", "فرص اليوم", "today"):
+        elif clean_text in ("📋 Today's Jobs", "Today's Jobs", "Today Jobs", "today", "📋 أفضل وظائف اليوم", "وظائف اليوم", "فرص اليوم"):
             await self._cmd_today(chat_id, session)
             return
-        elif clean_text in ("👤 ملفي والـ CV", "👤 My Profile", "ملفي الشخصي", "البروفايل", "profile", "سيرتي الذاتية"):
+        elif clean_text in ("👤 My Profile / CV", "My Profile", "Profile", "profile", "👤 ملفي والـ CV", "ملفي الشخصي", "البروفايل"):
             await self._cmd_profile(chat_id, session)
             return
-        elif clean_text in ("⭐ وظائفي المحفوظة", "⭐ Saved Jobs", "المحفوظات", "saved"):
+        elif clean_text in ("⭐ Saved Jobs", "Saved Jobs", "Saved", "saved", "⭐ وظائفي المحفوظة", "المحفوظات"):
             await self._cmd_saved(chat_id, session)
             return
-        elif clean_text in ("📝 سجل التقديمات", "📝 Applied Pipeline", "التقديمات", "سجل التقديمات", "applied"):
+        elif clean_text in ("📝 Applied Pipeline", "Applied Pipeline", "Applied", "applied", "📝 سجل التقديمات", "التقديمات"):
             await self._cmd_applied(chat_id, session)
             return
-        elif clean_text in ("🔍 فلاتر وتصنيفات", "🔍 فلاتر سريعة", "🔍 Quick Filters", "فلاتر", "filters"):
+        elif clean_text in ("🔍 Smart Filters", "Filters", "filters", "🔍 فلاتر وتصنيفات", "🔍 فلاتر سريعة"):
             await self._cmd_quick_filters(chat_id)
             return
-        elif clean_text in ("🌐 لوحة التحكم (Mini App)", "🌐 لوحة التحكم المباشرة", "لوحة التحكم", "dashboard", "الموقع"):
+        elif clean_text in ("🌐 Web Dashboard", "Dashboard", "dashboard", "🌐 لوحة التحكم (Mini App)", "الموقع"):
             await self._cmd_open_dashboard(chat_id)
             return
-        elif clean_text in ("📖 المساعدة والدليل", "📖 Help & Guide", "المساعدة", "دليل الاستخدام", "help"):
+        elif clean_text in ("📖 Help & Guide", "Help", "help", "📖 المساعدة والدليل", "المساعدة"):
             await self._cmd_help(chat_id)
             return
 
@@ -153,12 +152,12 @@ class TelegramBotDispatcher:
         elif command == "/help":
             await self._cmd_help(chat_id)
         elif not command.startswith("/"):
-            # Natural language query fallback (e.g. typing "Angular" or "Remote")
+            # Natural language keyword query (e.g. user sends "Angular" or "Remote")
             await self._cmd_search(chat_id, text, session)
         else:
             await self.client.send_message(
                 chat_id=chat_id,
-                text="❓ <b>أمر غير معروف.</b>\nأرسل /help لعرض قائمة الأوامر أو اضغط على الأزرار السريعة أسفل الشاشة.",
+                text="❓ <b>Unknown command.</b>\nSend /help to view all available commands or tap the quick buttons below.",
             )
 
     async def _cmd_start(self, chat_id: int, session: AsyncSession) -> None:
@@ -167,35 +166,35 @@ class TelegramBotDispatcher:
             profile = await apply_verified_cv_to_profile(session)
 
         skills_count = len(profile.confirmed_skills or [])
-        welcome = f"""👋 <b>مرحباً بك في BottaJobs Control Center!</b>
-Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
+        welcome = f"""👋 <b>Welcome to BottaJobs Control Center!</b>
+Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
 
-🤖 مساعدك الذكي الشخصي المخصص لاقتناص أفضل فرص <b>Angular & Frontend Engineering</b> العالمية والمحلية المتوافقة مع سيرتك الذاتية 🇪🇬.
+🤖 Personal AI job agent specialized in high-fit <b>Angular & Frontend Engineering</b> roles across Egypt 🇪🇬 and Worldwide Remote.
 
-🎯 <b>الملف المعتمد حالياً:</b>
-• المرشح: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
-• التخصص: <b>{escape(profile.priority_target)}</b>
-• المهارات المؤكدة: <b>{skills_count} مهارة موثقة بالكامل</b>
-• موعد النشرة اليومية: <b>{profile.digest_time} بتوقيت القاهرة (Africa/Cairo)</b>
-• الحالة: <b>{'نشرة نشطة وتعمل يومياً ✅' if profile.digest_enabled else 'متوقفة مؤقتاً ⏸️'}</b>
+🎯 <b>Current Target Criteria:</b>
+• Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
+• Priority Target: <b>{escape(profile.priority_target)}</b>
+• Verified Skills: <b>{skills_count} authenticated skills</b>
+• Daily Digest: <b>{profile.digest_time} (Africa/Cairo)</b>
+• Status: <b>{'Active & Running Daily ✅' if profile.digest_enabled else 'Paused ⏸️'}</b>
 
-👇 <i>استخدم الأزرار الثابتة بالأسفل أو اختر إجراءً تفاعلياً من لوحة التحكم أدناه:</i>
+👇 <i>Use the persistent keyboard below or choose from the interactive control center:</i>
 """
         reply_kb = build_persistent_reply_keyboard()
         await self.client.send_message(chat_id=chat_id, text=welcome, reply_markup=reply_kb)
         markup = build_main_menu_keyboard()
-        await self.client.send_message(chat_id=chat_id, text="🎛️ <b>لوحة التحكم الرئيسية:</b>", reply_markup=markup)
+        await self.client.send_message(chat_id=chat_id, text="🎛️ <b>BottaJobs Control Center:</b>", reply_markup=markup)
 
     async def _cmd_menu(self, chat_id: int, session: AsyncSession) -> None:
         """Display interactive inline control center."""
         profile = await get_or_create_candidate_profile(session)
         text = f"""🎛️ <b>BottaJobs Interactive Control Center</b>
 ═════════════════════════════
-👤 <b>المرشح:</b> {escape(profile.full_name or 'Abdelrahman Emam')}
-🎯 <b>الهدف:</b> {escape(profile.priority_target)}
-🛠️ <b>المهارات المؤكدة:</b> {len(profile.confirmed_skills or [])} مهارة
+👤 <b>Candidate:</b> {escape(profile.full_name or 'Abdelrahman Emam')}
+🎯 <b>Focus:</b> {escape(profile.priority_target)}
+🛠️ <b>Verified Skills:</b> {len(profile.confirmed_skills or [])} authenticated
 
-<i>اضغط على أي زر تفاعلي للتحكم المباشر أو فتح التطبيق:</i>"""
+<i>Tap any interactive button below:</i>"""
         markup = build_main_menu_keyboard()
         await self.client.send_message(chat_id=chat_id, text=text, reply_markup=markup)
 
@@ -204,7 +203,7 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
             "inline_keyboard": [
                 [
                     {
-                        "text": "🌐 فتح لوحة التحكم المباشرة (Angular App)",
+                        "text": "🌐 Launch Web App Dashboard",
                         "web_app": {"url": "https://job-hunter-agent-bottajobs.onrender.com"},
                     }
                 ]
@@ -212,7 +211,7 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         }
         await self.client.send_message(
             chat_id=chat_id,
-            text="🚀 <b>لوحة تحكم BottaJobs المباشرة (Web App):</b>\nاضغط على الزر أدناه لفتح لوحة التحكم والتعديل على سيرتك الذاتية ومتابعة الوظائف مباشرة داخل تيليجرام.",
+            text="🚀 <b>BottaJobs Web App Dashboard:</b>\nTap below to open the interactive dashboard directly within Telegram to inspect analytics, review jobs, and manage your CV.",
             reply_markup=markup,
         )
 
@@ -220,7 +219,7 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         markup = build_quick_filters_keyboard()
         await self.client.send_message(
             chat_id=chat_id,
-            text="🔍 <b>اختر تصنيفاً سريعاً لتصفية الوظائف المتاحة:</b>\nSelect a quick filter to display matching opportunities:",
+            text="🔍 <b>Select a Smart Preset Filter:</b>\nChoose a category to browse curated matching opportunities:",
             reply_markup=markup,
         )
 
@@ -243,24 +242,24 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
             empty_today_markup = {
                 "inline_keyboard": [
                     [
-                        {"text": "🚀 تشغيل فحص فوري للمصادر", "callback_data": "menu:run"},
-                        {"text": "🔍 تصفية وفلاتر سريعة", "callback_data": "menu:filters"},
+                        {"text": "🚀 Run Live Scan Now", "callback_data": "menu:run"},
+                        {"text": "🔍 Browse Smart Filters", "callback_data": "menu:filters"},
                     ],
                     [
-                        {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                     ]
                 ]
             }
             await self.client.send_message(
                 chat_id=chat_id,
-                text="📭 <b>لا توجد وظائف جديدة متطابقة مسجلة حالياً.</b>\nيمكنك تشغيل فحص فوري للمصادر لجلب أحدث الوظائف فوراً، أو انتظار النشرة اليومية في 09:00 ص بتوقيت القاهرة.",
+                text="📭 <b>No active matches above threshold (≥ 60%) recorded right now.</b>\nYou can trigger an immediate scan across all job sources or browse preset filters:",
                 reply_markup=empty_today_markup,
             )
             return
 
         await self.client.send_message(
             chat_id=chat_id,
-            text=f"📋 <b>أبرز {len(jobs)} فرص مطابقة لملفك الشخصي اليوم:</b>\n<i>مرتبة تنازلياً حسب أعلى نسبة توافق مع مهاراتك وسيرتك الذاتية 🎯</i>",
+            text=f"📋 <b>Top {len(jobs)} Opportunities Matched Today:</b>\n<i>Ranked by relevance to your verified CV & skills 🎯</i>",
         )
         for job in jobs:
             tracker_status = job.tracker.status.value if job.tracker else None
@@ -271,17 +270,17 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         today_footer = {
             "inline_keyboard": [
                 [
-                    {"text": "🚀 فحص واكتشاف المزيد", "callback_data": "menu:run"},
-                    {"text": "🔍 تصنيفات وفلاتر", "callback_data": "menu:filters"},
+                    {"text": "🚀 Scan More Sources", "callback_data": "menu:run"},
+                    {"text": "🔍 Smart Presets", "callback_data": "menu:filters"},
                 ],
                 [
-                    {"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"},
+                    {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                 ]
             ]
         }
         await self.client.send_message(
             chat_id=chat_id,
-            text="✨ <i>تذكر أن تقوم بحفظ الفرص المناسبة أو تسجيل التقديم لمتابعتها بسهولة.</i>",
+            text="✨ <i>Tip: Save opportunities to review later or mark applied to update your pipeline.</i>",
             reply_markup=today_footer,
         )
 
@@ -291,7 +290,7 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         if not clean_q:
             await self.client.send_message(
                 chat_id=chat_id,
-                text="ℹ️ يرجى كتابة كلمة البحث بعد الأمر، مثال:\n<code>/search angular</code> أو <code>/search remote</code>",
+                text="ℹ️ Please provide a search term. Example:\n<code>/search Angular</code> or <code>/search Remote</code>",
             )
             return
 
@@ -317,24 +316,24 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
             empty_search_markup = {
                 "inline_keyboard": [
                     [
-                        {"text": "🚀 تشغيل فحص فوري للمصادر", "callback_data": "menu:run"},
-                        {"text": "🔍 تصفية سريعة", "callback_data": "menu:filters"},
+                        {"text": "🚀 Run Live Scan Now", "callback_data": "menu:run"},
+                        {"text": "🔍 Smart Presets", "callback_data": "menu:filters"},
                     ],
                     [
-                        {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                     ]
                 ]
             }
             await self.client.send_message(
                 chat_id=chat_id,
-                text=f"🔍 لم يتم العثور على وظائف مسجلة تطابق '<b>{escape(clean_q)}</b>' حالياً.\n💡 جرب البحث بكلمات عامة مثل: <code>Angular</code> أو <code>Frontend</code> أو <code>Remote</code> أو قم بتشغيل فحص فوري للمصادر.",
+                text=f"🔍 No active jobs matched '<b>{escape(clean_q)}</b>'.\n💡 Try broad keywords like <code>Angular</code>, <code>TypeScript</code>, or <code>Remote</code>, or trigger a live multi-source scan.",
                 reply_markup=empty_search_markup,
             )
             return
 
         await self.client.send_message(
             chat_id=chat_id,
-            text=f"🔍 <b>نتائج البحث عن '{escape(clean_q)}' ({len(jobs)} وظائف):</b>",
+            text=f"🔍 <b>Search results for '{escape(clean_q)}' ({len(jobs)} jobs):</b>",
         )
         for job in jobs:
             tracker_status = job.tracker.status.value if job.tracker else None
@@ -345,17 +344,17 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         search_footer = {
             "inline_keyboard": [
                 [
-                    {"text": "🔍 تصنيفات وفلاتر", "callback_data": "menu:filters"},
-                    {"text": "📋 وظائف اليوم", "callback_data": "menu:today"},
+                    {"text": "🔍 Smart Presets", "callback_data": "menu:filters"},
+                    {"text": "📋 Today's Jobs", "callback_data": "menu:today"},
                 ],
                 [
-                    {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
+                    {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                 ]
             ]
         }
         await self.client.send_message(
             chat_id=chat_id,
-            text=f"✨ <i>نهاية نتائج البحث عن '{escape(clean_q)}'.</i>",
+            text=f"✨ <i>End of results for '{escape(clean_q)}'.</i>",
             reply_markup=search_footer,
         )
 
@@ -378,18 +377,18 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         categorized = set(group_frontend + group_styling + group_arch + group_tools + group_eng)
         remaining = [s for s in skills if s not in categorized]
 
-        exp_str = f"{profile.experience_years} سنة" if profile.experience_years is not None else "خريج حديث (موثق بمشاريع واقعية)"
+        exp_str = f"{profile.experience_years} years" if profile.experience_years is not None else "Graduate / Junior (Verified with production projects)"
 
-        text = f"""👤 <b>الملف المهني للمرشح / Candidate Profile</b>
+        text = f"""👤 <b>Candidate Profile & Verified Credentials</b>
 ═════════════════════════════
-👤 <b>الاسم:</b> {escape(profile.full_name or 'Abdelrahman Emam')}
-🎯 <b>التخصص والهدف:</b> {escape(profile.priority_target)}
-🌍 <b>الإقامة:</b> {profile.country} (مصر) 🇪🇬 | مؤهل للعمل عن بُعد عالمياً
-💼 <b>مستوى الخبرة:</b> {exp_str}
-🎓 <b>المؤهل:</b> {escape(profile.degree_title or 'Computer Science / Engineering')} ({profile.graduation_year or '2024'})
-🏛️ <b>الجامعة:</b> {escape(profile.education_institution or 'N/A')}
+👤 <b>Name:</b> {escape(profile.full_name or 'Abdelrahman Emam')}
+🎯 <b>Target:</b> {escape(profile.priority_target)}
+🌍 <b>Location:</b> {profile.country} (Egypt) 🇪🇬 | Open to Remote Worldwide
+💼 <b>Seniority:</b> {exp_str}
+🎓 <b>Degree:</b> {escape(profile.degree_title or 'Computer Science / Engineering')} ({profile.graduation_year or '2024'})
+🏛️ <b>Institution:</b> {escape(profile.education_institution or 'N/A')}
 
-🛠️ <b>المهارات المعتمدة بالكامل من الـ CV ({len(skills)} مهارة):</b>
+🛠️ <b>Verified Skills ({len(skills)} authenticated from CV):</b>
 • 🅰️ <b>Frontend Core:</b>
   <code>{escape(', '.join(group_frontend) or 'Angular, TypeScript, RxJS')}</code>
 • 🎨 <b>UI & Styling:</b>
@@ -401,21 +400,21 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
 • ⚙️ <b>Engineering & Practices:</b>
   <code>{escape(', '.join(group_eng + remaining))}</code>
 
-🔗 <b>روابط الحسابات المهنية:</b>
+🔗 <b>Professional Portfolios:</b>
 • LinkedIn: {escape(profile.linkedin_url or 'https://www.linkedin.com/in/abdelrahman-tamer')}
 • GitHub: {escape(profile.github_url or 'https://github.com/Abdelrahman-Tamer')}
 """
         markup = {
             "inline_keyboard": [
                 [
-                    {"text": "🚀 فحص فرص تناسب ملفي", "callback_data": "menu:run"},
-                    {"text": "📋 أفضل فرص اليوم", "callback_data": "menu:today"},
+                    {"text": "🚀 Scan for Matching Jobs", "callback_data": "menu:run"},
+                    {"text": "📋 Top Matches Today", "callback_data": "menu:today"},
                 ],
                 [
-                    {"text": "🌐 فتح الـ Dashboard والـ Mini App", "web_app": {"url": "https://job-hunter-agent-bottajobs.onrender.com"}},
+                    {"text": "🌐 Open Web Dashboard & CV Editor", "web_app": {"url": "https://job-hunter-agent-bottajobs.onrender.com"}},
                 ],
                 [
-                    {"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"},
+                    {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                 ]
             ]
         }
@@ -425,18 +424,18 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         profile = await get_or_create_candidate_profile(session)
         is_active = bool(profile.digest_enabled)
 
-        toggle_btn_text = "⏸️ إيقاف النشرة مؤقتاً" if is_active else "▶️ تفعيل النشرة اليومية"
+        toggle_btn_text = "⏸️ Pause Daily Digest" if is_active else "▶️ Resume Daily Digest"
         toggle_callback = "settings:pause" if is_active else "settings:resume"
 
-        text = f"""⚙️ <b>إعدادات النشرة والتنبيهات اليومية / Digest Settings</b>
+        text = f"""⚙️ <b>Daily Digest & Alert Settings</b>
 ═════════════════════════════
-• ⏰ <b>موعد النشرة اليومية:</b> {profile.digest_time} بتوقيت القاهرة (Africa/Cairo)
-• 🔔 <b>حالة النشرة:</b> {'نشطة وتعمل يومياً ✅' if is_active else 'متوقفة مؤقتاً ⏸️'}
-• 🎯 <b>الحد الأدنى للتوافق في النشرة:</b> {profile.digest_threshold:.0f}%
-• 🇪🇬 <b>نطاق العمل المقبول:</b> مصر فقط للوظائف المكتبية، وعالمياً/الخليج للوظائف عن بُعد
-• ⏳ <b>أقصى عمر للإعلان:</b> 30 يوماً كحد أقصى (استبعاد الإعلانات القديمة تلقائياً)
+• ⏰ <b>Schedule:</b> {profile.digest_time} Cairo Time (Africa/Cairo)
+• 🔔 <b>Status:</b> {'Active & Scheduled Daily ✅' if is_active else 'Paused ⏸️'}
+• 🎯 <b>Minimum Score Threshold:</b> {profile.digest_threshold:.0f}%
+• 🇪🇬 <b>Geographic Scope:</b> Egypt on-site + Worldwide & Gulf remote
+• ⏳ <b>Freshness Window:</b> Max 30 days (older posts excluded)
 
-<i>اضغط على الزر أدناه لتغيير حالة النشرة بنقرة واحدة:</i>"""
+<i>Tap below to toggle your daily digest with one click:</i>"""
 
         markup = {
             "inline_keyboard": [
@@ -444,7 +443,7 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
                     {"text": toggle_btn_text, "callback_data": toggle_callback},
                 ],
                 [
-                    {"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"},
+                    {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                 ]
             ]
         }
@@ -454,7 +453,7 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         profile = await get_or_create_candidate_profile(session)
         profile.digest_enabled = 1 if enabled else 0
         await session.commit()
-        msg = "✅ تم استئناف النشرة اليومية بنجاح." if enabled else "⏸️ تم إيقاف النشرة اليومية مؤقتاً."
+        msg = "✅ Daily digest resumed successfully." if enabled else "⏸️ Daily digest paused."
         await self.client.send_message(chat_id=chat_id, text=msg)
 
     async def _cmd_saved(self, chat_id: int, session: AsyncSession) -> None:
@@ -471,22 +470,22 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
             empty_markup = {
                 "inline_keyboard": [
                     [
-                        {"text": "📋 استعراض أفضل وظائف اليوم", "callback_data": "menu:today"},
-                        {"text": "🚀 تشغيل فحص فوري", "callback_data": "menu:run"},
+                        {"text": "📋 Browse Today's Top Matches", "callback_data": "menu:today"},
+                        {"text": "🚀 Run Live Scan", "callback_data": "menu:run"},
                     ],
                     [
-                        {"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"},
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                     ]
                 ]
             }
             await self.client.send_message(
                 chat_id=chat_id,
-                text="⭐ <b>قائمة الوظائف المحفوظة فارغة حالياً.</b>\n\n💡 <i>لحفظ أي وظيفة والرجوع إليها لاحقاً، اضغط على زر ⭐ أسفل أي بطاقة وظيفة.</i>",
+                text="⭐ <b>Your saved jobs list is currently empty.</b>\n\n💡 <i>Tap ⭐ Save Job on any job card to bookmark it for later review.</i>",
                 reply_markup=empty_markup,
             )
             return
 
-        await self.client.send_message(chat_id=chat_id, text=f"⭐ <b>الوظائف المحفوظة في قائمتك المفضلة ({len(jobs)}):</b>")
+        await self.client.send_message(chat_id=chat_id, text=f"⭐ <b>Bookmarked Opportunities ({len(jobs)}):</b>")
         for job in jobs[:5]:
             tracker_status = job.tracker.status.value if job.tracker else "saved"
             card_html = format_job_card(job)
@@ -496,14 +495,14 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         footer_markup = {
             "inline_keyboard": [
                 [
-                    {"text": "🚀 فحص فرص جديدة", "callback_data": "menu:run"},
-                    {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
+                    {"text": "🚀 Scan for New Jobs", "callback_data": "menu:run"},
+                    {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                 ]
             ]
         }
         await self.client.send_message(
             chat_id=chat_id,
-            text=f"⭐ <i>إجمالي الوظائف المحفوظة: {len(jobs)} وظيفة.</i>",
+            text=f"⭐ <i>Total bookmarked opportunities: {len(jobs)} jobs.</i>",
             reply_markup=footer_markup,
         )
 
@@ -521,40 +520,40 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
             empty_markup = {
                 "inline_keyboard": [
                     [
-                        {"text": "📋 استعراض أفضل وظائف اليوم", "callback_data": "menu:today"},
-                        {"text": "🚀 تشغيل فحص فوري", "callback_data": "menu:run"},
+                        {"text": "📋 Browse Today's Top Matches", "callback_data": "menu:today"},
+                        {"text": "🚀 Run Live Scan", "callback_data": "menu:run"},
                     ],
                     [
-                        {"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"},
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                     ]
                 ]
             }
             await self.client.send_message(
                 chat_id=chat_id,
-                text="📝 <b>سجل التقديمات فارغ حتى الآن.</b>\n\n💡 <i>عند التقديم على أي وظيفة، اضغط على زر ✅ أسفل بطاقتها لتوثيقها في سجلك ومتابعة مراحلها.</i>",
+                text="📝 <b>Your application pipeline is currently empty.</b>\n\n💡 <i>When you apply for a position, tap ✅ Mark as Applied on its card to track it here.</i>",
                 reply_markup=empty_markup,
             )
             return
 
         applied_lines = [
-            f"📝 <b>سجل متابعة التقديمات ({len(jobs)} وظيفة):</b>",
+            f"📝 <b>Application Pipeline ({len(jobs)} active):</b>",
             "═════════════════════════════",
         ]
         for idx, job in enumerate(jobs[:8], 1):
-            applied_date = job.tracker.applied_at.strftime("%Y-%m-%d") if job.tracker and job.tracker.applied_at else "مؤخراً"
+            applied_date = job.tracker.applied_at.strftime("%Y-%m-%d") if job.tracker and job.tracker.applied_at else "Recently"
             app_url = job.original_application_url or job.source_url
             applied_lines.append(
                 f"{idx}. 💼 <b>{escape(job.title)}</b>\n"
                 f"   🏢 {escape(job.company)} | 🎯 {job.match_score:.0f}%\n"
-                f"   📅 تاريخ التقديم: <code>{applied_date}</code>\n"
-                f"   🔗 <a href=\"{app_url}\">رابط التقديم المباشر</a>\n"
+                f"   📅 Applied: <code>{applied_date}</code>\n"
+                f"   🔗 <a href=\"{app_url}\">Direct Application Link</a>\n"
             )
 
         applied_markup = {
             "inline_keyboard": [
                 [
-                    {"text": "📋 استعراض وظائف اليوم", "callback_data": "menu:today"},
-                    {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
+                    {"text": "📋 Today's Jobs", "callback_data": "menu:today"},
+                    {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                 ]
             ]
         }
@@ -575,18 +574,18 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         profile = await apply_verified_cv_to_profile(session)
 
         sample_skills = ", ".join(profile.confirmed_skills[:5]) + ("..." if len(profile.confirmed_skills) > 5 else "")
-        exp_text = f"{profile.experience_years} سنة" if profile.experience_years is not None else "غير محدد"
+        exp_text = f"{profile.experience_years} years" if profile.experience_years is not None else "Unspecified"
 
-        msg = f"""🧹 <b>تم مسح جميع الوظائف السابقة بنجاح!</b>
-All legacy jobs have been deleted.
+        msg = f"""🧹 <b>Legacy job database cleared successfully!</b>
+All previous listings have been purged.
 
-👤 <b>الملف المعتمد للبحث الآن:</b>
-• المرشح: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
-• التخصص: <b>{escape(profile.priority_target)}</b>
-• المهارات المؤكدة: <b>{len(profile.confirmed_skills)} مهارة</b> ({escape(sample_skills)})
-• الخبرة الموثقة: <b>{exp_text}</b>
+👤 <b>Verified Active Candidate:</b>
+• Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
+• Priority Target: <b>{escape(profile.priority_target)}</b>
+• Verified Skills: <b>{len(profile.confirmed_skills)} skills</b> ({escape(sample_skills)})
+• Experience: <b>{exp_text}</b>
 
-🚀 لبدء فحص المصادر والبحث عن الوظائف المتطابقة مع الـ CV فوراً، أرسل:
+🚀 To run an immediate multi-source discovery scan with your verified profile, send:
 /run"""
         await self.client.send_message(chat_id=chat_id, text=msg)
 
@@ -601,10 +600,10 @@ All legacy jobs have been deleted.
         init_frame = f"""⚡ <b>BottaJobs Discovery & AI Matching Engine</b>
 ═════════════════════════════
 ⏳ <code>[██░░░░░░░░] 20%</code>
-📡 <b>بدء الاتصال وفحص المصادر بالتوازي...</b>
-• المرشح: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b> ({skills_count} مهارة موثقة)
-• التخصص: <b>{escape(profile.priority_target)}</b>
-• المصادر: <i>Himalayas, Remotive, Greenhouse, Lever, RSS...</i>
+📡 <b>Connecting to job sources in parallel...</b>
+• Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b> ({skills_count} verified skills)
+• Target: <b>{escape(profile.priority_target)}</b>
+• Sources: <i>Himalayas, Remotive, Greenhouse, Lever, RSS...</i>
 """
         progress_resp = await self.client.send_message(chat_id=chat_id, text=init_frame)
         msg_id = progress_resp.get("result", {}).get("message_id")
@@ -623,8 +622,8 @@ All legacy jobs have been deleted.
 ═════════════════════════════
 ⏳ <code>[{bar}] {percent}%</code>
 📡 <b>{escape(status_text)}</b>
-• المرشح: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
-• التخصص: <b>{escape(profile.priority_target)}</b>
+• Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
+• Target: <b>{escape(profile.priority_target)}</b>
 """
             try:
                 await self.client.edit_message_text(chat_id=chat_id, message_id=msg_id, text=frame)
@@ -656,15 +655,15 @@ All legacy jobs have been deleted.
         res = await session.execute(stmt)
         top_jobs = res.scalars().all()
 
-        final_summary = f"""✨ <b>اكتمل فحص المصادر والمطابقة بنجاح!</b>
+        final_summary = f"""✨ <b>Discovery and matching completed!</b>
 ═════════════════════════════
 ✅ <code>[██████████] 100%</code>
 
-📊 <b>نتائج الفحص المباشر:</b>
-• إجمالي الوظائف المفحوصة: <b>{run_record.jobs_discovered} وظيفة</b>
-• وظائف جديدة أضيفت: <b>{run_record.jobs_new} فرصة</b>
-• فرص عالية التوافق مع الـ CV (≥ {min_score:.0f}%): <b>{len(top_jobs)} وظيفة</b>
-• سرعة المعالجة الكلية: <b>{duration:.1f} ثانية</b> ⚡
+📊 <b>Live Scan Summary:</b>
+• Total opportunities scanned: <b>{run_record.jobs_discovered}</b>
+• New listings ingested: <b>{run_record.jobs_new}</b>
+• High-fit matches (≥ {min_score:.0f}%): <b>{len(top_jobs)}</b>
+• Total execution time: <b>{duration:.1f}s</b> ⚡
 """
         if msg_id:
             await self.client.edit_message_text(chat_id=chat_id, message_id=msg_id, text=final_summary)
@@ -674,7 +673,7 @@ All legacy jobs have been deleted.
         if top_jobs:
             await self.client.send_message(
                 chat_id=chat_id,
-                text=f"📋 <b>أبرز {len(top_jobs)} فرص متطابقة مع سيرتك الذاتية الآن:</b>",
+                text=f"📋 <b>Top {len(top_jobs)} verified matches for your profile:</b>",
             )
             for job in top_jobs:
                 tracker_status = job.tracker.status.value if job.tracker else None
@@ -685,60 +684,60 @@ All legacy jobs have been deleted.
             no_jobs_markup = {
                 "inline_keyboard": [
                     [
-                        {"text": "🔍 فلاتر وتصنيفات سريعة", "callback_data": "menu:filters"},
-                        {"text": "📋 استعراض جميع الوظائف", "callback_data": "menu:today"},
+                        {"text": "🔍 Browse Smart Presets", "callback_data": "menu:filters"},
+                        {"text": "📋 View All Jobs", "callback_data": "menu:today"},
                     ],
                     [
-                        {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                     ]
                 ]
             }
             await self.client.send_message(
                 chat_id=chat_id,
-                text="ℹ️ تم فحص المصادر ولم تظهر فرص جديدة تفوق نسبة التوافق في هذه اللحظة. سيتم إخطارك في النشرة الصباحية (09:00 ص) أو يمكنك تجربة الفلاتر السريعة أدناه:",
+                text="ℹ️ Scan completed, but no new jobs exceeded your match threshold at this exact moment. You will be notified in your morning digest (09:00 AM Cairo), or you can explore preset filters below:",
                 reply_markup=no_jobs_markup,
             )
 
     async def _cmd_help(self, chat_id: int) -> None:
-        help_text = """📖 <b>دليل استخدام BottaJobs الذكي (User Guide):</b>
+        help_text = """📖 <b>BottaJobs Executive User Guide</b>
 ═════════════════════════════
-🤖 <b>مساعدك الذكي المخصص لفرص Angular و Frontend:</b>
+🤖 <b>AI Job Hunter specialized in Angular & Frontend Engineering:</b>
 
-• <b>🚀 فحص الوظائف الآن</b> (<code>/run</code>):
-  يفحص 7 مصادر عالمية ومحلية بالتوازي ويطابقها مع مهاراتك الـ 32 مع عداد تقدم حي.
+• <b>🚀 Run Scan</b> (<code>/run</code>):
+  Scans all configured global and local sources in parallel with real-time animated telemetry.
 
-• <b>📋 أفضل وظائف اليوم</b> (<code>/today</code>):
-  يعرض أعلى الوظائف تطابقاً مع سيرتك الذاتية (بما فيها تفاصيل النواقص للحصول على 100%).
+• <b>📋 Today's Jobs</b> (<code>/today</code>):
+  Shows the top curated matches against your verified CV (including itemized requirement gaps to reach 100%).
 
-• <b>🔍 فلاتر وتصنيفات</b> (<code>/filters</code>):
-  تصفية سريعة بحسب (Angular، فرص Junior، ريموت عالمياً، مصر والخليج، رواتب معلنة).
+• <b>🔍 Smart Filters</b> (<code>/filters</code>):
+  Instant presets for Angular, Junior roles, Remote Worldwide, Egypt & Gulf, and Disclosed Salaries.
 
-• <b>👤 ملفي والـ CV</b> (<code>/profile</code>):
-  استعراض الـ 32 مهارة المعتمدة، المشاريع، وسنوات الخبرة من السيرة الذاتية.
+• <b>👤 My Profile / CV</b> (<code>/profile</code>):
+  Displays your 32 verified skills, experience, portfolio links, and education.
 
-• <b>⭐ وظائفي المحفوظة</b> (<code>/saved</code>):
-  الرجوع للفرص التي قمت بحفظها للمراجعة لاحقاً.
+• <b>⭐ Saved Jobs</b> (<code>/saved</code>):
+  Review your bookmarked opportunities.
 
-• <b>📝 سجل التقديمات</b> (<code>/applied</code>):
-  متابعة الشركات والوظائف التي سجلت تقديمك فيها.
+• <b>📝 Applied Pipeline</b> (<code>/applied</code>):
+  Track the companies and positions you have applied to.
 
-• <b>⚙️ إعدادات النشرة</b> (<code>/settings</code>):
-  التحكم في موعد النشرة اليومية (09:00 ص) وإيقافها أو تفعيلها بنقرة واحدة.
+• <b>⚙️ Digest Settings</b> (<code>/settings</code>):
+  Configure or pause your daily 09:00 AM Cairo digest with one tap.
 
-• <b>🔎 البحث المباشر</b>:
-  أرسل أي كلمة مثل <code>Angular</code> أو <code>TypeScript</code> أو <code>Remote</code> وسيبحث البوت فوراً في قاعدة البيانات!
+• <b>🔎 Instant Search</b>:
+  Type any keyword directly (e.g. <code>Angular</code>, <code>TypeScript</code>, <code>Remote</code>) to search the active database instantly.
 
-💡 <i>ملاحظة أمان: البوت لا يرسل تقديمات بالنيابة عنك دون علمك، بل يجهز لك الرابط المباشر، وخطاب التقديم (Cover Letter)، وأسئلة المقابلة بنقرة واحدة.</i>
+💡 <i>Safety Guarantee: The bot never applies on your behalf without your direct oversight. It equips you with direct apply links, tailored AI cover letters, and technical interview questions at a single tap.</i>
 """
         markup = {
             "inline_keyboard": [
                 [
-                    {"text": "🚀 تشغيل فحص فوري", "callback_data": "menu:run"},
-                    {"text": "📋 استعراض وظائف اليوم", "callback_data": "menu:today"},
+                    {"text": "🚀 Run Live Scan", "callback_data": "menu:run"},
+                    {"text": "📋 Top Matches Today", "callback_data": "menu:today"},
                 ],
                 [
-                    {"text": "🔍 فلاتر سريعة", "callback_data": "menu:filters"},
-                    {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
+                    {"text": "🔍 Smart Presets", "callback_data": "menu:filters"},
+                    {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                 ]
             ]
         }
@@ -753,7 +752,7 @@ All legacy jobs have been deleted.
         chat_id = message.get("chat", {}).get("id")
 
         if not self.is_authorized(user_id):
-            await self.client.answer_callback_query(query_id, text="غير مصرح / Unauthorized", show_alert=True)
+            await self.client.answer_callback_query(query_id, text="Unauthorized access", show_alert=True)
             return
 
         # Handle Menu Quick Actions
@@ -786,24 +785,24 @@ All legacy jobs have been deleted.
             await self._cmd_toggle_digest(chat_id, enabled=is_enable, session=session)
             await self.client.answer_callback_query(
                 query_id,
-                text="✅ تم تفعيل النشرة اليومية!" if is_enable else "⏸️ تم إيقاف النشرة مؤقتاً!",
+                text="✅ Daily digest enabled!" if is_enable else "⏸️ Daily digest paused!",
             )
             profile = await get_or_create_candidate_profile(session)
-            toggle_btn_text = "⏸️ إيقاف النشرة مؤقتاً" if is_enable else "▶️ تفعيل النشرة اليومية"
+            toggle_btn_text = "⏸️ Pause Daily Digest" if is_enable else "▶️ Resume Daily Digest"
             toggle_callback = "settings:pause" if is_enable else "settings:resume"
-            text = f"""⚙️ <b>إعدادات النشرة والتنبيهات اليومية / Digest Settings</b>
+            text = f"""⚙️ <b>Daily Digest & Alert Settings</b>
 ═════════════════════════════
-• ⏰ <b>موعد النشرة اليومية:</b> {profile.digest_time} بتوقيت القاهرة (Africa/Cairo)
-• 🔔 <b>حالة النشرة:</b> {'نشطة وتعمل يومياً ✅' if is_enable else 'متوقفة مؤقتاً ⏸️'}
-• 🎯 <b>الحد الأدنى للتوافق في النشرة:</b> {profile.digest_threshold:.0f}%
-• 🇪🇬 <b>نطاق العمل المقبول:</b> مصر فقط للوظائف المكتبية، وعالمياً/الخليج للوظائف عن بُعد
-• ⏳ <b>أقصى عمر للإعلان:</b> 30 يوماً كحد أقصى (استبعاد الإعلانات القديمة تلقائياً)
+• ⏰ <b>Schedule:</b> {profile.digest_time} Cairo Time (Africa/Cairo)
+• 🔔 <b>Status:</b> {'Active & Scheduled Daily ✅' if is_enable else 'Paused ⏸️'}
+• 🎯 <b>Minimum Score Threshold:</b> {profile.digest_threshold:.0f}%
+• 🇪🇬 <b>Geographic Scope:</b> Egypt on-site + Worldwide & Gulf remote
+• ⏳ <b>Freshness Window:</b> Max 30 days (older posts excluded)
 
-<i>اضغط على الزر أدناه لتغيير حالة النشرة بنقرة واحدة:</i>"""
+<i>Tap below to toggle your daily digest with one click:</i>"""
             markup = {
                 "inline_keyboard": [
                     [{"text": toggle_btn_text, "callback_data": toggle_callback}],
-                    [{"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"}],
+                    [{"text": "« Back to Main Menu", "callback_data": "menu:main"}],
                 ]
             }
             if message_id:
@@ -812,7 +811,7 @@ All legacy jobs have been deleted.
 
         if data.startswith("filter:"):
             key = data.split(":", 1)[1]
-            await self.client.answer_callback_query(query_id, text="🔍 جاري التصفية...")
+            await self.client.answer_callback_query(query_id, text="🔍 Filtering opportunities...")
             await self._handle_filter_query(chat_id, key, session)
             return
 
@@ -830,7 +829,7 @@ All legacy jobs have been deleted.
         res = await session.execute(stmt)
         job = res.scalar_one_or_none()
         if not job:
-            await self.client.answer_callback_query(query_id, text="الوظيفة غير موجودة / Job not found")
+            await self.client.answer_callback_query(query_id, text="Job not found")
             return
 
         # Get or create tracker
@@ -846,7 +845,7 @@ All legacy jobs have been deleted.
             if is_already_saved:
                 tracker.status = ApplicationStatus.NEW
                 await session.commit()
-                await self.client.answer_callback_query(query_id, text="⭐ تم إزالة الوظيفة من المحفوظات.")
+                await self.client.answer_callback_query(query_id, text="⭐ Removed from saved jobs.")
                 if message_id:
                     markup = build_job_inline_keyboard(job, tracker_status="new")
                     await self.client.edit_message_text(
@@ -858,7 +857,7 @@ All legacy jobs have been deleted.
             else:
                 tracker.status = ApplicationStatus.SAVED
                 await session.commit()
-                await self.client.answer_callback_query(query_id, text="⭐ تم حفظ الوظيفة في قائمتك المفضلة!")
+                await self.client.answer_callback_query(query_id, text="⭐ Job saved to favorites!")
                 if message_id:
                     markup = build_job_inline_keyboard(job, tracker_status="saved")
                     await self.client.edit_message_text(
@@ -871,7 +870,7 @@ All legacy jobs have been deleted.
             tracker.status = ApplicationStatus.APPLIED
             tracker.applied_at = datetime.now(timezone.utc)
             await session.commit()
-            await self.client.answer_callback_query(query_id, text="🎉 رائع! تم تسجيل التقديم بنجاح في السجل.")
+            await self.client.answer_callback_query(query_id, text="🎉 Application logged successfully!")
             if message_id:
                 markup = build_job_inline_keyboard(job, tracker_status="applied")
                 await self.client.edit_message_text(
@@ -883,7 +882,7 @@ All legacy jobs have been deleted.
         elif action == "undo_dismiss":
             tracker.status = ApplicationStatus.NEW
             await session.commit()
-            await self.client.answer_callback_query(query_id, text="↩️ تم التراجع وإعادة الوظيفة إلى قائمتك!")
+            await self.client.answer_callback_query(query_id, text="↩️ Dismiss undone. Job restored to feed!")
             if message_id:
                 markup = build_job_inline_keyboard(job, tracker_status="new")
                 await self.client.edit_message_text(
@@ -895,13 +894,13 @@ All legacy jobs have been deleted.
         elif action == "dismiss":
             tracker.status = ApplicationStatus.NOT_RELEVANT
             await session.commit()
-            await self.client.answer_callback_query(query_id, text="❌ تم استبعاد الوظيفة من التوصيات.")
+            await self.client.answer_callback_query(query_id, text="❌ Job dismissed.")
             if message_id:
-                dismissed_text = f"<s>{escape(job.title)} — {escape(job.company)}</s>\n\n<i>❌ تم استبعاد هذه الوظيفة من قائمة الترشيحات.</i>"
+                dismissed_text = f"<s>{escape(job.title)} — {escape(job.company)}</s>\n\n<i>❌ This job has been dismissed from recommendations.</i>"
                 undo_markup = {
                     "inline_keyboard": [
                         [
-                            {"text": "↩️ تراجع عن الاستبعاد (Undo)", "callback_data": f"undo_dismiss:{job.id}"},
+                            {"text": "↩️ Undo Dismiss", "callback_data": f"undo_dismiss:{job.id}"},
                         ]
                     ]
                 }
@@ -914,9 +913,9 @@ All legacy jobs have been deleted.
         elif action == "why":
             breakdown_text = format_match_breakdown(job)
             await self.client.send_message(chat_id=chat_id, text=breakdown_text)
-            await self.client.answer_callback_query(query_id, text="📊 تم تحميل تفاصيل المطابقة!")
+            await self.client.answer_callback_query(query_id, text="📊 Match analytics loaded!")
         elif action == "cover":
-            await self.client.answer_callback_query(query_id, text="✍️ جاري صياغة خطاب التقديم المخصص...")
+            await self.client.answer_callback_query(query_id, text="✍️ Generating tailored cover letter...")
             await self.client.send_chat_action(chat_id, "typing")
 
             profile = await get_or_create_candidate_profile(session)
@@ -930,27 +929,27 @@ All legacy jobs have been deleted.
                 job_description=job.description_text or "",
             )
 
-            msg = f"""✍️ <b>خطاب تقديم مخصص بالذكاء الاصطناعي / Tailored Cover Letter</b>
-💼 <b>الوظيفة:</b> {escape(job.title)}
-🏢 <b>الشركة:</b> {escape(job.company)}
+            msg = f"""✍️ <b>Tailored AI Cover Letter</b>
+💼 <b>Role:</b> {escape(job.title)}
+🏢 <b>Company:</b> {escape(job.company)}
 ─────────────────────────
 <code>{escape(cover_letter)}</code>
 ─────────────────────────
-💡 <i>اضغط على النص بالأعلى لنسخه فوراً والصقه في استمارة التقديم أو أرسله عبر الإيميل/LinkedIn!</i>"""
+💡 <i>Tap the text above to copy instantly and paste into your application!</i>"""
             cover_markup = {
                 "inline_keyboard": [
                     [
-                        {"text": "🌐 فتح رابط التقديم المباشر ↗", "url": job.original_application_url or job.source_url},
+                        {"text": "🌐 Direct Application Link ↗", "url": job.original_application_url or job.source_url},
                     ],
                     [
-                        {"text": "🎯 أسئلة الإنترفيو المتوقعة", "callback_data": f"interview:{job.id}"},
-                        {"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"},
+                        {"text": "🎯 Expected Interview Questions", "callback_data": f"interview:{job.id}"},
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                     ]
                 ]
             }
             await self.client.send_message(chat_id=chat_id, text=msg, reply_markup=cover_markup)
         elif action == "interview":
-            await self.client.answer_callback_query(query_id, text="🎯 جاري تحليل متطلبات الوظيفة وتوقع أسئلة المقابلة...")
+            await self.client.answer_callback_query(query_id, text="🎯 Predicting interview questions...")
             await self.client.send_chat_action(chat_id, "typing")
 
             profile = await get_or_create_candidate_profile(session)
@@ -962,20 +961,20 @@ All legacy jobs have been deleted.
                 job_description=job.description_text or "",
             )
 
-            msg = f"""🎯 <b>دليل وتوقعات الإنترفيو التقني / Interview Preparation</b>
+            msg = f"""🎯 <b>Technical Interview Preparation Guide</b>
 💼 <b>{escape(job.title)}</b> — <i>{escape(job.company)}</i>
 ─────────────────────────
 {prep_content}
 ─────────────────────────
-🌟 <i>راجع هذه النقاط وركز على مشاريعك العملية لتضمن تميزك في المقابلة!</i>"""
+🌟 <i>Review these targeted questions and focus on your concrete Angular projects!</i>"""
             interview_markup = {
                 "inline_keyboard": [
                     [
-                        {"text": "🌐 فتح رابط التقديم المباشر ↗", "url": job.original_application_url or job.source_url},
+                        {"text": "🌐 Direct Application Link ↗", "url": job.original_application_url or job.source_url},
                     ],
                     [
-                        {"text": "✍️ توليد خطاب التقديم AI", "callback_data": f"cover:{job.id}"},
-                        {"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"},
+                        {"text": "✍️ Generate AI Cover Letter", "callback_data": f"cover:{job.id}"},
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                     ]
                 ]
             }
@@ -989,15 +988,15 @@ All legacy jobs have been deleted.
         )
 
         filter_titles = {
-            "angular": "🅰️ فرص Angular وتطوير الواجهات Frontend",
-            "top": "⭐ أعلى الوظائف تطابقاً مع سيرتك الذاتية (≥ 75%)",
-            "egypt": "🇪🇬 الوظائف المتاحة في مصر والخليج العربي",
-            "remote": "🌍 وظائف العمل عن بُعد عالمياً (Remote Worldwide)",
-            "junior": "⚡ وظائف مخصصة لمستوى Junior وخريجين",
-            "cv_skills": "🛠️ وظائف تطابق مهاراتك الأساسية (TypeScript, RxJS, REST API)",
-            "salary": "💵 وظائف ذات رواتب معلنة وواضحة",
+            "angular": "🅰️ Angular & Frontend Engineering Roles",
+            "top": "⭐ Top Matches (Score ≥ 75%)",
+            "egypt": "🇪🇬 Egypt & Gulf Opportunities",
+            "remote": "🌍 Remote Worldwide Positions",
+            "junior": "⚡ Junior & Entry-Level Roles",
+            "cv_skills": "🛠️ Core CV Skills (TypeScript, RxJS, APIs)",
+            "salary": "💵 Roles with Disclosed Salary",
         }
-        title = filter_titles.get(key, "نتائج الفلترة")
+        title = filter_titles.get(key, "Filtered Results")
 
         if key == "angular":
             stmt = stmt.where(
@@ -1060,24 +1059,24 @@ All legacy jobs have been deleted.
             empty_nav = {
                 "inline_keyboard": [
                     [
-                        {"text": "🔍 اختيار فلتر آخر", "callback_data": "menu:filters"},
-                        {"text": "🚀 تشغيل فحص فوري للمصادر", "callback_data": "menu:run"},
+                        {"text": "🔍 Choose Another Filter", "callback_data": "menu:filters"},
+                        {"text": "🚀 Run Live Scan Now", "callback_data": "menu:run"},
                     ],
                     [
-                        {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                     ]
                 ]
             }
             await self.client.send_message(
                 chat_id=chat_id,
-                text=f"🔍 لم يتم العثور على وظائف مسجلة تطابق: <b>{title}</b> حالياً.\nيمكنك تشغيل فحص جديد للمصادر أو اختيار تصنيف آخر:",
+                text=f"🔍 No active jobs found matching: <b>{title}</b>.\nYou can run a fresh multi-source scan or try another filter:",
                 reply_markup=empty_nav,
             )
             return
 
         await self.client.send_message(
             chat_id=chat_id,
-            text=f"🎯 <b>{title} ({len(jobs)} وظائف):</b>",
+            text=f"🎯 <b>{title} ({len(jobs)} opportunities):</b>",
         )
         for job in jobs:
             tracker_status = job.tracker.status.value if job.tracker else None
@@ -1088,16 +1087,16 @@ All legacy jobs have been deleted.
         filter_nav_markup = {
             "inline_keyboard": [
                 [
-                    {"text": "🔍 تصنيف آخر", "callback_data": "menu:filters"},
-                    {"text": "📋 استعراض وظائف اليوم", "callback_data": "menu:today"},
+                    {"text": "🔍 Another Filter", "callback_data": "menu:filters"},
+                    {"text": "📋 Today's Jobs", "callback_data": "menu:today"},
                 ],
                 [
-                    {"text": "🔙 العودة للقائمة الرئيسية", "callback_data": "menu:main"},
+                    {"text": "« Back to Main Menu", "callback_data": "menu:main"},
                 ]
             ]
         }
         await self.client.send_message(
             chat_id=chat_id,
-            text=f"✨ <i>تم استعراض نتائج {title}. يمكنك اختيار تصنيف آخر أو العودة للرئيسية:</i>",
+            text=f"✨ <i>Viewing results for {title}. Select another filter or return to main menu:</i>",
             reply_markup=filter_nav_markup,
         )

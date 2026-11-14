@@ -15,12 +15,8 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       <!-- Header -->
       <header class="profile-header">
         <div>
-          <div class="profile-tag">
-            <span class="profile-pulse"></span>
-            <span>Candidate Dossier & AI Match Engine</span>
-          </div>
-          <h1>Candidate Profile & CV Verification</h1>
-          <p class="subtitle">Verified skills and background details that directly drive your precision matching score</p>
+          <h1>Candidate Profile</h1>
+          <p class="subtitle">Your background, technical skills, and target criteria used to match opportunities</p>
         </div>
       </header>
 
@@ -281,25 +277,6 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       width: 100%;
     }
 
-    .profile-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: var(--text-2xs);
-      font-family: var(--font-mono);
-      font-weight: 600;
-      color: var(--color-brand-accent);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 3px;
-    }
-    .profile-pulse {
-      width: 6px;
-      height: 6px;
-      border-radius: var(--radius-full);
-      background-color: var(--color-brand-accent);
-      box-shadow: 0 0 8px var(--color-brand-accent);
-    }
     .profile-header h1 {
       font-size: var(--text-2xl);
       letter-spacing: -0.025em;

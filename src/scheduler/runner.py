@@ -149,7 +149,7 @@ class DailyPipelineRunner:
                 logger.info(f"Source {source_name} is disabled. Skipping.")
 
         if progress_callback:
-            await progress_callback(f"📡 فحص {len(enabled_adapters)} مصادر للوظائف بالتوازي...", 30)
+            await progress_callback(f"📡 Scanning {len(enabled_adapters)} job sources in parallel...", 30)
 
         async def _fetch_single_source(adapter: BaseSourceAdapter):
             meta = adapter.source_metadata()
@@ -169,7 +169,7 @@ class DailyPipelineRunner:
 
         total_discovered_raw = sum(len(res[1]) for res in fetch_results)
         if progress_callback:
-            await progress_callback(f"📥 تم جمع {total_discovered_raw} إعلاناً.. جاري مطابقتها مع مهاراتك الـ 32...", 60)
+            await progress_callback(f"📥 Ingested {total_discovered_raw} listings. Matching against 32 verified skills...", 60)
 
         for adapter, raw_jobs, status_str, error_str, duration in fetch_results:
             meta = adapter.source_metadata()
@@ -357,7 +357,7 @@ class DailyPipelineRunner:
             }
 
         if progress_callback:
-            await progress_callback("🧠 ترتيب وتجهيز التقرير النهائي...", 90)
+            await progress_callback("🧠 Ranking matches and assembling digest...", 90)
 
         # -------------------------------------------------------------
         # Step 8: Select jobs not previously notified and above threshold
@@ -399,17 +399,17 @@ class DailyPipelineRunner:
             # Step 9: Send daily Telegram digest
             if total_digest_jobs == 0:
                 # Send truthful zero-results report
-                zero_text = f"""📊 <b>تقرير النشرة اليومية / Daily Digest Summary ({date_str})</b>
-توقيت القاهرة: 09:00 Africa/Cairo
+                zero_text = f"""📊 <b>Daily Job Digest ({date_str})</b>
+Time: 09:00 AM (Africa/Cairo)
 
-📭 <b>لا توجد فرص عمل جديدة تطابق معايير ملفك الشخصي اليوم (الحد الأدنى: {profile.digest_threshold:.0f}/100).</b>
+📭 <b>No new job opportunities met your matching threshold today (Minimum: {profile.digest_threshold:.0f}/100).</b>
 
-🔍 <b>حالة المصادر اليوم / Source Health:</b>
+🔍 <b>Source Health & Sync Summary:</b>
 """
                 for s_name, s_met in metrics["sources"].items():
-                    zero_text += f"• {s_name}: {s_met['status']} (تم فحص {s_met['fetched']} إعلان)\n"
+                    zero_text += f"• {s_name}: {s_met['status']} ({s_met['fetched']} scanned)\n"
 
-                zero_text += "\nسنقوم بالبحث مرة أخرى غداً في التاسعة صباحاً."
+                zero_text += "\nYour next automatic scan will run tomorrow at 09:00 AM Cairo time. You can trigger an immediate scan anytime with /run."
                 await self.telegram.send_message(chat_id=recipient_chat_id, text=zero_text)
 
                 n_log = NotificationLog(
@@ -422,11 +422,11 @@ class DailyPipelineRunner:
                 await session.commit()
             else:
                 # Send introduction header
-                intro_text = f"""🌅 <b>النشرة اليومية لفرص العمل / Daily Job Digest</b>
-📅 التاريخ: <b>{date_str}</b> | توقيت القاهرة: <b>09:00</b>
-🎯 الأولوية: <b>{escape(profile.priority_target)}</b>
+                intro_text = f"""🌅 <b>Daily Job Digest — New Opportunities</b>
+📅 Date: <b>{date_str}</b> | Time: <b>09:00 AM (Cairo)</b>
+🎯 Focus: <b>{escape(profile.priority_target)}</b>
 
-تم اكتشاف <b>{total_digest_jobs}</b> فرص مؤهلة وجديدة لملفك:
+Discovered <b>{total_digest_jobs}</b> new verified opportunities tailored to your profile:
 """
                 await self.telegram.send_message(chat_id=recipient_chat_id, text=intro_text)
 
@@ -460,21 +460,21 @@ class DailyPipelineRunner:
                 # Dispatch Category 1
                 if sec_egypt_worldwide:
                     await dispatch_section(
-                        f"🇪🇬 <b>الفرص المؤهلة لمصر والعمل عن بُعد عالمياً ({len(sec_egypt_worldwide)}):</b>",
+                        f"🇪🇬 <b>Egypt Eligible & Worldwide Remote ({len(sec_egypt_worldwide)}):</b>",
                         sec_egypt_worldwide,
                     )
 
                 # Dispatch Category 2
                 if sec_regional:
                     await dispatch_section(
-                        f"⚠️ <b>فرص العمل عن بُعد الإقليمية (تحتاج التحقق من قبول المتقدمين من مصر) ({len(sec_regional)}):</b>",
+                        f"⚠️ <b>Regional Remote (Requires Egypt Eligibility Confirmation) ({len(sec_regional)}):</b>",
                         sec_regional,
                     )
 
                 # Dispatch Category 3
                 if sec_relocation:
                     await dispatch_section(
-                        f"✈️ <b>فرص عمل تتطلب الانتقال خارج مصر (غير مفترضة مسبقاً) ({len(sec_relocation)}):</b>",
+                        f"✈️ <b>Relocation Opportunities ({len(sec_relocation)}):</b>",
                         sec_relocation,
                     )
 
@@ -493,6 +493,6 @@ class DailyPipelineRunner:
         await session.commit()
         await session.refresh(daily_run)
         if progress_callback:
-            await progress_callback("✨ اكتمل فحص المصادر والمطابقة بنجاح!", 100)
+            await progress_callback("✨ Scan and matching pipeline completed!", 100)
         logger.info(f"Daily run {run_key} completed successfully: discovered={total_discovered}, new={total_new}, notified={notified_count}")
         return daily_run

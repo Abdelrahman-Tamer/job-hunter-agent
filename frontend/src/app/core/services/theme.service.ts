@@ -34,6 +34,21 @@ export class ThemeService {
         // Ignore storage errors in sandboxed contexts
       }
     }
+
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp;
+      try {
+        if (theme === 'dark') {
+          tg.setHeaderColor?.('#111520');
+          tg.setBackgroundColor?.('#090c13');
+        } else {
+          tg.setHeaderColor?.('#f8fafc');
+          tg.setBackgroundColor?.('#f1f5f9');
+        }
+      } catch {
+        // Ignore in environments where Telegram WebApp bridge methods differ
+      }
+    }
   }
 
   toggleTheme(): void {

@@ -118,8 +118,7 @@ interface QuickChip {
               </div>
 
               <div class="score-pill" [class.score-top]="job.match_score >= 70">
-                <app-icon name="sparkles" [size]="12"></app-icon>
-                <span>{{ job.match_score }}%</span>
+                <span>{{ roundScore(job.match_score) }}% match</span>
               </div>
             </div>
 
@@ -133,11 +132,11 @@ interface QuickChip {
                 [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
                 [class.badge-blue]="job.eligibility === 'REMOTE_REGION_POSSIBLE'"
               >
-                {{ job.eligibility }}
+                {{ formatEligibility(job.eligibility) }}
               </span>
-              <span class="badge">{{ job.workplace_type }}</span>
-              <span class="badge">{{ job.seniority }}</span>
-              <span class="badge">{{ job.source_name }}</span>
+              <span class="badge" *ngIf="formatWorkplace(job.workplace_type)">{{ formatWorkplace(job.workplace_type) }}</span>
+              <span class="badge" *ngIf="formatSeniority(job.seniority)">{{ formatSeniority(job.seniority) }}</span>
+              <span class="badge badge-source">{{ formatSource(job.source_name) }}</span>
             </div>
 
             <!-- Tech Skills -->
@@ -160,35 +159,40 @@ interface QuickChip {
                 target="_blank"
                 rel="noopener noreferrer"
                 (click)="onOpenLink($event, job.original_application_url)"
-                class="btn btn-primary btn-sm action-btn"
+                class="btn btn-primary btn-sm action-btn apply-btn"
+                title="Open job application"
               >
-                <span>Apply</span>
+                <span>View Role</span>
                 <app-icon name="external-link" [size]="12"></app-icon>
               </a>
 
-              <button (click)="openDetail(job.id)" class="btn btn-secondary btn-sm action-btn">
+              <button
+                (click)="openDetail(job.id)"
+                class="btn btn-secondary btn-sm action-btn"
+                title="View match analysis"
+              >
                 <app-icon name="info" [size]="12"></app-icon>
-                <span>Why Match</span>
+                <span>Match Details</span>
               </button>
 
               <button
-                (click)="setStatus(job.id, 'SAVED')"
+                (click)="toggleSave(job)"
                 class="btn btn-outline btn-sm action-btn"
                 [class.btn-saved]="job.tracker_status === 'SAVED'"
-                title="Save Job"
+                title="Save for later"
               >
                 <app-icon name="bookmark" [size]="12"></app-icon>
                 <span>{{ job.tracker_status === 'SAVED' ? 'Saved' : 'Save' }}</span>
               </button>
 
               <button
-                (click)="setStatus(job.id, 'APPLIED')"
+                (click)="toggleApplied(job)"
                 class="btn btn-outline btn-sm action-btn"
                 [class.btn-applied]="job.tracker_status === 'APPLIED'"
-                title="Mark Applied"
+                title="Track in pipeline"
               >
                 <app-icon name="check-square" [size]="12"></app-icon>
-                <span>{{ job.tracker_status === 'APPLIED' ? 'Applied' : 'Apply' }}</span>
+                <span>{{ job.tracker_status === 'APPLIED' ? 'Applied ✓' : 'Track Applied' }}</span>
               </button>
             </div>
           </article>
@@ -723,6 +727,63 @@ export class JobsComponent implements OnInit {
     if (this.telegram.isTelegram()) {
       event.preventDefault();
       this.telegram.openLink(url);
+    }
+  }
+
+  toggleSave(job: JobSummary): void {
+    const next: ApplicationStatus = job.tracker_status === 'SAVED' ? 'DISCOVERED' : 'SAVED';
+    this.setStatus(job.id, next);
+  }
+
+  toggleApplied(job: JobSummary): void {
+    const next: ApplicationStatus = job.tracker_status === 'APPLIED' ? 'DISCOVERED' : 'APPLIED';
+    this.setStatus(job.id, next);
+  }
+
+  roundScore(score: number): number {
+    return Math.round(score);
+  }
+
+  formatEligibility(e?: string): string {
+    if (!e) return 'Worldwide';
+    switch (e) {
+      case 'EGYPT_ELIGIBLE': return 'Egypt Eligible';
+      case 'REMOTE_WORLDWIDE': return 'Worldwide Remote';
+      case 'REMOTE_REGION_POSSIBLE': return 'Region Remote';
+      case 'RELOCATION_REQUIRED': return 'Relocation';
+      default: return e.replace(/_/g, ' ');
+    }
+  }
+
+  formatWorkplace(w?: string): string {
+    if (!w || w === 'UNKNOWN') return '';
+    switch (w) {
+      case 'REMOTE': return 'Remote';
+      case 'HYBRID': return 'Hybrid';
+      case 'ON_SITE': return 'On-site';
+      default: return w;
+    }
+  }
+
+  formatSeniority(s?: string): string {
+    if (!s || s === 'UNKNOWN') return '';
+    switch (s) {
+      case 'GRADUATE': return 'Entry / Grad';
+      case 'JUNIOR': return 'Junior';
+      case 'MID': return 'Mid-level';
+      case 'SENIOR': return 'Senior';
+      default: return s;
+    }
+  }
+
+  formatSource(src?: string): string {
+    if (!src) return '';
+    switch (src) {
+      case 'greenhouse_canonical': return 'Canonical';
+      case 'remoteok': return 'RemoteOK';
+      case 'weworkremotely': return 'WeWorkRemotely';
+      case 'jobspy': return 'JobSpy';
+      default: return src.replace(/_/g, ' ');
     }
   }
 }

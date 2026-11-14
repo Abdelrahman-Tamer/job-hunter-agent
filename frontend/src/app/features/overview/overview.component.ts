@@ -16,25 +16,21 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       <header class="action-header">
         <div class="header-main">
           <div class="title-group">
-            <div class="agent-tag">
-              <span class="pulse-beacon"></span>
-              <span>Autonomous Job Engine</span>
-            </div>
-            <h1>Pipeline Overview</h1>
-            <p class="subtitle">Precision job discovery and scoring for Software Engineering & Frontend roles</p>
+            <h1>Job Matches</h1>
+            <p class="subtitle">Curated opportunities for software engineers & frontend developers</p>
           </div>
           <div class="header-tags">
-            <span class="badge badge-blue">
+            <span class="badge">
               <app-icon name="briefcase" [size]="12"></app-icon>
-              Angular / Frontend
+              Angular & Frontend
             </span>
-            <span class="badge badge-green">
-              <app-icon name="map-pin" [size]="12"></app-icon>
-              Egypt & Remote Worldwide
+            <span class="badge">
+              <app-icon name="globe" [size]="12"></app-icon>
+              Remote Worldwide & Egypt
             </span>
             <span class="badge">
               <app-icon name="clock" [size]="12"></app-icon>
-              Daily Run: 09:00 Cairo
+              Daily 09:00 Cairo
             </span>
           </div>
         </div>
@@ -44,10 +40,10 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
             (click)="triggerRun()"
             [disabled]="isTriggering()"
             class="btn btn-primary run-btn"
-            aria-label="Run discovery job search immediately"
+            aria-label="Check for new job listings"
           >
             <app-icon [name]="isTriggering() ? 'refresh' : 'play'" [size]="15" [class.spin]="isTriggering()"></app-icon>
-            <span>{{ isTriggering() ? 'Scanning Feeds...' : 'Run Discovery Now' }}</span>
+            <span>{{ isTriggering() ? 'Checking Feeds...' : 'Check for Updates' }}</span>
           </button>
         </div>
       </header>
@@ -59,12 +55,9 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
             <app-icon name="briefcase" [size]="18"></app-icon>
           </div>
           <div class="metric-body">
-            <div class="metric-label-row">
-              <span class="metric-label">Discovered</span>
-              <span class="metric-micro-tag">Total</span>
-            </div>
+            <span class="metric-label">Discovered</span>
             <span class="metric-value">{{ totalJobs() }}</span>
-            <span class="metric-hint">Across verified feeds</span>
+            <span class="metric-hint">Verified feed listings</span>
           </div>
         </div>
 
@@ -73,12 +66,9 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
             <app-icon name="bookmark" [size]="18"></app-icon>
           </div>
           <div class="metric-body">
-            <div class="metric-label-row">
-              <span class="metric-label">Saved</span>
-              <span class="metric-micro-tag">Curated</span>
-            </div>
+            <span class="metric-label">Saved</span>
             <span class="metric-value">{{ savedCount() }}</span>
-            <span class="metric-hint">Ready for review</span>
+            <span class="metric-hint">Roles for review</span>
           </div>
         </div>
 
@@ -87,12 +77,9 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
             <app-icon name="check-square" [size]="18"></app-icon>
           </div>
           <div class="metric-body">
-            <div class="metric-label-row">
-              <span class="metric-label">Applied</span>
-              <span class="metric-micro-tag">Active</span>
-            </div>
+            <span class="metric-label">In Pipeline</span>
             <span class="metric-value">{{ appliedCount() }}</span>
-            <span class="metric-hint">In active pipeline</span>
+            <span class="metric-hint">Active applications</span>
           </div>
         </div>
 
@@ -102,13 +89,13 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
           </div>
           <div class="metric-body">
             <div class="metric-label-row">
-              <span class="metric-label">Engine Status</span>
+              <span class="metric-label">System State</span>
               <span class="engine-live-dot"></span>
             </div>
             <span class="metric-value status-text">
-              {{ lastRun()?.status || 'READY' }}
+              {{ lastRun()?.status === 'SUCCESS' ? 'Active' : (lastRun()?.status || 'Active') }}
             </span>
-            <span class="metric-hint">Next 09:00 Cairo</span>
+            <span class="metric-hint">Next run: 09:00 Cairo</span>
           </div>
         </div>
       </section>
@@ -120,7 +107,7 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
           <div class="panel-header">
             <div class="panel-title-wrap">
               <app-icon name="sparkles" [size]="18" class="panel-icon-accent"></app-icon>
-              <h2 id="top-jobs-title">Top Matched Opportunities</h2>
+              <h2 id="top-jobs-title">Top Matches</h2>
             </div>
             <a routerLink="/jobs" class="view-all-link">
               <span>View all {{ totalJobs() }} jobs</span>
@@ -148,8 +135,7 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
                 </div>
 
                 <div class="score-pill" [class.score-high]="job.match_score >= 70">
-                  <app-icon name="sparkles" [size]="12"></app-icon>
-                  <span>{{ job.match_score }}% Match</span>
+                  <span>{{ roundScore(job.match_score) }}% match</span>
                 </div>
               </div>
 
@@ -161,11 +147,11 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
                   [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
                   [class.badge-blue]="job.eligibility === 'REMOTE_REGION_POSSIBLE'"
                 >
-                  {{ job.eligibility }}
+                  {{ formatEligibility(job.eligibility) }}
                 </span>
-                <span class="badge">{{ job.workplace_type }}</span>
-                <span class="badge">{{ job.seniority }}</span>
-                <span class="badge">{{ job.source_name }}</span>
+                <span class="badge" *ngIf="formatWorkplace(job.workplace_type)">{{ formatWorkplace(job.workplace_type) }}</span>
+                <span class="badge" *ngIf="formatSeniority(job.seniority)">{{ formatSeniority(job.seniority) }}</span>
+                <span class="badge badge-source">{{ formatSource(job.source_name) }}</span>
               </div>
 
               <div class="job-item-footer">
@@ -174,9 +160,9 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
                   target="_blank"
                   rel="noopener noreferrer"
                   (click)="onOpenLink($event, job.original_application_url)"
-                  class="btn btn-secondary btn-sm"
+                  class="btn btn-primary btn-sm"
                 >
-                  <span>Apply Link</span>
+                  <span>View Role</span>
                   <app-icon name="external-link" [size]="12"></app-icon>
                 </a>
               </div>
@@ -245,24 +231,6 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       display: flex;
       flex-direction: column;
       gap: var(--space-2-5);
-    }
-    .agent-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: var(--text-2xs);
-      font-family: var(--font-mono);
-      font-weight: 600;
-      color: var(--color-brand-accent);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .pulse-beacon {
-      width: 6px;
-      height: 6px;
-      border-radius: var(--radius-full);
-      background-color: var(--color-brand-accent);
-      box-shadow: 0 0 8px var(--color-brand-accent);
     }
     .title-group h1 {
       font-size: var(--text-2xl);
@@ -724,6 +692,53 @@ export class OverviewComponent implements OnInit {
     if (this.telegram.isTelegram()) {
       event.preventDefault();
       this.telegram.openLink(url);
+    }
+  }
+
+  roundScore(score: number): number {
+    return Math.round(score);
+  }
+
+  formatEligibility(e?: string): string {
+    if (!e) return 'Worldwide';
+    switch (e) {
+      case 'EGYPT_ELIGIBLE': return 'Egypt Eligible';
+      case 'REMOTE_WORLDWIDE': return 'Worldwide Remote';
+      case 'REMOTE_REGION_POSSIBLE': return 'Region Remote';
+      case 'RELOCATION_REQUIRED': return 'Relocation';
+      default: return e.replace(/_/g, ' ');
+    }
+  }
+
+  formatWorkplace(w?: string): string {
+    if (!w || w === 'UNKNOWN') return '';
+    switch (w) {
+      case 'REMOTE': return 'Remote';
+      case 'HYBRID': return 'Hybrid';
+      case 'ON_SITE': return 'On-site';
+      default: return w;
+    }
+  }
+
+  formatSeniority(s?: string): string {
+    if (!s || s === 'UNKNOWN') return '';
+    switch (s) {
+      case 'GRADUATE': return 'Entry / Grad';
+      case 'JUNIOR': return 'Junior';
+      case 'MID': return 'Mid-level';
+      case 'SENIOR': return 'Senior';
+      default: return s;
+    }
+  }
+
+  formatSource(src?: string): string {
+    if (!src) return '';
+    switch (src) {
+      case 'greenhouse_canonical': return 'Canonical';
+      case 'remoteok': return 'RemoteOK';
+      case 'weworkremotely': return 'WeWorkRemotely';
+      case 'jobspy': return 'JobSpy';
+      default: return src.replace(/_/g, ' ');
     }
   }
 }

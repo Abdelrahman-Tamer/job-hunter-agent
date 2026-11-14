@@ -40,16 +40,14 @@ def test_truthful_date_label():
 
     # Published today
     label_today = format_date_label(published_at=today_job, first_seen_at=now)
-    assert "نُشرت اليوم / Published today" in label_today
+    assert "Published today" in label_today
 
     # Published 5 days ago
     label_old = format_date_label(published_at=old_job, first_seen_at=now)
-    assert "5" in label_old
     assert "Published 5d ago" in label_old
 
     # Missing publication date -> labeled 'First discovered', NEVER 'Posted today'
     label_missing = format_date_label(published_at=None, first_seen_at=first_seen)
-    assert "اكتُشفت أول مرة" in label_missing
     assert "First discovered" in label_missing
     assert "Published today" not in label_missing
 
@@ -82,7 +80,7 @@ async def test_telegram_authorization_allow_list(db_session):
     await dispatcher.handle_update(unauth_update, db_session)
     mock_client.send_message.assert_called_once()
     args, kwargs = mock_client.send_message.call_args
-    assert "عفواً، هذا البوت خاص بمرشح محدد فقط" in kwargs["text"]
+    assert "Access Denied" in kwargs["text"]
 
     # Authorized user
     mock_client.reset_mock()
@@ -96,7 +94,7 @@ async def test_telegram_authorization_allow_list(db_session):
     await dispatcher.handle_update(auth_update, db_session)
     assert mock_client.send_message.call_count >= 1
     # Check that at least one message is a welcome message
-    any_welcome = any("مرحباً بك" in call.kwargs.get("text", "") for call in mock_client.send_message.call_args_list)
+    any_welcome = any("Welcome" in call.kwargs.get("text", "") for call in mock_client.send_message.call_args_list)
     assert any_welcome
 
 
@@ -176,7 +174,7 @@ async def test_callback_save_and_applied(db_session):
     await dispatcher.handle_update(cover_callback, db_session)
     mock_client.send_message.assert_called_once()
     args, kwargs = mock_client.send_message.call_args
-    assert "Tailored Cover Letter" in kwargs["text"]
+    assert "Cover Letter" in kwargs["text"]
     assert "GlobalTech" in kwargs["text"]
 
     # Test Interview Prep Callback
@@ -193,7 +191,7 @@ async def test_callback_save_and_applied(db_session):
     await dispatcher.handle_update(interview_callback, db_session)
     mock_client.send_message.assert_called_once()
     args, kwargs = mock_client.send_message.call_args
-    assert "Interview Preparation" in kwargs["text"] or "أسئلة" in kwargs["text"]
+    assert "Interview" in kwargs["text"]
 
 
 @pytest.mark.asyncio

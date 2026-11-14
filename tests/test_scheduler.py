@@ -168,5 +168,5 @@ async def test_zero_results_truthful_summary(db_session):
     assert run.jobs_notified == 0
     mock_telegram.send_message.assert_called_once()
     args, kwargs = mock_telegram.send_message.call_args
-    assert "لا توجد فرص عمل جديدة تطابق معايير ملفك الشخصي اليوم" in kwargs["text"]
-    assert "تقرير النشرة اليومية" in kwargs["text"]
+    assert "No new job opportunities met your matching threshold today" in kwargs["text"]
+    assert "Daily Job Digest" in kwargs["text"]

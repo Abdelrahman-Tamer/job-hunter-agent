@@ -177,8 +177,9 @@
   --radius-full: 9999px;
 
   /* =========================================================================
-     Motion Tokens
+     Motion Tokens (Organic Smooth Easing)
      ========================================================================= */
-  --motion-fast: 0.14s cubic-bezier(0.16, 1, 0.3, 1);
-  --motion-base: 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-fast: 0.16s var(--ease-out);
+  --motion-base: 0.24s var(--ease-out);
 }

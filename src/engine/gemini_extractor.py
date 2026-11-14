@@ -231,23 +231,23 @@ Warm regards,
         top_skills = ", ".join(skills[:8])
 
         if not client or not self.api_key:
-            return f"""🎯 <b>أهم 4 أسئلة متوقعة لمقابلة {escape(job_title)} في {escape(company)}:</b>
+            return f"""🎯 <b>Top 4 Predicted Interview Questions for {escape(job_title)} at {escape(company)}:</b>
 
 1️⃣ <b>Angular Architecture & Signals / RxJS:</b>
-• <i>السؤال:</i> How do you manage asynchronous state and avoid memory leaks when dealing with multiple API streams in Angular?
-• <i>الإجابة المقترحة:</i> تحدث عن استخدام RxJS pipes (switchMap, takeUntilDestroyed) أو Angular Signals الحديثة، واذكر تجربتك في مشروع FreshCart E-commerce.
+• <i>Question:</i> How do you manage asynchronous state and prevent memory leaks across multiple API streams in Angular?
+• <i>Recommended Answer:</i> Discuss RxJS operators (<code>switchMap</code>, <code>takeUntilDestroyed</code>) and modern Angular Signals. Highlight real-world delivery such as the FreshCart E-Commerce platform.
 
-2️⃣ <b>Component Performance & Lazy Loading:</b>
-• <i>السؤال:</i> How do you optimize initial bundle size and page render times for complex SPAs?
-• <i>الإجابة المقترحة:</i> اشرح تقسيم التطبيق إلى Feature Modules مع Lazy Loading، وتحسين استهلاك الصور، واستخدام ChangeDetectionStrategy.OnPush.
+2️⃣ <b>Performance Optimization & Lazy Loading:</b>
+• <i>Question:</i> How do you optimize initial bundle size and Core Web Vitals for large-scale Angular SPAs?
+• <i>Recommended Answer:</i> Explain code splitting via Feature Modules and Lazy Routes, image optimization, defer blocks (<code>@defer</code>), and <code>ChangeDetectionStrategy.OnPush</code>.
 
-3️⃣ <b>API Integration & Error Handling:</b>
-• <i>السؤال:</i> How do you handle HTTP Interceptors, JWT authentication, and route guards?
-• <i>الإجابة المقترحة:</i> اذكر تطبيقك لـ HttpInterceptor لإرفاق Bearer tokens وحماية المسارات بـ CanActivate guards.
+3️⃣ <b>API Integration & Authentication:</b>
+• <i>Question:</i> How do you implement HTTP Interceptors, JWT authentication tokens, and route protection?
+• <i>Recommended Answer:</i> Explain configuring an <code>HttpInterceptorFn</code> for Bearer token injection, automatic token refresh, and <code>canActivate</code> route guards.
 
-4️⃣ <b>Cross-Device & Responsive CSS:</b>
-• <i>السؤال:</i> How do you ensure pixel-perfect responsive layouts across RTL (Arabic) and LTR screens?
-• <i>الإجابة المقترحة:</i> اذكر مشروعك الفعلي (Receipta Pro) واستخدام Tailwind CSS و CSS Grid لدعم الشاشات المتنوعة."""
+4️⃣ <b>Responsive Design & Modern CSS:</b>
+• <i>Question:</i> How do you ensure high-performance, pixel-perfect responsive layouts across diverse screen sizes?
+• <i>Recommended Answer:</i> Mention mobile-first layout strategy using Tailwind CSS, CSS Grid, and responsive UI components."""
 
         safe_desc = sanitize_text_for_llm(job_description, max_length=5000)
         prompt = f"""You are an engineering hiring manager.
@@ -261,8 +261,8 @@ Job Description snippet:
 
 Format as:
 1. Question in English.
-2. Concise winning answer recommendation in Arabic with practical bullet points.
-Output HTML-compatible Telegram formatted text (bold <b>, italic <i>, etc.)."""
+2. Concise winning answer hints in professional English with practical bullet points.
+Output HTML-compatible Telegram formatted text (bold <b>, italic <i>, code <code>)."""
 
         try:
             def _call():
@@ -276,16 +276,16 @@ Output HTML-compatible Telegram formatted text (bold <b>, italic <i>, etc.)."""
             return (res.text or "").strip()
         except Exception as exc:
             logger.warning(f"Gemini interview prep generation failed: {exc}. Using fallback.")
-            return f"""🎯 <b>أهم 3 أسئلة متوقعة لمقابلة {escape(job_title)} في {escape(company)}:</b>
+            return f"""🎯 <b>Top 3 Predicted Interview Questions for {escape(job_title)} at {escape(company)}:</b>
 
 1️⃣ <b>Angular State & RxJS Composition:</b>
-• <i>السؤال:</i> How do you handle asynchronous data streams and route parameters?
-• <i>الإجابة المقترحة:</i> اشرح استخدام RxJS operators مثل switchMap و combineLatest وطريقة تنظيف الـ subscriptions.
+• <i>Question:</i> How do you handle asynchronous data streams and route parameters?
+• <i>Recommended Answer:</i> Emphasize declarative RxJS pipelines (<code>switchMap</code>, <code>combineLatest</code>) and unsubscribing cleanly.
 
 2️⃣ <b>REST APIs & Security:</b>
-• <i>السؤال:</i> How do you implement JWT authentication and route protection?
-• <i>الإجابة المقترحة:</i> استخدام HttpInterceptor لتضمين التوكن وتطبيق Route Guards.
+• <i>Question:</i> How do you handle JWT authentication and route protection?
+• <i>Recommended Answer:</i> Explain using <code>HttpInterceptor</code> for header authorization and protecting routes with functional guards.
 
-3️⃣ <b>Responsive & Clean UI:</b>
-• <i>السؤال:</i> How do you build reusable and maintainable frontend components?
-• <i>الإجابة المقترحة:</i> استخدام Tailwind CSS / Bootstrap 5 وفصل الـ Container Components عن الـ Presentational Components."""
+3️⃣ <b>Responsive & Reusable Architecture:</b>
+• <i>Question:</i> How do you build maintainable, component-driven frontend applications?
+• <i>Recommended Answer:</i> Highlight presentational vs. container component separation, Tailwind CSS utility architecture, and TypeScript interfaces."""
