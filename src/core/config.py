@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     MATCH_THRESHOLD_DIGEST: float = 70.0
     MATCH_THRESHOLD_STORE: float = 50.0
 
+    # Freshness policy (maximum job age in days)
+    MAX_JOB_AGE_DAYS: int = 30
+
     # Default Sources Configuration
     HIMALAYAS_ENABLED: bool = True
     REMOTIVE_ENABLED: bool = True

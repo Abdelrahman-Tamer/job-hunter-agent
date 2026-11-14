@@ -152,6 +152,18 @@ class DailyPipelineRunner:
                 for raw in raw_jobs:
                     normalized: NormalizedJobData = adapter.normalize(raw)
 
+                    # Freshness filter: Drop stale jobs older than MAX_JOB_AGE_DAYS (30 days)
+                    if normalized.published_at:
+                        if normalized.published_at.tzinfo is None:
+                            normalized.published_at = normalized.published_at.replace(tzinfo=timezone.utc)
+                        job_age_days = (datetime.now(timezone.utc) - normalized.published_at).days
+                        if job_age_days > settings.MAX_JOB_AGE_DAYS:
+                            logger.debug(
+                                f"Skipping stale job: '{normalized.title}' at {normalized.company} "
+                                f"({job_age_days}d old > limit {settings.MAX_JOB_AGE_DAYS}d)"
+                            )
+                            continue
+
                     # Deduplication check
                     existing, match_type = await DeduplicationEngine.find_existing_job(session, normalized)
                     if existing:
@@ -242,7 +254,7 @@ class DailyPipelineRunner:
                         published_at=normalized.published_at,
                         first_seen_at=datetime.now(timezone.utc),
                         last_seen_at=datetime.now(timezone.utc),
-                        is_active=True,
+                        is_active=(eligibility != GeographicEligibility.NOT_ELIGIBLE),
                         eligibility=eligibility,
                         eligibility_reason=elig_reason,
                         match_score=match_result.score,

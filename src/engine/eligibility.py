@@ -19,16 +19,39 @@ EGYPT_IDENTIFIERS: Set[str] = {
     "egy",
 }
 
-# Regional groupings that include Egypt geographically or economically
-# These are treated as REMOTE_REGION_POSSIBLE unless explicit country list confirms EG
+# Gulf and Arab countries / regional terms where remote from Egypt is readily accessible
+GULF_AND_ARAB_IDENTIFIERS: Set[str] = {
+    "gcc",
+    "gulf",
+    "mena",
+    "arab",
+    "middle east",
+    "north africa",
+    "saudi",
+    "saudi arabia",
+    "ksa",
+    "riyadh",
+    "jeddah",
+    "dammam",
+    "khobar",
+    "uae",
+    "united arab emirates",
+    "dubai",
+    "abu dhabi",
+    "sharjah",
+    "qatar",
+    "doha",
+    "kuwait",
+    "bahrain",
+    "manama",
+    "oman",
+    "muscat",
+}
+
+# Regional groupings that may include Egypt geographically
 REGIONAL_KEYWORDS: List[str] = [
     "emea",
-    "mena",
     "africa",
-    "middle east",
-    "gcc",
-    "arab",
-    "north africa",
 ]
 
 # Words indicating worldwide remote availability
@@ -108,27 +131,37 @@ class GeographicEligibilityEngine:
         if workplace_type == WorkplaceType.REMOTE and is_worldwide:
             return GeographicEligibility.REMOTE_WORLDWIDE, "Explicitly advertised as worldwide / work-from-anywhere remote."
 
-        # 4. Check for Regional Remote (EMEA, Africa, MENA, GCC)
+        # 4. Check for Gulf / Arab / MENA Remote (Directly open and desirable for Egyptian candidates)
+        is_gulf_arab = (
+            any(re.search(rf"\b{re.escape(kw)}\b", full_text) for kw in GULF_AND_ARAB_IDENTIFIERS)
+            or any(re.search(rf"\b{re.escape(kw)}\b", desc_sample) for kw in GULF_AND_ARAB_IDENTIFIERS)
+            or any(kw in eligible_set for kw in GULF_AND_ARAB_IDENTIFIERS)
+        )
+        if workplace_type == WorkplaceType.REMOTE and is_gulf_arab:
+            return (
+                GeographicEligibility.EGYPT_ELIGIBLE,
+                "Remote role in Gulf / MENA / Arab region open to Egyptian candidates.",
+            )
+
+        # 5. Check for Regional Remote (EMEA, Africa)
         is_regional = any(re.search(rf"\b{re.escape(kw)}\b", full_text) for kw in REGIONAL_KEYWORDS)
         if workplace_type == WorkplaceType.REMOTE and is_regional:
             return (
                 GeographicEligibility.REMOTE_REGION_POSSIBLE,
-                "Remote within regional boundary (EMEA/MENA/Africa); needs country-level verification before applying.",
+                "Remote within regional boundary (EMEA/Africa); needs country-level verification before applying.",
             )
 
-        # 5. On-site or Hybrid outside Egypt -> RELOCATION_REQUIRED
+        # 6. On-site or Hybrid outside Egypt -> STRICTLY NOT_ELIGIBLE (User rule: On-site must be in Egypt only)
         if workplace_type in (WorkplaceType.ON_SITE, WorkplaceType.HYBRID):
-            if loc_text:
-                return (
-                    GeographicEligibility.RELOCATION_REQUIRED,
-                    f"On-site/hybrid role in '{raw_location}'. Candidate is based in Egypt; relocation required.",
-                )
-            return GeographicEligibility.UNKNOWN, "On-site/hybrid role with unstated location."
+            return (
+                GeographicEligibility.NOT_ELIGIBLE,
+                f"On-site/hybrid role in '{raw_location or 'outside Egypt'}'. Only on-site roles within Egypt are eligible; candidate is based in Egypt.",
+            )
 
-        # 6. Remote with ambiguous or missing scope
+        # 7. Remote with ambiguous or missing scope
         if workplace_type == WorkplaceType.REMOTE:
-            # If scope contains country names other than Egypt (e.g. "Germany", "United States", "UK")
-            if any(country in full_text for country in ["united states", "usa", "uk", "germany", "france", "canada"]):
+            # If scope contains country names other than Egypt/Gulf (e.g. "Germany", "United States", "UK")
+            if any(country in full_text for country in ["united states", "usa", "uk", "germany", "france", "canada", "australia"]):
                 return (
                     GeographicEligibility.NOT_ELIGIBLE,
                     f"Remote role restricted to other specific country: {raw_location or remote_scope}.",

@@ -83,18 +83,22 @@ class MatchingEngine:
         elif any(f in title_lower for f in ["frontend", "front-end", "front end", "ui engineer", "web developer"]):
             role_score = 18.0
             reasons.append("Primary domain match: Frontend / Web Development role.")
+            gaps.append("المسمى الوظيفي: عام (Frontend/Web) وليس مخصصاً لـ Angular حصراً (-2 نقطة)")
         elif any(r.lower() in title_lower for r in profile.target_role_terms):
             role_score = 15.0
             reasons.append("Approved target role family match (Software Engineering).")
+            gaps.append(f"المسمى الوظيفي: ({job_title}) يركز على هندسة البرمجيات العامة (-5 نقاط)")
         elif "angular" in desc_lower:
             role_score = 14.0
             reasons.append("Angular mentioned prominently in role description.")
+            gaps.append("المسمى الوظيفي: لا يذكر Angular في العنوان وإنما داخل الوصف (-6 نقاط)")
         elif any(f in desc_lower for f in ["frontend", "javascript", "typescript"]):
             role_score = 10.0
             reasons.append("Frontend technologies required in job description.")
+            gaps.append("المسمى الوظيفي: دور تقني غير مخصص لواجهات Angular (-10 نقاط)")
         else:
             role_score = 5.0
-            gaps.append("Role title is tangential to Frontend/Angular target.")
+            gaps.append("Role title is tangential to Frontend/Angular target (-15 نقطة)")
 
         # -------------------------------------------------------------
         # 2. Confirmed Skills / Tech overlap (max 25)
@@ -105,10 +109,11 @@ class MatchingEngine:
 
         # Analyze job requirements
         all_job_skills = {s.lower().strip() for s in job_skills}
-        # Check text if job_skills list is empty
-        for tech in ["angular", "typescript", "javascript", "html", "css", "rxjs", "ngrx", "react", "vue", "node", "python"]:
-            if re.search(rf"\b{re.escape(tech)}\b", desc_lower) or re.search(rf"\b{re.escape(tech)}\b", title_lower):
-                all_job_skills.add(tech)
+        # Check text if job_skills list is empty or minimal
+        if len(all_job_skills) < 2:
+            for tech in ["angular", "typescript", "javascript", "html", "css", "rxjs", "ngrx", "react", "vue", "node", "python", "docker", "git", "graphql"]:
+                if re.search(rf"\b{re.escape(tech)}\b", desc_lower) or re.search(rf"\b{re.escape(tech)}\b", title_lower):
+                    all_job_skills.add(tech)
 
         if not confirmed_set:
             # Candidate has zero confirmed skills verified yet
@@ -116,17 +121,32 @@ class MatchingEngine:
             gaps.append("Profile has no confirmed skills verified from CV yet (0/25).")
             confidence_factors.append(0.5)
         else:
-            matched_confirmed = confirmed_set.intersection(all_job_skills)
-            unmatched_job_skills = all_job_skills - confirmed_set
+            # Fuzzy match skills (e.g. "Bootstrap 5" matches "bootstrap", "HTML5" matches "html")
+            matched_confirmed = set()
+            for js in all_job_skills:
+                for cs in confirmed_set:
+                    if js == cs or (len(js) >= 3 and (js in cs or cs in js)):
+                        matched_confirmed.add(js)
+                        break
+
+            unmatched_job_skills = all_job_skills - matched_confirmed
 
             if matched_confirmed:
                 ratio = len(matched_confirmed) / max(len(all_job_skills), 1)
-                skills_score = min(25.0, 25.0 * ratio + (5.0 if "angular" in matched_confirmed else 0.0))
+                skills_score = min(25.0, 25.0 * ratio + (5.0 if any("angular" in m for m in matched_confirmed) else 0.0))
                 skills_score = min(25.0, skills_score)
                 reasons.append(f"Confirmed skills matched: {', '.join(sorted(matched_confirmed))}.")
             else:
                 skills_score = 3.0
                 gaps.append(f"Missing confirmed overlap with job skills: {', '.join(sorted(unmatched_job_skills)[:4])}.")
+
+            # Itemize missing skills explicitly so candidate knows what prevented 100%
+            if unmatched_job_skills:
+                missing_sorted = sorted(list(unmatched_job_skills))
+                missing_display = ", ".join(missing_sorted[:5])
+                deduction = 25.0 - skills_score
+                if deduction > 0.0:
+                    gaps.append(f"مهارات مطلوبة تنقصك بالـ CV: {missing_display}{' وغيرها' if len(missing_sorted) > 5 else ''} (-{deduction:.1f} نقطة)")
 
         # Note target skill alignment transparently without awarding confirmed skill points
         target_set = {s.lower().strip() for s in (profile.target_skills or [])}
@@ -136,29 +156,27 @@ class MatchingEngine:
 
         # -------------------------------------------------------------
         # 3. Experience and Seniority Compatibility (max 20)
-        # Candidate years: unknown/null.
-        # Check student-only vs graduate conflict.
         # -------------------------------------------------------------
         exp_score = 10.0  # Base neutral for unknown
         is_student_conflict = False
 
-        # Check student conflict: candidate is a graduate of Egyptian E-Learning University
         is_student_only = "student" in title_lower or "current student" in desc_lower or "currently enrolled" in desc_lower
         is_graduate_friendly = "graduate" in title_lower or "recent graduate" in desc_lower or "entry" in title_lower or "junior" in title_lower
 
         if is_student_only and not is_graduate_friendly:
             is_student_conflict = True
             exp_score = 4.0
-            gaps.append("Job appears restricted to currently-enrolled students; candidate is already a graduate.")
+            gaps.append("Job appears restricted to currently-enrolled students; candidate is already a graduate (-16 نقطة)")
         elif seniority in (SeniorityLevel.GRADUATE, SeniorityLevel.ENTRY, SeniorityLevel.JUNIOR, SeniorityLevel.INTERNSHIP):
             exp_score = 18.0
             reasons.append(f"Seniority ({seniority.value}) matches entry/graduate profile.")
         elif seniority in (SeniorityLevel.ASSOCIATE, SeniorityLevel.MID):
             exp_score = 14.0
             reasons.append(f"Mid/Associate seniority ({seniority.value}); feasible with demonstrated project proficiency.")
+            gaps.append(f"المستوى المطلوب متوسط ({seniority.value}) بينما ملفك مسجل كـ Junior (-6 نقاط)")
         elif seniority in (SeniorityLevel.SENIOR, SeniorityLevel.LEAD, SeniorityLevel.STAFF, SeniorityLevel.PRINCIPAL, SeniorityLevel.MANAGER):
             exp_score = 6.0
-            gaps.append(f"Seniority is {seniority.value}; may require substantial industry track record.")
+            gaps.append(f"مستوى الخبرة المطلوب ({seniority.value}) يشترط خبرة صناعية عميقة (-14 نقطة)")
         else:
             # Seniority UNKNOWN
             exp_score = 12.0
@@ -168,13 +186,13 @@ class MatchingEngine:
             if required_experience_years <= 2.0:
                 exp_score = max(exp_score, 18.0)
                 reasons.append(f"Experience requirement ({required_experience_years:.0f}y) is accessible.")
-            elif required_experience_years > 4.0:
+            elif required_experience_years > 2.0:
                 exp_score = min(exp_score, 8.0)
-                gaps.append(f"Requires {required_experience_years:.0f}+ years experience.")
+                gaps.append(f"سنوات الخبرة المطلوبة ({required_experience_years:.0f}+ سنوات) تفوق سنة واحدة (-12 نقطة)")
 
         # -------------------------------------------------------------
         # 4. Work Eligibility & Location (max 20)
-        # Hard penalty for NOT_ELIGIBLE
+        # Hard penalty for NOT_ELIGIBLE and On-site outside Egypt
         # -------------------------------------------------------------
         elig_score = 0.0
         if eligibility == GeographicEligibility.EGYPT_ELIGIBLE:
@@ -183,20 +201,23 @@ class MatchingEngine:
         elif eligibility == GeographicEligibility.REMOTE_WORLDWIDE:
             elig_score = 19.0
             reasons.append("Worldwide remote: Applicants in Egypt permitted.")
+            gaps.append("عمل ريموت عالمي: يتطلب التنسيق مع مناطق زمنية دولية (-1 نقطة)")
         elif eligibility == GeographicEligibility.REMOTE_REGION_POSSIBLE:
             elig_score = 12.0
             reasons.append("Regional remote (EMEA/MENA): Egypt hiring likely but requires verification.")
             confidence_factors.append(0.7)
+            gaps.append("نطاق العمل عن بُعد إقليمي: يتطلب التحقق من إمكانية التوظيف في مصر (-8 نقاط)")
         elif eligibility == GeographicEligibility.RELOCATION_REQUIRED:
-            elig_score = 8.0
+            elig_score = 0.0
             reasons.append("Relocation required to destination country; relocation willingness not assumed.")
+            gaps.append("وظيفة مكتبية خارج مصر وتتطلب الانتقال للدولة الأخرى (-20 نقطة)")
         elif eligibility == GeographicEligibility.NOT_ELIGIBLE:
             elig_score = 0.0
-            gaps.append("Hard filter: Candidate is not geographically eligible.")
+            gaps.append("Hard filter: Candidate is not geographically eligible (-20 نقطة)")
         else:
             elig_score = 10.0
             confidence_factors.append(0.5)
-            gaps.append("Geographic eligibility is unconfirmed/unknown.")
+            gaps.append("Geographic eligibility is unconfirmed/unknown (-10 نقاط)")
 
         # -------------------------------------------------------------
         # 5. Employment-Type Fit (max 10)
@@ -208,22 +229,34 @@ class MatchingEngine:
             reasons.append("Full-time employment opportunity.")
         elif employment_type in (EmploymentType.CONTRACT, EmploymentType.INTERNSHIP):
             emp_score = 8.0
+            gaps.append(f"نوع التعاقد: {employment_type.value} وليس دواماً كاملاً دائماً (-2 نقطة)")
         elif employment_type == EmploymentType.PART_TIME:
             emp_score = 6.0
+            gaps.append("نوع التعاقد: دوام جزئي وليس دواماً كاملاً (-4 نقاط)")
 
         # -------------------------------------------------------------
         # 6. Freshness & Source Evidence Quality (max 5)
         # -------------------------------------------------------------
         fresh_score = 3.0
         if published_at:
+            if published_at.tzinfo is None:
+                published_at = published_at.replace(tzinfo=timezone.utc)
             age_days = (datetime.now(timezone.utc) - published_at).days
             if age_days <= 3:
                 fresh_score = 5.0
                 reasons.append("Recently published listing (≤ 3 days ago).")
-            elif age_days <= 14:
+            elif age_days <= 7:
                 fresh_score = 4.0
-            else:
+                gaps.append(f"تاريخ النشر: نُشرت منذ {age_days} أيام (الدرجة الكاملة لأول 3 أيام فقط) (-1 نقطة)")
+            elif age_days <= 14:
+                fresh_score = 3.0
+                gaps.append(f"تاريخ النشر: نُشرت منذ {age_days} يوماً (-2 نقطة)")
+            elif age_days <= 30:
                 fresh_score = 2.0
+                gaps.append(f"تاريخ النشر: نُشرت منذ {age_days} يوماً (-3 نقاط)")
+            else:
+                fresh_score = 1.0
+                gaps.append(f"تاريخ النشر: إعلان قديم نُشر منذ {age_days} يوماً (-4 نقاط)")
         else:
             fresh_score = 3.0
             confidence_factors.append(0.8)

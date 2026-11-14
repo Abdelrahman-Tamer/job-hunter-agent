@@ -42,8 +42,8 @@ def test_worldwide_remote(engine):
     assert status2 == GeographicEligibility.REMOTE_WORLDWIDE
 
 
-def test_regional_remote_emea_mena_africa(engine):
-    """Verify that EMEA/MENA/Africa remote roles without Egypt confirmation are REMOTE_REGION_POSSIBLE."""
+def test_regional_remote_emea_africa(engine):
+    """Verify that EMEA/Africa remote roles without explicit Egypt or Gulf confirmation are REMOTE_REGION_POSSIBLE."""
     status, reason = engine.classify(
         raw_location="Home based - EMEA",
         workplace_type=WorkplaceType.REMOTE,
@@ -53,10 +53,21 @@ def test_regional_remote_emea_mena_africa(engine):
     assert "verification" in reason.lower()
 
     status2, _ = engine.classify(
-        raw_location="Remote - Africa & Middle East",
+        raw_location="Remote - Africa",
         workplace_type=WorkplaceType.REMOTE,
     )
     assert status2 == GeographicEligibility.REMOTE_REGION_POSSIBLE
+
+
+def test_gulf_and_arab_remote_is_egypt_eligible(engine):
+    """Verify that remote roles in Gulf/Arab/Saudi/UAE/GCC are directly classified as EGYPT_ELIGIBLE."""
+    status, reason = engine.classify(
+        raw_location="Remote - Saudi Arabia (Riyadh)",
+        workplace_type=WorkplaceType.REMOTE,
+        remote_scope="GCC / Arab Region",
+    )
+    assert status == GeographicEligibility.EGYPT_ELIGIBLE
+    assert "gulf" in reason.lower() or "egypt" in reason.lower()
 
 
 def test_explicit_exclusion_of_egypt_or_single_country_restriction(engine):
@@ -76,14 +87,14 @@ def test_explicit_exclusion_of_egypt_or_single_country_restriction(engine):
     assert status2 == GeographicEligibility.NOT_ELIGIBLE
 
 
-def test_onsite_outside_egypt_is_relocation_required(engine):
-    """Verify that on-site jobs outside Egypt are marked RELOCATION_REQUIRED, never assumed remote."""
+def test_onsite_outside_egypt_is_not_eligible(engine):
+    """Verify that on-site jobs outside Egypt are strictly NOT_ELIGIBLE (user rule: on-site in Egypt only)."""
     status, reason = engine.classify(
         raw_location="Berlin, Germany",
         workplace_type=WorkplaceType.ON_SITE,
     )
-    assert status == GeographicEligibility.RELOCATION_REQUIRED
-    assert "relocation required" in reason.lower()
+    assert status == GeographicEligibility.NOT_ELIGIBLE
+    assert "only on-site roles within egypt are eligible" in reason.lower()
 
 
 def test_remote_alone_without_scope_is_unknown(engine):

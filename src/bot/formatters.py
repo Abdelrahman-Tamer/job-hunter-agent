@@ -123,11 +123,13 @@ def format_job_card(job: Job) -> str:
         for reason in job.match_reasons[:3]:
             lines.append(f"  • {escape(reason)}")
 
-    # Gaps / Unknowns
-    if job.skill_gaps:
-        lines.append("<b>⚠️ ملاحظات وفجوات / Gaps & Notes:</b>")
-        for gap in job.skill_gaps[:2]:
+    # Why not 100%? / Missing requirements & Deductions
+    if job.match_score < 100.0 and job.skill_gaps:
+        lines.append(f"<b>🔍 ما ينقصك للحصول على 100% (-{100.0 - job.match_score:.1f}%):</b>")
+        for gap in job.skill_gaps[:4]:
             lines.append(f"  • {escape(gap)}")
+    elif job.match_score >= 100.0:
+        lines.append("🌟 <b>تطابق كامل ومثالي 100% مع جميع المتطلبات!</b>")
 
     return "\n".join(lines)
 
@@ -164,8 +166,8 @@ def format_match_breakdown(job: Job) -> str:
             lines.append(f"  ✓ {escape(r)}")
     if job.skill_gaps:
         lines.append("")
-        lines.append("⚠️ <b>المهارات المطلوبة غير الموجودة بالـ CV:</b>")
-        for g in job.skill_gaps[:3]:
+        lines.append("🔍 <b>تفاصيل النواقص وسبب خصم النقاط (Why not 100%?):</b>")
+        for g in job.skill_gaps:
             lines.append(f"  ✗ {escape(g)}")
 
     return "\n".join(lines)
