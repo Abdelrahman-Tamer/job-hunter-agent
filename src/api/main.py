@@ -85,12 +85,25 @@ def create_app() -> FastAPI:
     # Mount Angular production SPA when built
     dist_dir = pathlib.Path("frontend/dist/frontend/browser")
     if dist_dir.exists():
-        @app.get("/{full_path:path}", include_in_schema=False)
+        no_cache_headers = {
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+        immutable_headers = {
+            "Cache-Control": "public, max-age=31536000, immutable",
+        }
+
+        @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
         async def serve_spa(full_path: str):
             candidate = dist_dir / full_path
-            if candidate.is_file():
+            if candidate.is_file() and candidate.name != "index.html":
+                # Static hashed assets (.js, .css, images, fonts) are safe to cache forever
+                if candidate.suffix in {".js", ".css", ".woff2", ".png", ".jpg", ".jpeg", ".svg", ".ico"}:
+                    return FileResponse(candidate, headers=immutable_headers)
                 return FileResponse(candidate)
-            return FileResponse(dist_dir / "index.html")
+            # index.html MUST never be cached so Telegram & browsers pick up new deploys immediately
+            return FileResponse(dist_dir / "index.html", headers=no_cache_headers)
 
     return app
 
