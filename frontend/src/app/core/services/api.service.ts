@@ -9,6 +9,7 @@ import {
   SourceInfo,
   TrackedJobItem,
   ApplicationStatus,
+  ParsedCVResult,
 } from '../models/job.model';
 
 @Injectable({
@@ -48,6 +49,25 @@ export class ApiService {
 
   updateProfile(profile: Partial<CandidateProfile>): Observable<{ status: string }> {
     return this.http.put<{ status: string }>(`${this.baseUrl}/api/v1/profile`, profile);
+  }
+
+  uploadCvFile(file: File): Observable<ParsedCVResult> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<ParsedCVResult>(`${this.baseUrl}/api/v1/profile/cv/upload`, formData);
+  }
+
+  uploadCvText(cvRawText: string): Observable<ParsedCVResult> {
+    const formData = new FormData();
+    formData.append('cv_raw_text', cvRawText);
+    return this.http.post<ParsedCVResult>(`${this.baseUrl}/api/v1/profile/cv/upload`, formData);
+  }
+
+  confirmCvData(data: any): Observable<{ status: string; message: string }> {
+    return this.http.post<{ status: string; message: string }>(
+      `${this.baseUrl}/api/v1/profile/cv/confirm`,
+      data
+    );
   }
 
   importCvLocally(cvRawText: string): Observable<{

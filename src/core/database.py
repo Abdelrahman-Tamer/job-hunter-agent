@@ -32,8 +32,15 @@ def ensure_sqlite_dir(url: str) -> None:
 
 ensure_sqlite_dir(settings.DATABASE_URL)
 
+# Normalise PostgreSQL URLs from cloud providers (e.g. Render/Railway/Supabase) to asyncpg
+db_url = settings.DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+"):
+    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 engine: AsyncEngine = create_async_engine(
-    settings.DATABASE_URL,
+    db_url,
     echo=settings.DEBUG,
     future=True,
 )

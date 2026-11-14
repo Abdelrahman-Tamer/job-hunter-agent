@@ -54,7 +54,7 @@ class GeminiJobExtractor:
     """Extracts missing attributes using Google GenAI SDK behind safety guardrails."""
 
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
-        self.api_key = api_key or settings.GEMINI_API_KEY
+        self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
         self.model_name = model_name or settings.GEMINI_MODEL
         self._client: Optional[Any] = None
 

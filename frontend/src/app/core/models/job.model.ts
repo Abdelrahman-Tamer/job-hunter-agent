@@ -68,6 +68,8 @@ export interface JobDetail extends JobSummary {
 
 export interface CandidateProfile {
   id: number;
+  full_name?: string | null;
+  professional_summary?: string | null;
   country: string;
   career_direction: string;
   priority_target: string;
@@ -83,9 +85,74 @@ export interface CandidateProfile {
   experience_years: number | null;
   github_url: string | null;
   portfolio_url: string | null;
+  experiences?: ParsedExperience[];
+  educations?: ParsedEducation[];
+  projects?: ParsedProject[];
+  certifications?: ParsedCertification[];
+  languages?: string[];
+  soft_skills?: string[];
   digest_enabled: boolean;
   digest_time: string;
   digest_threshold: number;
+}
+
+export interface ParsedPersonalInfo {
+  full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
+  linkedin_url?: string | null;
+  github_url?: string | null;
+  portfolio_url?: string | null;
+}
+
+export interface ParsedExperience {
+  role: string;
+  company: string;
+  location?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  bullets: string[];
+}
+
+export interface ParsedEducation {
+  degree: string;
+  institution: string;
+  location?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  graduation_year?: number | null;
+  coursework: string[];
+}
+
+export interface ParsedProject {
+  name: string;
+  technologies: string[];
+  context?: string | null;
+  bullets: string[];
+}
+
+export interface ParsedCertification {
+  name: string;
+  issuer?: string | null;
+  score?: string | null;
+}
+
+export interface ParsedCVResult {
+  personal_info: ParsedPersonalInfo;
+  professional_summary?: string | null;
+  confirmed_skills: string[];
+  target_skills: string[];
+  learning_or_exposure_skills: string[];
+  experiences: ParsedExperience[];
+  educations: ParsedEducation[];
+  projects: ParsedProject[];
+  certifications: ParsedCertification[];
+  languages: string[];
+  soft_skills: string[];
+  experience_years?: number | null;
+  requires_user_confirmation: boolean;
+  sanitized_text_preview: string;
 }
 
 export interface SourceInfo {

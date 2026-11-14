@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: bottajobs
+    runtime: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    disk:
+      name: bottajobs-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: TIMEZONE
+        value: Africa/Cairo
+      - key: TELEGRAM_POLLING
+        value: "true"
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_OWNER_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: DIGEST_CRON_HOUR
+        value: "9"
+      - key: DIGEST_CRON_MINUTE
+        value: "0"

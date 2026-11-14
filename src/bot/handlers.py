@@ -173,26 +173,36 @@ Welcome, {escape(profile.priority_target)} candidate.
 
     async def _cmd_profile(self, chat_id: int, session: AsyncSession) -> None:
         profile = await get_or_create_candidate_profile(session)
+        name_str = f"<b>{escape(profile.full_name)}</b>\n" if profile.full_name else ""
         confirmed_str = ", ".join(profile.confirmed_skills) if profile.confirmed_skills else "لا توجد بعد (Empty until verified from CV)"
         target_str = ", ".join(profile.target_skills) if profile.target_skills else "None"
         exp_str = f"{profile.experience_years} years" if profile.experience_years is not None else "غير محدد / Unknown"
 
-        text = f"""👤 <b>الملف الشخصي للمرشح / Candidate Profile:</b>
+        proj_count = len(profile.projects or [])
+        proj_str = f"• المشاريع المنجزة: <b>{proj_count} مشاريع</b>" if proj_count > 0 else ""
 
-• الدولة: <b>{profile.country} (مصر)</b>
+        cert_count = len(profile.certifications or [])
+        cert_str = f"• الشهادات المهنية: <b>{cert_count} شهادات</b>" if cert_count > 0 else ""
+
+        text = f"""👤 <b>الملف الشخصي للمرشح / Candidate Profile:</b>
+{name_str}
+• الدولة: <b>{profile.country} (مصر) 🇪🇬</b>
 • المجال المستهدف: <b>{escape(profile.career_direction)}</b>
 • الأولوية: <b>{escape(profile.priority_target)}</b>
 • سنوات الخبرة: <b>{exp_str}</b>
 • الجامعة: <b>{escape(profile.education_institution or 'N/A')}</b>
 • الشهادة / التخرج: <b>{escape(profile.degree_title or 'غير مؤكد / Unconfirmed')} ({profile.graduation_year or 'N/A'})</b>
+{proj_str}
+{cert_str}
 
-🛠️ <b>المهارات المؤكدة من السيرة الذاتية / Confirmed Skills:</b>
+🛠️ <b>المهارات المؤكدة من السيرة الذاتية / Confirmed Skills ({len(profile.confirmed_skills or [])}):</b>
 <code>{escape(confirmed_str)}</code>
 
 🎯 <b>المهارات المستهدفة / Target Skills:</b>
 <code>{escape(target_str)}</code>
 
 🔗 LinkedIn: {escape(profile.linkedin_url or 'N/A')}
+🔗 GitHub: {escape(profile.github_url or 'N/A')}
 """
         await self.client.send_message(chat_id=chat_id, text=text)
 

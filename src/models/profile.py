@@ -58,6 +58,17 @@ class CandidateProfile(Base):
     github_url = Column(String(255), nullable=True)
     portfolio_url = Column(String(255), nullable=True)
 
+    # Structured CV Data
+    full_name = Column(String(255), nullable=True)
+    professional_summary = Column(Text, nullable=True)
+    experiences = Column(JSON, default=list, nullable=True)
+    educations = Column(JSON, default=list, nullable=True)
+    projects = Column(JSON, default=list, nullable=True)
+    certifications = Column(JSON, default=list, nullable=True)
+    languages = Column(JSON, default=list, nullable=True)
+    soft_skills = Column(JSON, default=list, nullable=True)
+    raw_cv_text = Column(Text, nullable=True)
+
     # Preferences
     digest_enabled = Column(Integer, default=1, nullable=False)  # 1 = True, 0 = False
     digest_time = Column(String(10), default="09:00", nullable=False)

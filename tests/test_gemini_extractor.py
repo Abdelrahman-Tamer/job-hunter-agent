@@ -35,7 +35,7 @@ def test_pii_sanitization():
 @pytest.mark.asyncio
 async def test_gemini_extractor_fallback_when_unconfigured():
     """Verify extractor returns graceful empty attributes when no API key is provided."""
-    extractor = GeminiJobExtractor(api_key=None)
+    extractor = GeminiJobExtractor(api_key="")
     result = await extractor.extract_attributes(
         title="Angular Developer",
         description="Looking for mid-level engineer.",

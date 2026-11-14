@@ -1,10 +1,13 @@
 """FastAPI application entrypoint for Job Hunter Agent."""
 
 import asyncio
+import pathlib
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.api.routes import health, jobs, profile, runs, sources, tracker
 from src.bot.bot_service import TelegramBotService
@@ -66,6 +69,16 @@ def create_app() -> FastAPI:
     app.include_router(tracker.router)
     app.include_router(sources.router)
     app.include_router(runs.router)
+
+    # Mount Angular production SPA when built
+    dist_dir = pathlib.Path("frontend/dist/frontend/browser")
+    if dist_dir.exists():
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_spa(full_path: str):
+            candidate = dist_dir / full_path
+            if candidate.is_file():
+                return FileResponse(candidate)
+            return FileResponse(dist_dir / "index.html")
 
     return app
 

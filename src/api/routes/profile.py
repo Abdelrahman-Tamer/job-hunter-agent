@@ -2,12 +2,16 @@
 
 import re
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db_session
 from src.core.security import sanitize_pii
+from src.services.cv_parser_service import (
+    CVParserService,
+    ParsedCVResult,
+)
 from src.services.profile_service import (
     export_candidate_profile,
     get_or_create_candidate_profile,
@@ -19,6 +23,8 @@ router = APIRouter(prefix="/api/v1/profile", tags=["Profile"])
 
 
 class ProfileUpdateDTO(BaseModel):
+    full_name: Optional[str] = None
+    professional_summary: Optional[str] = None
     country: Optional[str] = None
     career_direction: Optional[str] = None
     priority_target: Optional[str] = None
@@ -34,22 +40,41 @@ class ProfileUpdateDTO(BaseModel):
     experience_years: Optional[float] = None
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
+    experiences: Optional[List[Dict[str, Any]]] = None
+    educations: Optional[List[Dict[str, Any]]] = None
+    projects: Optional[List[Dict[str, Any]]] = None
+    certifications: Optional[List[Dict[str, Any]]] = None
+    languages: Optional[List[str]] = None
+    soft_skills: Optional[List[str]] = None
     digest_enabled: Optional[int] = None
     digest_time: Optional[str] = None
     digest_threshold: Optional[float] = None
 
 
+class CVConfirmRequestDTO(BaseModel):
+    full_name: Optional[str] = None
+    professional_summary: Optional[str] = None
+    confirmed_skills: List[str] = Field(default_factory=list)
+    target_skills: List[str] = Field(default_factory=list)
+    learning_or_exposure_skills: List[str] = Field(default_factory=list)
+    education_institution: Optional[str] = None
+    degree_title: Optional[str] = None
+    graduation_year: Optional[int] = None
+    experience_years: Optional[float] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    experiences: List[Dict[str, Any]] = Field(default_factory=list)
+    educations: List[Dict[str, Any]] = Field(default_factory=list)
+    projects: List[Dict[str, Any]] = Field(default_factory=list)
+    certifications: List[Dict[str, Any]] = Field(default_factory=list)
+    languages: List[str] = Field(default_factory=list)
+    soft_skills: List[str] = Field(default_factory=list)
+
+
 class CVParseRequestDTO(BaseModel):
     cv_raw_text: str
     consent_to_extract: bool = False
-
-
-class CVParseResultDTO(BaseModel):
-    sanitized_text: str
-    detected_skills: List[str]
-    detected_roles: List[str]
-    detected_education: Optional[str] = None
-    requires_user_confirmation: bool = True
 
 
 @router.get("", response_model=Dict[str, Any])
@@ -58,6 +83,8 @@ async def get_profile(db: AsyncSession = Depends(get_db_session)) -> Dict[str, A
     profile = await get_or_create_candidate_profile(db)
     return {
         "id": profile.id,
+        "full_name": profile.full_name,
+        "professional_summary": profile.professional_summary,
         "country": profile.country,
         "career_direction": profile.career_direction,
         "priority_target": profile.priority_target,
@@ -73,6 +100,12 @@ async def get_profile(db: AsyncSession = Depends(get_db_session)) -> Dict[str, A
         "experience_years": profile.experience_years,
         "github_url": profile.github_url,
         "portfolio_url": profile.portfolio_url,
+        "experiences": profile.experiences or [],
+        "educations": profile.educations or [],
+        "projects": profile.projects or [],
+        "certifications": profile.certifications or [],
+        "languages": profile.languages or [],
+        "soft_skills": profile.soft_skills or [],
         "digest_enabled": bool(profile.digest_enabled),
         "digest_time": profile.digest_time,
         "digest_threshold": profile.digest_threshold,
@@ -106,37 +139,106 @@ async def reset_profile(db: AsyncSession = Depends(get_db_session)) -> Dict[str,
     return {"status": "success", "message": "Profile reset to baseline defaults."}
 
 
-@router.post("/import-cv", response_model=CVParseResultDTO)
-async def import_cv_locally(
+@router.post("/cv/upload", response_model=ParsedCVResult)
+async def upload_cv_for_parsing(
+    file: Optional[UploadFile] = File(None),
+    cv_raw_text: Optional[str] = Form(None),
+    cv_text: Optional[str] = Form(None),
+) -> ParsedCVResult:
+    """
+    Upload and parse CV locally from PDF, DOCX, or text file.
+    Does NOT transmit files or text to external AI providers.
+    Returns structured candidate information for user review before saving.
+    """
+    raw_text = ""
+    if file:
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+        raw_text = CVParserService.extract_text(content, file.filename or "cv.pdf")
+    elif cv_raw_text or cv_text:
+        raw_text = cv_raw_text or cv_text
+    else:
+        raise HTTPException(status_code=400, detail="Either a CV file or raw text must be provided.")
+
+    if not raw_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from the provided CV.")
+
+    parsed = CVParserService.parse_cv(raw_text)
+    return parsed
+
+
+@router.post("/cv/confirm", response_model=Dict[str, Any])
+async def confirm_and_save_cv(
+    dto: CVConfirmRequestDTO,
+    db: AsyncSession = Depends(get_db_session),
+) -> Dict[str, Any]:
+    """
+    Save the candidate-reviewed and approved structured profile into the database.
+    Separates confirmed, target, and learning skills.
+    """
+    profile = await get_or_create_candidate_profile(db)
+
+    updates: Dict[str, Any] = {
+        "confirmed_skills": dto.confirmed_skills,
+        "target_skills": dto.target_skills,
+        "learning_or_exposure_skills": dto.learning_or_exposure_skills,
+    }
+
+    if dto.full_name:
+        updates["full_name"] = dto.full_name
+    if dto.professional_summary:
+        updates["professional_summary"] = dto.professional_summary
+    if dto.education_institution:
+        updates["education_institution"] = dto.education_institution
+    if dto.degree_title:
+        updates["degree_title"] = dto.degree_title
+    if dto.graduation_year:
+        updates["graduation_year"] = dto.graduation_year
+    if dto.experience_years is not None:
+        updates["experience_years"] = dto.experience_years
+    if dto.linkedin_url:
+        updates["linkedin_url"] = dto.linkedin_url
+    if dto.github_url:
+        updates["github_url"] = dto.github_url
+    if dto.portfolio_url:
+        updates["portfolio_url"] = dto.portfolio_url
+
+    if dto.experiences:
+        updates["experiences"] = dto.experiences
+    if dto.educations:
+        updates["educations"] = dto.educations
+    if dto.projects:
+        updates["projects"] = dto.projects
+    if dto.certifications:
+        updates["certifications"] = dto.certifications
+    if dto.languages:
+        updates["languages"] = dto.languages
+    if dto.soft_skills:
+        updates["soft_skills"] = dto.soft_skills
+
+    updated_profile = await update_candidate_profile(db, profile.id, updates)
+    if not updated_profile:
+        raise HTTPException(status_code=500, detail="Failed to save confirmed profile.")
+
+    res = await export_candidate_profile(db)
+    res["status"] = "success"
+    res["message"] = "Candidate profile successfully updated from verified CV."
+    res["confirmed_skills_count"] = len(dto.confirmed_skills)
+    return res
+
+
+@router.post("/import-cv")
+async def import_cv_legacy(
     req: CVParseRequestDTO,
-) -> CVParseResultDTO:
-    """
-    Parse candidate CV locally without transmitting raw PII.
-    Extracts candidate skills and education for user review before saving.
-    """
+) -> Dict[str, Any]:
+    """Legacy helper for plain text parsing preview."""
     clean_text = sanitize_pii(req.cv_raw_text)
-    lower_text = clean_text.lower()
-
-    # Known technology terms heuristic parser
-    known_tech = [
-        "angular", "typescript", "javascript", "html", "css", "scss",
-        "rxjs", "ngrx", "git", "rest", "python", "fastapi", "sql",
-        "docker", "tailwind", "bootstrap", "node.js", "express"
-    ]
-    detected_skills: List[str] = []
-    for tech in known_tech:
-        if re.search(rf"\b{re.escape(tech)}\b", lower_text):
-            detected_skills.append(tech.title() if len(tech) > 3 else tech.upper())
-
-    # Detect education
-    detected_edu = None
-    if "e-learning university" in lower_text or "eelu" in lower_text:
-        detected_edu = "Egyptian E-Learning University"
-
-    return CVParseResultDTO(
-        sanitized_text=clean_text[:500] + ("..." if len(clean_text) > 500 else ""),
-        detected_skills=detected_skills,
-        detected_roles=["Frontend Developer", "Angular Developer"],
-        detected_education=detected_edu,
-        requires_user_confirmation=True,
-    )
+    parsed = CVParserService.parse_cv(clean_text)
+    return {
+        "sanitized_text": parsed.sanitized_text_preview,
+        "detected_skills": parsed.confirmed_skills,
+        "detected_roles": ["Frontend Developer", "Angular Developer"],
+        "detected_education": parsed.educations[0].institution if parsed.educations else "Egyptian E-Learning University",
+        "requires_user_confirmation": True,
+    }

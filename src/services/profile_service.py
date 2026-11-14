@@ -62,6 +62,8 @@ async def update_candidate_profile(
         return None
 
     allowed_fields = {
+        "full_name",
+        "professional_summary",
         "country",
         "career_direction",
         "priority_target",
@@ -77,6 +79,13 @@ async def update_candidate_profile(
         "experience_years",
         "github_url",
         "portfolio_url",
+        "experiences",
+        "educations",
+        "projects",
+        "certifications",
+        "languages",
+        "soft_skills",
+        "raw_cv_text",
         "digest_enabled",
         "digest_time",
         "digest_threshold",
@@ -95,6 +104,8 @@ async def export_candidate_profile(session: AsyncSession) -> Dict[str, Any]:
     """Export profile as clean JSON dictionary without database internals."""
     profile = await get_or_create_candidate_profile(session)
     return {
+        "full_name": profile.full_name,
+        "professional_summary": profile.professional_summary,
         "country": profile.country,
         "career_direction": profile.career_direction,
         "priority_target": profile.priority_target,
@@ -110,6 +121,12 @@ async def export_candidate_profile(session: AsyncSession) -> Dict[str, Any]:
         "experience_years": profile.experience_years,
         "github_url": profile.github_url,
         "portfolio_url": profile.portfolio_url,
+        "experiences": profile.experiences or [],
+        "educations": profile.educations or [],
+        "projects": profile.projects or [],
+        "certifications": profile.certifications or [],
+        "languages": profile.languages or [],
+        "soft_skills": profile.soft_skills or [],
         "digest_enabled": bool(profile.digest_enabled),
         "digest_time": profile.digest_time,
         "digest_threshold": profile.digest_threshold,
