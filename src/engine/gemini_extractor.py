@@ -81,7 +81,7 @@ class GeminiJobExtractor:
         Extract missing structured attributes using Gemini or return fallback defaults.
         """
         # If API key is missing or extraction is disabled, gracefully return empty attributes
-        if not settings.GEMINI_EXTRACTION_ENABLED or not self.api_key:
+        if not settings.GEMINI_EXTRACTION_ENABLED or not self.api_key or getattr(self, "_quota_exhausted", False):
             return ExtractedJobAttributes()
 
         client = self._get_client()
@@ -128,7 +128,12 @@ Title: {title}
             return extracted
 
         except Exception as exc:
-            logger.warning(f"Gemini extraction failed ({company} - {title}): {exc}. Falling back to heuristics.")
+            err_msg = str(exc).lower()
+            if "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg:
+                self._quota_exhausted = True
+                logger.warning("Gemini API daily quota reached (429). Fast-switching extraction to local heuristics.")
+            else:
+                logger.warning(f"Gemini extraction failed ({company} - {title}): {exc}. Falling back to heuristics.")
             return ExtractedJobAttributes(needs_review=True)
 
     async def generate_cover_letter(
