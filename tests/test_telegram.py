@@ -215,7 +215,7 @@ async def test_persistent_keyboard_and_natural_search(db_session):
         "message": {
             "from": {"id": 555666},
             "chat": {"id": 555666},
-            "text": "📋 أفضل وظائف اليوم",
+            "text": "📋 Today's Jobs",
         }
     }
     await dispatcher.handle_update(btn_update, db_session)

@@ -78,9 +78,8 @@ class TelegramBotDispatcher:
         clean_text = text.strip()
         clean_lower = clean_text.lower()
 
-        # Handle Conversational Greetings (English + Arabic fallbacks)
-        greetings = ("hello", "hi", "hey", "welcome", "good morning", "good evening", "howdy", "start",
-                     "السلام عليكم", "مرحبا", "أهلا", "اهلا", "صباح الخير", "مساء الخير", "ازيك")
+        # Handle Conversational Greetings (Pure English)
+        greetings = ("hello", "hi", "hey", "welcome", "good morning", "good evening", "howdy", "start")
         if any(clean_lower == g or clean_lower.startswith(g + " ") for g in greetings):
             profile = await get_or_create_candidate_profile(session)
             welcome_msg = f"""👋 <b>Welcome, {escape(profile.full_name or 'Abdelrahman')}!</b>
@@ -93,29 +92,29 @@ I am your AI agent specialized in high-fit <b>Angular & Frontend Engineering</b>
             await self.client.send_message(chat_id=chat_id, text="🎛️ <b>BottaJobs Control Center:</b>", reply_markup=markup)
             return
 
-        # Handle Persistent Bottom Keyboard Actions (English primary + Arabic fallbacks)
-        if clean_text in ("🚀 Run Scan", "🚀 Run Scan Now", "Run Scan", "run", "🚀 فحص الوظائف الآن", "فحص الوظائف", "فحص فوري"):
+        # Handle Persistent Bottom Keyboard Actions (Pure English)
+        if clean_text in ("🚀 Run Scan", "🚀 Run Scan Now", "Run Scan", "run"):
             await self._cmd_trigger_run(chat_id, session)
             return
-        elif clean_text in ("📋 Today's Jobs", "Today's Jobs", "Today Jobs", "today", "📋 أفضل وظائف اليوم", "وظائف اليوم", "فرص اليوم"):
+        elif clean_text in ("📋 Today's Jobs", "Today Jobs", "today"):
             await self._cmd_today(chat_id, session)
             return
-        elif clean_text in ("👤 My Profile / CV", "My Profile", "Profile", "profile", "👤 ملفي والـ CV", "ملفي الشخصي", "البروفايل"):
+        elif clean_text in ("👤 My Profile / CV", "My Profile", "Profile", "profile"):
             await self._cmd_profile(chat_id, session)
             return
-        elif clean_text in ("⭐ Saved Jobs", "Saved Jobs", "Saved", "saved", "⭐ وظائفي المحفوظة", "المحفوظات"):
+        elif clean_text in ("⭐ Saved Jobs", "Saved Jobs", "Saved", "saved"):
             await self._cmd_saved(chat_id, session)
             return
-        elif clean_text in ("📝 Applied Pipeline", "Applied Pipeline", "Applied", "applied", "📝 سجل التقديمات", "التقديمات"):
+        elif clean_text in ("📝 Applied Pipeline", "Applied Pipeline", "Applied", "applied"):
             await self._cmd_applied(chat_id, session)
             return
-        elif clean_text in ("🔍 Smart Filters", "Filters", "filters", "🔍 فلاتر وتصنيفات", "🔍 فلاتر سريعة"):
+        elif clean_text in ("🔍 Smart Filters", "Filters", "filters"):
             await self._cmd_quick_filters(chat_id)
             return
-        elif clean_text in ("🌐 Web Dashboard", "Dashboard", "dashboard", "🌐 لوحة التحكم (Mini App)", "الموقع"):
+        elif clean_text in ("🌐 Web Dashboard", "Dashboard", "dashboard"):
             await self._cmd_open_dashboard(chat_id)
             return
-        elif clean_text in ("📖 Help & Guide", "Help", "help", "📖 المساعدة والدليل", "المساعدة"):
+        elif clean_text in ("📖 Help & Guide", "Help", "help"):
             await self._cmd_help(chat_id)
             return
 

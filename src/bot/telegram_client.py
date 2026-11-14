@@ -138,3 +138,7 @@ class TelegramClient:
     async def set_my_commands(self, commands: List[Dict[str, str]]) -> Dict[str, Any]:
         """Register official command menu with Telegram Bot API."""
         return await self._request("POST", "setMyCommands", {"commands": commands})
+
+    async def get_me(self) -> Dict[str, Any]:
+        """Fetch bot identity information from Telegram Bot API."""
+        return await self._request("GET", "getMe")

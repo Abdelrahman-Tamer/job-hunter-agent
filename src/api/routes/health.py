@@ -38,3 +38,23 @@ async def readiness_check(
         "status": "ready" if db_ok else "not_ready",
         "database_connected": db_ok,
     }
+
+
+@router.get("/health/bot", status_code=status.HTTP_200_OK)
+async def bot_health_check() -> Dict[str, Any]:
+    """Inspect Telegram bot status and configuration."""
+    from src.bot.telegram_client import TelegramClient
+    client = TelegramClient()
+    bot_info = {}
+    webhook_info = {}
+    if client.is_configured:
+        try:
+            bot_info = await client.get_me()
+        except Exception as e:
+            bot_info = {"error": str(e)}
+    return {
+        "is_configured": client.is_configured,
+        "polling_enabled": settings.TELEGRAM_POLLING,
+        "owner_id_configured": bool(settings.TELEGRAM_OWNER_ID),
+        "bot_info": bot_info,
+    }

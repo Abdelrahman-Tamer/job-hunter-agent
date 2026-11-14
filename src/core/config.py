@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # Telegram Bot
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_OWNER_ID: Optional[int] = None
-    TELEGRAM_POLLING: bool = False
+    TELEGRAM_POLLING: bool = True
 
     # Gemini AI
     GEMINI_API_KEY: Optional[str] = None
