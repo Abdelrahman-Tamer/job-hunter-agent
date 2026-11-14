@@ -1,5 +1,6 @@
 """Gemini AI structured attribute extractor with prompt injection defense and schema validation."""
 
+import asyncio
 import json
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
@@ -99,17 +100,20 @@ Title: {title}
 """
 
         try:
-            # Call Gemini with structured response configuration
-            response = client.models.generate_content(
-                model=self.model_name,
-                contents=user_prompt,
-                config={
-                    "system_instruction": EXTRACTION_SYSTEM_PROMPT,
-                    "response_mime_type": "application/json",
-                    "response_schema": ExtractedJobAttributes,
-                    "temperature": 0.0,
-                },
-            )
+            # Call Gemini in thread with strict timeout to prevent event loop freeze
+            def _generate():
+                return client.models.generate_content(
+                    model=self.model_name,
+                    contents=user_prompt,
+                    config={
+                        "system_instruction": EXTRACTION_SYSTEM_PROMPT,
+                        "response_mime_type": "application/json",
+                        "response_schema": ExtractedJobAttributes,
+                        "temperature": 0.0,
+                    },
+                )
+
+            response = await asyncio.wait_for(asyncio.to_thread(_generate), timeout=6.0)
 
             response_text = response.text or "{}"
             parsed_data = json.loads(response_text)

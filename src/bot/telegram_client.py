@@ -76,6 +76,18 @@ class TelegramClient:
             payload["reply_markup"] = reply_markup
         return await self._request("POST", "sendMessage", payload)
 
+    async def send_chat_action(
+        self,
+        chat_id: int,
+        action: str = "typing",
+    ) -> Dict[str, Any]:
+        """Broadcast chat action indicator (typing, find_location, etc.)."""
+        payload: Dict[str, Any] = {
+            "chat_id": chat_id,
+            "action": action,
+        }
+        return await self._request("POST", "sendChatAction", payload)
+
     async def edit_message_text(
         self,
         chat_id: int,

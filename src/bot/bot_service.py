@@ -41,8 +41,8 @@ class TelegramBotService:
                     if update_id is not None:
                         self._offset = update_id + 1
 
-                    async with async_session_factory() as session:
-                        await self.dispatcher.handle_update(update, session)
+                    # Process update concurrently so long runs never freeze the bot
+                    asyncio.create_task(self._safe_handle_update(update))
 
             except asyncio.CancelledError:
                 logger.info("Telegram polling loop cancelled.")
@@ -50,6 +50,14 @@ class TelegramBotService:
             except Exception as exc:
                 logger.error(f"Error in Telegram polling loop: {exc}")
                 await asyncio.sleep(5.0)
+
+    async def _safe_handle_update(self, update: dict) -> None:
+        """Process an individual update in an isolated async task."""
+        try:
+            async with async_session_factory() as session:
+                await self.dispatcher.handle_update(update, session)
+        except Exception as exc:
+            logger.error(f"Error handling Telegram update: {exc}", exc_info=True)
 
     def stop(self) -> None:
         """Signal polling loop to terminate."""

@@ -6,7 +6,13 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.bot.formatters import build_job_inline_keyboard, escape, format_job_card
+from src.bot.formatters import (
+    build_job_inline_keyboard,
+    build_main_menu_keyboard,
+    escape,
+    format_job_card,
+    format_match_breakdown,
+)
 from src.bot.telegram_client import TelegramClient
 from src.core.config import settings
 from src.core.logging import logger
@@ -65,7 +71,7 @@ class TelegramBotDispatcher:
         command = parts[0].lower().split("@")[0]
         args = parts[1] if len(parts) > 1 else ""
 
-        if command == "/start":
+        if command in ("/start", "/menu"):
             await self._cmd_start(chat_id, session)
         elif command == "/today":
             await self._cmd_today(chat_id, session)
@@ -97,20 +103,26 @@ class TelegramBotDispatcher:
 
     async def _cmd_start(self, chat_id: int, session: AsyncSession) -> None:
         profile = await get_or_create_candidate_profile(session)
-        welcome = f"""👋 <b>مرحباً بك في Job Hunter Agent!</b>
-Welcome, {escape(profile.priority_target)} candidate.
+        if not profile.confirmed_skills or not profile.full_name:
+            profile = await apply_verified_cv_to_profile(session)
 
-هذا هو مساعدك الشخصي لاكتشاف وتصفية فرص العمل في مجال <b>هندسة البرمجيات وتطوير الويب</b>، مع التركيز على فرص <b>Angular و Frontend</b>.
+        skills_count = len(profile.confirmed_skills or [])
+        welcome = f"""👋 <b>مرحباً بك في Job Hunter Agent (BottaJobs Control Center)!</b>
+Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
 
-🎯 <b>إعداداتك الأساسية / Baseline Profile:</b>
-• الدولة الأساسية: <b>مصر (Egypt) 🇪🇬</b>
-• الهدف الرئيسي: <b>{escape(profile.priority_target)}</b>
-• موعد النشرة اليومية: <b>{profile.digest_time} بتوقيت القاهرة (Africa/Cairo)</b>
-• حالة النشرة: <b>{'مفعلة ✅' if profile.digest_enabled else 'متوقفة ⏸️'}</b>
+🤖 مساعدك الذكي الشخصي المخصص لاقتناص أفضل فرص <b>Angular & Frontend Engineering</b> العالمية والمحلية المتوافقة مع سيرتك الذاتية 🇪🇬.
 
-أرسل /today لاستعراض أفضل الفرص اليوم، أو /help للاطلاع على الأوامر.
+🎯 <b>الملف المعتمد حالياً:</b>
+• المرشح: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
+• التخصص: <b>{escape(profile.priority_target)}</b>
+• المهارات المؤكدة: <b>{skills_count} مهارة موثقة</b>
+• موعد النشرة: <b>{profile.digest_time} بتوقيت القاهرة (Africa/Cairo)</b>
+• الحالة: <b>{'نشرة نشطة ✅' if profile.digest_enabled else 'متوقفة مؤقتاً ⏸️'}</b>
+
+👇 <i>اختر إجراءً سريعاً من لوحة التحكم التفاعلية أدناه:</i>
 """
-        await self.client.send_message(chat_id=chat_id, text=welcome)
+        markup = build_main_menu_keyboard()
+        await self.client.send_message(chat_id=chat_id, text=welcome, reply_markup=markup)
 
     async def _cmd_today(self, chat_id: int, session: AsyncSession) -> None:
         """Display today's top matches."""
@@ -301,15 +313,52 @@ All legacy jobs have been deleted.
         await self.client.send_message(chat_id=chat_id, text=msg)
 
     async def _cmd_trigger_run(self, chat_id: int, session: AsyncSession) -> None:
-        """Trigger an on-demand discovery and matching run."""
+        """Trigger an on-demand discovery and matching run with live animated telemetry."""
         profile = await get_or_create_candidate_profile(session)
-        await self.client.send_message(
-            chat_id=chat_id,
-            text="⏳ <b>جاري فحص المصادر واكتشاف الوظائف ومطابقتها مع ملفك...</b>\nRunning discovery pipeline. Please wait 15-30 seconds...",
-        )
+        skills_count = len(profile.confirmed_skills or [])
+
+        # Broadcast typing status
+        await self.client.send_chat_action(chat_id, "typing")
+
+        # Phase 1: Live Animated Handshake
+        frame1 = f"""⚡ <b>BottaJobs Discovery & AI Matching Engine</b>
+═════════════════════════════
+⏳ <code>[██░░░░░░░░] 20%</code>
+📡 <b>Phase 1/4: Initializing Channels & Handshakes...</b>
+• <i>Connecting to Remotive, Himalayas, WWR, RSS, Arbeitnow...</i>
+• Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b> ({skills_count} confirmed skills)
+• Target: <b>{escape(profile.priority_target)}</b>
+"""
+        progress_resp = await self.client.send_message(chat_id=chat_id, text=frame1)
+        msg_id = progress_resp.get("result", {}).get("message_id")
+
+        if msg_id:
+            await self.client.send_chat_action(chat_id, "typing")
+            frame2 = f"""⚡ <b>BottaJobs Discovery & AI Matching Engine</b>
+═════════════════════════════
+📥 <code>[█████░░░░░] 50%</code>
+🔄 <b>Phase 2/4: Ingesting & Filtering Global Openings...</b>
+• <i>Scanning remote listings open to Egypt (EG) 🇪🇬</i>
+• <i>Normalizing workplace types, salaries, and required tech...</i>
+"""
+            await self.client.edit_message_text(chat_id=chat_id, message_id=msg_id, text=frame2)
+
+        start_time = datetime.now(timezone.utc)
         from src.scheduler.runner import DailyPipelineRunner
         runner = DailyPipelineRunner()
         run_record = await runner.execute_daily_run(session, force=True, target_chat_id=chat_id)
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        if msg_id:
+            await self.client.send_chat_action(chat_id, "typing")
+            frame3 = f"""⚡ <b>BottaJobs Discovery & AI Matching Engine</b>
+═════════════════════════════
+🧠 <code>[████████░░] 80%</code>
+🎯 <b>Phase 3/4: Semantic Scoring & Skill Compatibility...</b>
+• <i>Scoring Angular, TypeScript, RxJS, REST APIs against job specs</i>
+• <i>Rank-ordering top opportunities for your portfolio...</i>
+"""
+            await self.client.edit_message_text(chat_id=chat_id, message_id=msg_id, text=frame3)
 
         min_score = min(60.0, profile.digest_threshold)
         stmt = (
@@ -321,40 +370,54 @@ All legacy jobs have been deleted.
         res = await session.execute(stmt)
         top_jobs = res.scalars().all()
 
-        summary_msg = f"""✅ <b>اكتمل فحص المصادر بنجاح!</b>
-• إجمالي الوظائف المكتشفة: {run_record.jobs_discovered}
-• وظائف جديدة تمت إضافتها: {run_record.jobs_new}
-• وظائف مؤهلة تم إرسالها: {run_record.jobs_notified}"""
-        await self.client.send_message(chat_id=chat_id, text=summary_msg)
+        final_summary = f"""✨ <b>اكتمل فحص المصادر والمطابقة بنجاح!</b>
+═════════════════════════════
+✅ <code>[██████████] 100%</code>
+
+📊 <b>Live Execution Telemetry:</b>
+• إجمالي الوظائف المفحوصة: <b>{run_record.jobs_discovered} وظيفة</b>
+• وظائف جديدة أضيفت: <b>{run_record.jobs_new} فرصة</b>
+• فرص عالية التوافق (≥ {min_score:.0f}%): <b>{len(top_jobs)} وظيفة</b>
+• زمن المعالجة الفعلي: <b>{duration:.1f} ثانية</b>
+"""
+        if msg_id:
+            await self.client.edit_message_text(chat_id=chat_id, message_id=msg_id, text=final_summary)
+        else:
+            await self.client.send_message(chat_id=chat_id, text=final_summary)
 
         if top_jobs:
+            await self.client.send_message(
+                chat_id=chat_id,
+                text=f"📋 <b>أبرز {len(top_jobs)} فرص متطابقة مع سيرتك الذاتية الآن:</b>",
+            )
             for job in top_jobs:
+                tracker_status = job.tracker.status.value if job.tracker else None
                 card_html = format_job_card(job)
-                markup = build_job_inline_keyboard(job)
+                markup = build_job_inline_keyboard(job, tracker_status=tracker_status)
                 await self.client.send_message(chat_id=chat_id, text=card_html, reply_markup=markup)
         else:
             await self.client.send_message(
                 chat_id=chat_id,
-                text="ℹ️ تم مسح الوظائف وجاري متابعة المصادر الجديدة في مواعيدها المجدولة (09:00 صباحاً).",
+                text="ℹ️ تم فحص المصادر ولم تظهر فرص جديدة تفوق نسبة التوافق في هذه اللحظة. سيتم إخطارك في النشرة الصباحية (09:00 ص).",
             )
 
     async def _cmd_help(self, chat_id: int) -> None:
         help_text = """📖 <b>BottaJobs Commands & Controls:</b>
 
-• <b>/today</b> — View top matched jobs for today (Score ≥ 60%)
-• <b>/run</b> — Trigger immediate scraping & matching cycle
-• <b>/profile</b> — View candidate profile & verified CV skills
-• <b>/search &lt;query&gt;</b> — Search active jobs (e.g. <code>/search Angular</code>)
-• <b>/saved</b> — View your bookmarked / saved jobs
-• <b>/applied</b> — View your job application pipeline status
-• <b>/settings</b> — View search targets, location, & rules
-• <b>/wipe</b> — Wipe legacy jobs & reload verified CV profile
-• <b>/pause</b> — Pause daily morning digest (09:00 AM Cairo)
-• <b>/resume</b> — Resume daily morning digest
-• <b>/help</b> — Show this command manual
+• <b>/start</b> أو <b>/menu</b> — فتح لوحة التحكم التفاعلية الرئيسية (Control Center)
+• <b>/today</b> — استعراض أفضل الفرص المتطابقة مع مهاراتك اليوم
+• <b>/run</b> — تشغيل فحص فوري للمصادر وتوليد المطابقات لايف مع عداد التحميل
+• <b>/profile</b> — عرض الملف الشخصي الكامل والـ 32 مهارة المعتمدة
+• <b>/search &lt;query&gt;</b> — البحث الفوري في الوظائف المتاحة (مثال: <code>/search Angular</code>)
+• <b>/saved</b> — عرض قائمة الوظائف المحفوظة
+• <b>/applied</b> — متابعة سجل الوظائف التي تقدمت إليها
+• <b>/settings</b> — استعراض إعدادات النشرة والتنبيهات
+• <b>/wipe</b> — مسح الوظائف السابقة وإعادة تحميل بيانات الـ CV النظيفة
+• <b>/pause</b> — إيقاف النشرة الصباحية مؤقتاً
+• <b>/resume</b> — استئناف النشرة الصباحية اليومية
 
-🔒 <i>Security Note: BottaJobs never auto-applies on your behalf to protect candidate authenticity and profile safety.</i>
-💡 <i>Tip: Tap the <code>/</code> button to view quick commands.</i>
+🔒 <i>ملاحظة أمان: البوت مساعد ذكي لا يقوم بالتقديم التلقائي دون مراجعتك لحماية خصوصيتك وجودة تقديمك.</i>
+💡 <i>نصيحة: اضغط على زر Menu في تليجرام أو أرسل /menu للوصول إلى لوحة الأزرار التفاعلية.</i>
 """
         await self.client.send_message(chat_id=chat_id, text=help_text)
 
@@ -363,10 +426,29 @@ All legacy jobs have been deleted.
         query_id = query.get("id")
         data = query.get("data", "")
         message = query.get("message", {})
+        message_id = message.get("message_id")
         chat_id = message.get("chat", {}).get("id")
 
         if not self.is_authorized(user_id):
             await self.client.answer_callback_query(query_id, text="غير مصرح / Unauthorized", show_alert=True)
+            return
+
+        # Handle Menu Quick Actions
+        if data.startswith("menu:"):
+            action = data.split(":", 1)[1]
+            await self.client.answer_callback_query(query_id)
+            if action == "run":
+                await self._cmd_trigger_run(chat_id, session)
+            elif action == "today":
+                await self._cmd_today(chat_id, session)
+            elif action == "profile":
+                await self._cmd_profile(chat_id, session)
+            elif action == "saved":
+                await self._cmd_saved(chat_id, session)
+            elif action == "applied":
+                await self._cmd_applied(chat_id, session)
+            elif action == "settings":
+                await self._cmd_settings(chat_id, session)
             return
 
         if ":" not in data:
@@ -397,26 +479,41 @@ All legacy jobs have been deleted.
         if action == "save":
             tracker.status = ApplicationStatus.SAVED
             await session.commit()
-            await self.client.answer_callback_query(query_id, text="⭐ تم حفظ الوظيفة في قائمتك.")
+            await self.client.answer_callback_query(query_id, text="⭐ تم حفظ الوظيفة في قائمتك المفضلة!")
+            if message_id:
+                markup = build_job_inline_keyboard(job, tracker_status="saved")
+                await self.client.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=format_job_card(job),
+                    reply_markup=markup,
+                )
         elif action == "applied":
             tracker.status = ApplicationStatus.APPLIED
             tracker.applied_at = datetime.now(timezone.utc)
             await session.commit()
-            await self.client.answer_callback_query(query_id, text="✅ تم تسجيل التقديم بنجاح!")
+            await self.client.answer_callback_query(query_id, text="🎉 رائع! تم تسجيل التقديم بنجاح في السجل.")
+            if message_id:
+                markup = build_job_inline_keyboard(job, tracker_status="applied")
+                await self.client.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=format_job_card(job),
+                    reply_markup=markup,
+                )
         elif action == "dismiss":
             tracker.status = ApplicationStatus.NOT_RELEVANT
             await session.commit()
             await self.client.answer_callback_query(query_id, text="❌ تم استبعاد الوظيفة من التوصيات.")
+            if message_id:
+                dismissed_text = f"<s>{format_job_card(job)}</s>\n\n<i>❌ تم استبعاد هذه الوظيفة.</i>"
+                await self.client.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=dismissed_text,
+                    reply_markup=None,
+                )
         elif action == "why":
-            breakdown = job.score_breakdown or {}
-            why_text = f"""📊 <b>تفاصيل احتساب نقاط المطابقة ({job.match_score:.1f}/100):</b>
-
-• توافق المسمى والهدف: {breakdown.get('role_relevance', 0.0)}/20
-• المهارات المؤكدة: {breakdown.get('confirmed_skills', 0.0)}/25
-• المستوى والخبرة: {breakdown.get('experience_seniority', 0.0)}/20
-• الأهلية الجغرافية: {breakdown.get('work_eligibility', 0.0)}/20
-• نوع التعاقد: {breakdown.get('employment_type', 0.0)}/10
-• حداثة الإعلان: {breakdown.get('freshness_evidence', 0.0)}/5
-"""
-            await self.client.send_message(chat_id=chat_id, text=why_text)
-            await self.client.answer_callback_query(query_id)
+            breakdown_text = format_match_breakdown(job)
+            await self.client.send_message(chat_id=chat_id, text=breakdown_text)
+            await self.client.answer_callback_query(query_id, text="📊 تم تحميل تفاصيل المطابقة!")
