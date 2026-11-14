@@ -15,6 +15,10 @@ import { CandidateProfile } from '../../core/models/job.model';
       <!-- Header -->
       <header class="settings-header">
         <div>
+          <div class="settings-tag">
+            <span class="settings-pulse"></span>
+            <span>Dispatch & Guardrail Controls</span>
+          </div>
           <h1>System & Dispatch Settings</h1>
           <p class="subtitle">Configure daily Telegram digest schedule and matching threshold criteria</p>
         </div>
@@ -129,8 +133,28 @@ import { CandidateProfile } from '../../core/models/job.model';
       width: 100%;
     }
 
+    .settings-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--text-2xs);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--color-brand-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 3px;
+    }
+    .settings-pulse {
+      width: 6px;
+      height: 6px;
+      border-radius: var(--radius-full);
+      background-color: var(--color-brand-accent);
+      box-shadow: 0 0 8px var(--color-brand-accent);
+    }
     .settings-header h1 {
-      font-size: var(--text-xl);
+      font-size: var(--text-2xl);
+      letter-spacing: -0.025em;
       margin-bottom: 2px;
     }
     .subtitle {

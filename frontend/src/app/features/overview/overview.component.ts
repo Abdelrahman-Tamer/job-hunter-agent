@@ -16,8 +16,12 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       <header class="action-header">
         <div class="header-main">
           <div class="title-group">
+            <div class="agent-tag">
+              <span class="pulse-beacon"></span>
+              <span>Autonomous Job Engine</span>
+            </div>
             <h1>Pipeline Overview</h1>
-            <p class="subtitle">Automated discovery & precision matching for Software Engineering & Frontend roles</p>
+            <p class="subtitle">Precision job discovery and scoring for Software Engineering & Frontend roles</p>
           </div>
           <div class="header-tags">
             <span class="badge badge-blue">
@@ -39,11 +43,11 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
           <button
             (click)="triggerRun()"
             [disabled]="isTriggering()"
-            class="btn btn-primary"
+            class="btn btn-primary run-btn"
             aria-label="Run discovery job search immediately"
           >
             <app-icon [name]="isTriggering() ? 'refresh' : 'play'" [size]="15" [class.spin]="isTriggering()"></app-icon>
-            <span>{{ isTriggering() ? 'Running...' : 'Run Discovery' }}</span>
+            <span>{{ isTriggering() ? 'Scanning Feeds...' : 'Run Discovery Now' }}</span>
           </button>
         </div>
       </header>
@@ -55,8 +59,12 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
             <app-icon name="briefcase" [size]="18"></app-icon>
           </div>
           <div class="metric-body">
-            <span class="metric-label">Discovered</span>
+            <div class="metric-label-row">
+              <span class="metric-label">Discovered</span>
+              <span class="metric-micro-tag">Total</span>
+            </div>
             <span class="metric-value">{{ totalJobs() }}</span>
+            <span class="metric-hint">Across verified feeds</span>
           </div>
         </div>
 
@@ -65,8 +73,12 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
             <app-icon name="bookmark" [size]="18"></app-icon>
           </div>
           <div class="metric-body">
-            <span class="metric-label">Saved</span>
+            <div class="metric-label-row">
+              <span class="metric-label">Saved</span>
+              <span class="metric-micro-tag">Curated</span>
+            </div>
             <span class="metric-value">{{ savedCount() }}</span>
+            <span class="metric-hint">Ready for review</span>
           </div>
         </div>
 
@@ -75,20 +87,28 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
             <app-icon name="check-square" [size]="18"></app-icon>
           </div>
           <div class="metric-body">
-            <span class="metric-label">Applied</span>
+            <div class="metric-label-row">
+              <span class="metric-label">Applied</span>
+              <span class="metric-micro-tag">Active</span>
+            </div>
             <span class="metric-value">{{ appliedCount() }}</span>
+            <span class="metric-hint">In active pipeline</span>
           </div>
         </div>
 
         <div class="metric-card">
-          <div class="metric-icon-box">
+          <div class="metric-icon-box icon-engine">
             <app-icon name="activity" [size]="18"></app-icon>
           </div>
           <div class="metric-body">
-            <span class="metric-label">Engine Status</span>
-            <span class="metric-value status-text" [class.status-active]="lastRun()?.status === 'SUCCESS'">
-              {{ lastRun()?.status || 'IDLE' }}
+            <div class="metric-label-row">
+              <span class="metric-label">Engine Status</span>
+              <span class="engine-live-dot"></span>
+            </div>
+            <span class="metric-value status-text">
+              {{ lastRun()?.status || 'READY' }}
             </span>
+            <span class="metric-hint">Next 09:00 Cairo</span>
           </div>
         </div>
       </section>
@@ -100,41 +120,50 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
           <div class="panel-header">
             <div class="panel-title-wrap">
               <app-icon name="sparkles" [size]="18" class="panel-icon-accent"></app-icon>
-              <h2 id="top-jobs-title">Top Matched Roles</h2>
+              <h2 id="top-jobs-title">Top Matched Opportunities</h2>
             </div>
             <a routerLink="/jobs" class="view-all-link">
-              <span>View all jobs</span>
-              <app-icon name="arrow-right" [size]="14"></app-icon>
+              <span>View all {{ totalJobs() }} jobs</span>
+              <app-icon name="arrow-right" [size]="13"></app-icon>
             </a>
           </div>
 
           <div *ngIf="topJobs().length === 0" class="empty-state">
-            <app-icon name="briefcase" [size]="28" class="empty-icon"></app-icon>
-            <p>No high-scoring matches discovered yet. Click Run Discovery to fetch live roles.</p>
+            <app-icon name="briefcase" [size]="32" class="empty-icon"></app-icon>
+            <p>Scanning active opportunities across all verified sources...</p>
           </div>
 
           <div class="jobs-list" *ngIf="topJobs().length > 0">
             <article *ngFor="let job of topJobs()" class="job-item-card">
               <div class="job-item-header">
-                <div class="job-meta-top">
-                  <span class="company-name">
-                    <app-icon name="building" [size]="13"></app-icon>
-                    {{ job.company }}
-                  </span>
-                  <span class="location-name">
-                    <app-icon name="map-pin" [size]="13"></app-icon>
-                    {{ job.raw_location || 'Remote' }}
-                  </span>
+                <div class="company-row">
+                  <span class="company-avatar">{{ job.company.charAt(0) }}</span>
+                  <div class="company-text">
+                    <span class="company-name">{{ job.company }}</span>
+                    <span class="location-name">
+                      <app-icon name="map-pin" [size]="11"></app-icon>
+                      {{ job.raw_location || 'Remote Worldwide' }}
+                    </span>
+                  </div>
                 </div>
-                <div class="score-badge" [class.score-high]="job.match_score >= 80">
-                  {{ job.match_score }}% Match
+
+                <div class="score-pill" [class.score-high]="job.match_score >= 70">
+                  <app-icon name="sparkles" [size]="12"></app-icon>
+                  <span>{{ job.match_score }}% Match</span>
                 </div>
               </div>
 
               <h3 class="job-item-title">{{ job.title }}</h3>
 
               <div class="job-tags-row">
-                <span class="badge badge-blue">{{ job.eligibility }}</span>
+                <span
+                  class="badge"
+                  [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
+                  [class.badge-blue]="job.eligibility === 'REMOTE_REGION_POSSIBLE'"
+                >
+                  {{ job.eligibility }}
+                </span>
+                <span class="badge">{{ job.workplace_type }}</span>
                 <span class="badge">{{ job.seniority }}</span>
                 <span class="badge">{{ job.source_name }}</span>
               </div>
@@ -148,7 +177,7 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
                   class="btn btn-secondary btn-sm"
                 >
                   <span>Apply Link</span>
-                  <app-icon name="external-link" [size]="13"></app-icon>
+                  <app-icon name="external-link" [size]="12"></app-icon>
                 </a>
               </div>
             </article>
@@ -160,19 +189,24 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
           <div class="panel-header">
             <div class="panel-title-wrap">
               <app-icon name="database" [size]="18" class="panel-icon-accent"></app-icon>
-              <h2 id="sources-title">Source Feeds</h2>
+              <h2 id="sources-title">Monitored Feeds</h2>
             </div>
+            <span class="source-count-badge">{{ sources().length }} Active</span>
           </div>
 
           <div class="sources-list">
             <div *ngFor="let s of sources()" class="source-row">
+              <div class="source-icon-box">
+                <app-icon name="globe" [size]="15"></app-icon>
+              </div>
               <div class="source-info">
                 <span class="source-name">{{ s.name }}</span>
                 <span class="source-attr">{{ s.attribution }}</span>
               </div>
               <div class="source-status">
                 <span class="status-indicator" [class.active]="s.is_enabled">
-                  {{ s.is_enabled ? 'Active' : 'Offline' }}
+                  <span class="indicator-dot"></span>
+                  {{ s.is_enabled ? 'Live' : 'Paused' }}
                 </span>
               </div>
             </div>
@@ -192,8 +226,8 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
     /* Executive Header */
     .action-header {
       background-color: var(--color-bg-surface-glass);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--color-border-default);
       border-radius: var(--radius-lg);
       padding: var(--space-5);
@@ -212,24 +246,49 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       flex-direction: column;
       gap: var(--space-2-5);
     }
+    .agent-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--text-2xs);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--color-brand-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pulse-beacon {
+      width: 6px;
+      height: 6px;
+      border-radius: var(--radius-full);
+      background-color: var(--color-brand-accent);
+      box-shadow: 0 0 8px var(--color-brand-accent);
+    }
     .title-group h1 {
-      font-size: var(--text-xl);
+      font-size: var(--text-2xl);
       font-weight: 700;
       color: var(--color-text-primary);
-      margin-bottom: 2px;
+      margin: 2px 0 3px 0;
+      letter-spacing: -0.025em;
     }
     .subtitle {
       font-size: var(--text-sm);
       color: var(--color-text-secondary);
       margin: 0;
+      max-width: 650px;
     }
     .header-tags {
       display: flex;
       gap: var(--space-2);
       flex-wrap: wrap;
+      margin-top: 2px;
     }
     .header-actions {
       flex-shrink: 0;
+    }
+    .run-btn {
+      padding: 10px 20px;
+      font-size: var(--text-sm);
     }
 
     /* Metrics Grid */
@@ -245,21 +304,21 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--color-border-default);
       border-radius: var(--radius-lg);
-      padding: var(--space-3-5, 14px) var(--space-4);
+      padding: var(--space-4);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: var(--space-3);
-      box-shadow: var(--shadow-xs);
+      box-shadow: var(--shadow-sm);
       transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
     }
     .metric-card:hover {
       border-color: var(--color-border-hover);
-      box-shadow: var(--shadow-sm);
-      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
     }
     .metric-icon-box {
-      width: 38px;
-      height: 38px;
+      width: 40px;
+      height: 40px;
       border-radius: var(--radius-md);
       background-color: var(--color-bg-surface-elevated-glass);
       border: 1px solid var(--color-border-subtle);
@@ -269,30 +328,59 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       color: var(--color-brand-accent);
       flex-shrink: 0;
     }
+    .icon-engine {
+      color: var(--color-success-text);
+    }
     .metric-body {
       display: flex;
       flex-direction: column;
       min-width: 0;
+      flex: 1;
+    }
+    .metric-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
     }
     .metric-label {
       font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      font-weight: 500;
+      color: var(--color-text-secondary);
+      font-weight: 600;
       line-height: 1.2;
     }
+    .metric-micro-tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--color-text-muted);
+      background: var(--color-bg-surface-elevated);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
     .metric-value {
-      font-size: var(--text-xl);
+      font-size: 1.6rem;
       font-weight: 700;
       color: var(--color-text-primary);
-      letter-spacing: -0.02em;
+      letter-spacing: -0.03em;
+      margin: 4px 0 2px 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric-hint {
+      font-size: var(--text-2xs);
+      color: var(--color-text-muted);
     }
     .status-text {
-      font-size: var(--text-sm);
+      font-size: var(--text-base);
       font-family: var(--font-mono);
-      color: var(--color-text-secondary);
-    }
-    .status-active {
+      font-weight: 700;
       color: var(--color-success-text);
+    }
+    .engine-live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: var(--radius-full);
+      background-color: var(--color-success);
+      box-shadow: 0 0 6px var(--color-success);
     }
 
     /* Content Grid */
@@ -307,9 +395,9 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: var(--space-3-5);
+      margin-bottom: var(--space-4);
       border-bottom: 1px solid var(--color-border-subtle);
-      padding-bottom: var(--space-2-5);
+      padding-bottom: var(--space-3);
     }
     .panel-title-wrap {
       display: flex;
@@ -318,9 +406,10 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
     }
     .panel-title-wrap h2 {
       font-size: var(--text-base);
-      font-weight: 600;
+      font-weight: 700;
       color: var(--color-text-primary);
       margin: 0;
+      letter-spacing: -0.015em;
     }
     .panel-icon-accent {
       color: var(--color-brand-accent);
@@ -328,13 +417,25 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
     .view-all-link {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       font-size: var(--text-xs);
       color: var(--color-brand-accent);
       font-weight: 600;
+      transition: color var(--motion-fast);
     }
     .view-all-link:hover {
       color: var(--color-brand-primary-hover);
+    }
+
+    .source-count-badge {
+      font-size: var(--text-2xs);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--color-success-text);
+      background: var(--color-success-bg);
+      border: 1px solid var(--color-success-border);
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
     }
 
     .empty-state {
@@ -359,20 +460,21 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
     }
     .job-item-card {
       background-color: var(--color-bg-surface-elevated-glass);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border: 1px solid var(--color-border-subtle);
       border-radius: var(--radius-lg);
       padding: var(--space-4);
       display: flex;
       flex-direction: column;
       gap: var(--space-2-5);
+      box-shadow: var(--shadow-xs);
       transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
     }
     .job-item-card:hover {
       border-color: var(--color-border-hover);
       box-shadow: var(--shadow-sm);
-      transform: translateY(-1px);
+      transform: translateY(-1.5px);
     }
     .job-item-header {
       display: flex;
@@ -380,23 +482,36 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       align-items: center;
       gap: var(--space-2);
     }
-    .job-meta-top {
+    .company-row {
       display: flex;
       align-items: center;
-      gap: var(--space-3);
-      font-size: var(--text-xs);
-      color: var(--color-text-secondary);
+      gap: var(--space-2-5);
     }
-    .company-name, .location-name {
+    .company-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.25;
+    }
+    .company-name {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
+    .location-name {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
+      font-size: var(--text-2xs);
+      color: var(--color-text-muted);
     }
-    .score-badge {
+    .score-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       font-size: var(--text-xs);
       font-weight: 700;
       font-family: var(--font-mono);
-      padding: 2px 8px;
+      padding: 3px 9px;
       border-radius: var(--radius-pill);
       background-color: var(--color-brand-subtle);
       color: var(--color-brand-accent);
@@ -412,6 +527,7 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       font-weight: 600;
       color: var(--color-text-primary);
       margin: 0;
+      line-height: 1.35;
     }
     .job-tags-row {
       display: flex;
@@ -432,16 +548,34 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
     }
     .source-row {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      padding: var(--space-2-5) var(--space-3);
-      background-color: var(--color-bg-surface-elevated);
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-3-5);
+      background-color: var(--color-bg-surface-elevated-glass);
       border: 1px solid var(--color-border-subtle);
       border-radius: var(--radius-md);
+      transition: border-color var(--motion-fast);
+    }
+    .source-row:hover {
+      border-color: var(--color-border-hover);
+    }
+    .source-icon-box {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      background: var(--color-bg-surface-muted);
+      border: 1px solid var(--color-border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-brand-accent);
+      flex-shrink: 0;
     }
     .source-info {
       display: flex;
       flex-direction: column;
+      flex: 1;
+      min-width: 0;
     }
     .source-name {
       font-size: var(--text-sm);
@@ -451,11 +585,17 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
     .source-attr {
       font-size: var(--text-2xs);
       color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       font-size: var(--text-2xs);
       font-weight: 600;
-      padding: 2px 8px;
+      padding: 3px 8px;
       border-radius: var(--radius-pill);
       background: rgba(148, 163, 184, 0.1);
       color: var(--color-text-muted);
@@ -464,6 +604,12 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       background: var(--color-success-bg);
       color: var(--color-success-text);
       border: 1px solid var(--color-success-border);
+    }
+    .indicator-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: var(--radius-full);
+      background-color: currentColor;
     }
 
     .spin {
@@ -479,7 +625,7 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       .action-header {
         flex-direction: column;
         align-items: stretch;
-        padding: var(--space-3-5);
+        padding: var(--space-4);
         gap: var(--space-3);
       }
       .header-actions .btn {
@@ -487,18 +633,18 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       }
       .metrics-grid {
         grid-template-columns: repeat(2, 1fr);
-        gap: var(--space-2);
+        gap: var(--space-2-5);
       }
       .metric-card {
-        padding: var(--space-2-5) var(--space-3);
-        gap: var(--space-2);
+        padding: var(--space-3);
+        gap: var(--space-2-5);
       }
       .metric-icon-box {
-        width: 32px;
-        height: 32px;
+        width: 34px;
+        height: 34px;
       }
       .metric-value {
-        font-size: var(--text-lg);
+        font-size: var(--text-xl);
       }
       .content-grid {
         grid-template-columns: 1fr;
@@ -527,7 +673,7 @@ export class OverviewComponent implements OnInit {
   }
 
   loadData(): void {
-    this.api.getJobs({ limit: 5, min_score: 70 }).subscribe({
+    this.api.getJobs({ limit: 5, min_score: 60 }).subscribe({
       next: (res) => {
         this.totalJobs.set(res.total);
         this.topJobs.set(res.items);

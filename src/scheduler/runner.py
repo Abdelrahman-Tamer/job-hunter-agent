@@ -1,5 +1,6 @@
 """Daily ingestion, scoring, and notification pipeline runner."""
 
+import asyncio
 from datetime import datetime, timezone
 import zoneinfo
 from typing import Any, Dict, List, Optional
@@ -60,6 +61,7 @@ class DailyPipelineRunner:
         session: AsyncSession,
         force: bool = False,
         target_chat_id: Optional[int] = None,
+        progress_callback: Optional[Any] = None,
     ) -> DailyRun:
         """
         Execute all 11 steps of the daily job discovery and notification pipeline.
@@ -116,9 +118,11 @@ class DailyPipelineRunner:
         # Step 3 & 4: Fetch enabled sources concurrently with isolation
         # -------------------------------------------------------------
         adapters = self.registry.list_adapters()
+        source_records: Dict[str, Source] = {}
+        enabled_adapters: List[BaseSourceAdapter] = []
+
         for adapter in adapters:
             meta = adapter.source_metadata()
-            source_start = datetime.now(timezone.utc)
             source_name = meta.name
 
             # Ensure source record exists in DB
@@ -138,20 +142,45 @@ class DailyPipelineRunner:
                 await session.commit()
                 await session.refresh(source_rec)
 
-            if not source_rec.is_enabled:
+            source_records[source_name] = source_rec
+            if source_rec.is_enabled:
+                enabled_adapters.append(adapter)
+            else:
                 logger.info(f"Source {source_name} is disabled. Skipping.")
-                continue
 
-            fetched_count = 0
-            new_count = 0
-            status_str = "SUCCESS"
-            error_str = None
+        if progress_callback:
+            await progress_callback(f"📡 فحص {len(enabled_adapters)} مصادر للوظائف بالتوازي...", 30)
 
+        async def _fetch_single_source(adapter: BaseSourceAdapter):
+            meta = adapter.source_metadata()
+            s_name = meta.name
+            s_start = datetime.now(timezone.utc)
             try:
-                raw_jobs = await adapter.fetch_jobs()
-                fetched_count = len(raw_jobs)
-                total_discovered += fetched_count
+                # 35-second timeout per source so a slow provider never hangs the runner
+                raw_jobs = await asyncio.wait_for(adapter.fetch_jobs(), timeout=35.0)
+                dur = int((datetime.now(timezone.utc) - s_start).total_seconds())
+                return (adapter, raw_jobs, "SUCCESS", None, dur)
+            except Exception as exc:
+                dur = int((datetime.now(timezone.utc) - s_start).total_seconds())
+                logger.error(f"Source {s_name} failed during daily run: {exc}")
+                return (adapter, [], "FAILED", str(exc), dur)
 
+        fetch_results = await asyncio.gather(*(_fetch_single_source(a) for a in enabled_adapters))
+
+        total_discovered_raw = sum(len(res[1]) for res in fetch_results)
+        if progress_callback:
+            await progress_callback(f"📥 تم جمع {total_discovered_raw} إعلاناً.. جاري مطابقتها مع مهاراتك الـ 32...", 60)
+
+        for adapter, raw_jobs, status_str, error_str, duration in fetch_results:
+            meta = adapter.source_metadata()
+            source_name = meta.name
+            source_rec = source_records[source_name]
+
+            fetched_count = len(raw_jobs)
+            new_count = 0
+            total_discovered += fetched_count
+
+            if status_str == "SUCCESS":
                 for raw in raw_jobs:
                     normalized: NormalizedJobData = adapter.normalize(raw)
 
@@ -302,13 +331,7 @@ class DailyPipelineRunner:
                     total_new += 1
                     newly_saved_jobs.append(job_record)
 
-            except Exception as exc:
-                status_str = "FAILED"
-                error_str = str(exc)
-                logger.error(f"Source {source_name} failed during daily run: {exc}")
-
             # Record source sync log
-            duration = int((datetime.now(timezone.utc) - source_start).total_seconds())
             source_rec.last_sync_at = datetime.now(timezone.utc)
             source_rec.last_sync_status = status_str
             source_rec.last_sync_error = error_str
@@ -332,6 +355,9 @@ class DailyPipelineRunner:
                 "new": new_count,
                 "duration_seconds": duration,
             }
+
+        if progress_callback:
+            await progress_callback("🧠 ترتيب وتجهيز التقرير النهائي...", 90)
 
         # -------------------------------------------------------------
         # Step 8: Select jobs not previously notified and above threshold
@@ -466,5 +492,7 @@ class DailyPipelineRunner:
 
         await session.commit()
         await session.refresh(daily_run)
+        if progress_callback:
+            await progress_callback("✨ اكتمل فحص المصادر والمطابقة بنجاح!", 100)
         logger.info(f"Daily run {run_key} completed successfully: discovered={total_discovered}, new={total_new}, notified={notified_count}")
         return daily_run

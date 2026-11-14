@@ -3,8 +3,16 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
-import { IconComponent } from '../../core/components/icon/icon.component';
+import { IconComponent, IconName } from '../../core/components/icon/icon.component';
 import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.model';
+
+interface QuickChip {
+  id: string;
+  label: string;
+  icon: IconName;
+  eligibility?: string;
+  minScore?: number;
+}
 
 @Component({
   selector: 'app-jobs',
@@ -21,13 +29,27 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
               type="search"
               [(ngModel)]="searchKeyword"
               (keyup.enter)="applyFilters()"
-              placeholder="Search role, skills (Angular, TypeScript, Node)..."
+              placeholder="Search role, skills (Angular, TypeScript, Node, React)..."
               class="form-input search-input"
               aria-label="Search keywords"
             />
           </div>
           <button (click)="applyFilters()" class="btn btn-primary search-btn">
+            <app-icon name="search" [size]="14"></app-icon>
             <span>Search</span>
+          </button>
+        </div>
+
+        <!-- Quick Filter Chips -->
+        <div class="quick-chips-row" role="group" aria-label="Quick preset filters">
+          <button
+            *ngFor="let chip of quickChips"
+            (click)="selectQuickChip(chip.id)"
+            [class.active]="activeQuickChip() === chip.id"
+            class="quick-chip-btn"
+          >
+            <app-icon [name]="chip.icon" [size]="12"></app-icon>
+            <span>{{ chip.label }}</span>
           </button>
         </div>
 
@@ -59,41 +81,45 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
             <option [ngValue]="0">Min Score: Any</option>
             <option [ngValue]="60">Min Score: 60%+</option>
             <option [ngValue]="70">Min Score: 70%+ (Strong)</option>
-            <option [ngValue]="85">Min Score: 85%+ (Top Match)</option>
+            <option [ngValue]="80">Min Score: 80%+ (Top Match)</option>
           </select>
         </div>
       </section>
 
       <!-- Jobs Grid -->
       <section class="jobs-list-container" aria-label="Job listings">
-        <div *ngIf="isLoading()" class="loading-state">
-          <app-icon name="refresh" [size]="24" class="spin"></app-icon>
+        <div *ngIf="isLoading()" class="loading-state card">
+          <app-icon name="refresh" [size]="24" class="spin spin-accent"></app-icon>
           <p>Loading verified opportunities...</p>
         </div>
 
         <div *ngIf="!isLoading() && jobs().length === 0" class="empty-state card">
           <app-icon name="search" [size]="32" class="empty-icon"></app-icon>
           <h3>No matching jobs found</h3>
-          <p>Broaden your filters or keyword query to discover more opportunities.</p>
+          <p>Try clearing filters or switching quick presets to discover more roles.</p>
+          <button (click)="resetFilters()" class="btn btn-secondary btn-sm">
+            <span>Reset Filters</span>
+          </button>
         </div>
 
         <div class="jobs-grid" *ngIf="!isLoading() && jobs().length > 0">
-          <article *ngFor="let job of jobs()" class="job-card" [class.excellent]="job.match_score >= 85">
+          <article *ngFor="let job of jobs()" class="job-card" [class.excellent]="job.match_score >= 80">
             <!-- Card Header -->
             <div class="job-card-header">
               <div class="company-loc-row">
-                <span class="company-chip">
-                  <app-icon name="building" [size]="13"></app-icon>
-                  {{ job.company }}
-                </span>
-                <span class="location-chip">
-                  <app-icon name="map-pin" [size]="13"></app-icon>
-                  {{ job.raw_location || 'Remote' }}
-                </span>
+                <span class="company-avatar">{{ job.company.charAt(0) }}</span>
+                <div class="company-info-block">
+                  <span class="company-name-text">{{ job.company }}</span>
+                  <span class="location-chip">
+                    <app-icon name="map-pin" [size]="11"></app-icon>
+                    {{ job.raw_location || 'Remote' }}
+                  </span>
+                </div>
               </div>
-              <div class="score-pill" [class.score-top]="job.match_score >= 85">
+
+              <div class="score-pill" [class.score-top]="job.match_score >= 70">
                 <app-icon name="sparkles" [size]="12"></app-icon>
-                <span>{{ job.match_score }}% Match</span>
+                <span>{{ job.match_score }}%</span>
               </div>
             </div>
 
@@ -134,34 +160,34 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
                 target="_blank"
                 rel="noopener noreferrer"
                 (click)="onOpenLink($event, job.original_application_url)"
-                class="btn btn-primary btn-sm"
+                class="btn btn-primary btn-sm action-btn"
               >
                 <span>Apply</span>
-                <app-icon name="external-link" [size]="13"></app-icon>
+                <app-icon name="external-link" [size]="12"></app-icon>
               </a>
 
-              <button (click)="openDetail(job.id)" class="btn btn-secondary btn-sm">
-                <app-icon name="info" [size]="13"></app-icon>
-                <span>Why Match?</span>
+              <button (click)="openDetail(job.id)" class="btn btn-secondary btn-sm action-btn">
+                <app-icon name="info" [size]="12"></app-icon>
+                <span>Why Match</span>
               </button>
 
               <button
                 (click)="setStatus(job.id, 'SAVED')"
-                class="btn btn-outline btn-sm"
+                class="btn btn-outline btn-sm action-btn"
                 [class.btn-saved]="job.tracker_status === 'SAVED'"
                 title="Save Job"
               >
-                <app-icon [name]="job.tracker_status === 'SAVED' ? 'bookmark' : 'bookmark'" [size]="13"></app-icon>
+                <app-icon name="bookmark" [size]="12"></app-icon>
                 <span>{{ job.tracker_status === 'SAVED' ? 'Saved' : 'Save' }}</span>
               </button>
 
               <button
                 (click)="setStatus(job.id, 'APPLIED')"
-                class="btn btn-outline btn-sm"
+                class="btn btn-outline btn-sm action-btn"
                 [class.btn-applied]="job.tracker_status === 'APPLIED'"
                 title="Mark Applied"
               >
-                <app-icon name="check-square" [size]="13"></app-icon>
+                <app-icon name="check-square" [size]="12"></app-icon>
                 <span>{{ job.tracker_status === 'APPLIED' ? 'Applied' : 'Apply' }}</span>
               </button>
             </div>
@@ -194,53 +220,51 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
             <div class="breakdown-card" *ngIf="selectedJobDetail()?.score_breakdown as b">
               <div class="breakdown-header">
                 <h3>Score Breakdown</h3>
-                <span class="breakdown-total">{{ selectedJobDetail()?.match_score }}%</span>
+                <span class="breakdown-total">{{ selectedJobDetail()?.match_score }}% Match</span>
               </div>
               <ul class="breakdown-list">
                 <li *ngFor="let entry of b | keyvalue">
-                  <span>{{ entry.key }}</span>
-                  <strong>{{ entry.value }} pts</strong>
+                  <span class="factor-name">{{ entry.key }}</span>
+                  <span class="factor-val">{{ entry.value }}</span>
                 </li>
               </ul>
             </div>
 
             <!-- Match Reasons -->
             <div class="reason-block" *ngIf="selectedJobDetail()?.match_reasons?.length">
-              <h4>Match Strengths</h4>
+              <h3>Positive Matching Factors</h3>
               <ul>
-                <li *ngFor="let r of selectedJobDetail()?.match_reasons">{{ r }}</li>
+                <li *ngFor="let r of selectedJobDetail()?.match_reasons">
+                  <app-icon name="check" [size]="14" class="icon-match-check"></app-icon>
+                  <span>{{ r }}</span>
+                </li>
               </ul>
             </div>
 
-            <!-- Gaps -->
+            <!-- Missing Requirements / Gaps -->
             <div class="gaps-block" *ngIf="selectedJobDetail()?.skill_gaps?.length">
-              <h4>Requirements Gaps</h4>
+              <h3>Missing Requirements</h3>
               <ul>
-                <li *ngFor="let g of selectedJobDetail()?.skill_gaps">{{ g }}</li>
+                <li *ngFor="let g of selectedJobDetail()?.skill_gaps">
+                  <app-icon name="x" [size]="14" class="icon-gap-x"></app-icon>
+                  <span>{{ g }}</span>
+                </li>
               </ul>
-            </div>
-
-            <!-- Raw Description Snippet -->
-            <div class="desc-preview" *ngIf="selectedJobDetail()?.description_text">
-              <h4>Job Description</h4>
-              <div class="desc-box">{{ selectedJobDetail()?.description_text }}</div>
             </div>
           </div>
 
           <div class="modal-footer">
+            <button (click)="closeDetail()" class="btn btn-secondary btn-sm">Close</button>
             <a
-              *ngIf="selectedJobDetail()?.original_application_url"
-              [href]="selectedJobDetail()?.original_application_url"
+              *ngIf="selectedJobDetail()?.original_application_url as url"
+              [href]="url"
               target="_blank"
               rel="noopener noreferrer"
-              class="btn btn-primary"
+              class="btn btn-primary btn-sm"
             >
               <span>Open Application</span>
-              <app-icon name="external-link" [size]="14"></app-icon>
+              <app-icon name="external-link" [size]="13"></app-icon>
             </a>
-            <button (click)="closeDetail()" class="btn btn-secondary">
-              Close
-            </button>
           </div>
         </div>
       </div>
@@ -257,12 +281,15 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
     /* Filters Panel */
     .filters-panel {
       background-color: var(--color-bg-surface-glass);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       padding: var(--space-4);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border-default);
+      box-shadow: var(--shadow-sm);
     }
     .search-bar {
       display: flex;
@@ -285,7 +312,40 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
     }
     .search-btn {
       flex-shrink: 0;
+      gap: 6px;
     }
+
+    /* Quick Chips */
+    .quick-chips-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .quick-chip-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: var(--text-2xs);
+      font-weight: 600;
+      background: var(--color-bg-surface-elevated-glass);
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: all var(--motion-fast);
+    }
+    .quick-chip-btn:hover {
+      color: var(--color-text-primary);
+      border-color: var(--color-border-hover);
+    }
+    .quick-chip-btn.active {
+      color: #ffffff;
+      background: var(--color-brand-primary);
+      border-color: transparent;
+      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.35);
+    }
+
     .filters-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -300,15 +360,15 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
     }
     .job-card {
       background-color: var(--color-bg-surface-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--color-border-default);
       border-radius: var(--radius-lg);
       padding: var(--space-4);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
-      box-shadow: var(--shadow-xs);
+      box-shadow: var(--shadow-sm);
       transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
     }
     .job-card:hover {
@@ -317,7 +377,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       transform: translateY(-2px);
     }
     .job-card.excellent {
-      border-color: rgba(16, 185, 129, 0.35);
+      border-color: rgba(16, 185, 129, 0.4);
     }
 
     .job-card-header {
@@ -330,19 +390,30 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       display: flex;
       align-items: center;
       gap: var(--space-2-5);
-      font-size: var(--text-xs);
-      color: var(--color-text-secondary);
     }
-    .company-chip, .location-chip {
+    .company-info-block {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.25;
+    }
+    .company-name-text {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
+    .location-chip {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
+      font-size: var(--text-2xs);
+      color: var(--color-text-muted);
     }
+
     .score-pill {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 3px 8px;
+      padding: 3px 9px;
       border-radius: var(--radius-pill);
       font-size: var(--text-xs);
       font-weight: 700;
@@ -364,6 +435,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       color: var(--color-text-primary);
       margin: 0;
       line-height: 1.35;
+      letter-spacing: -0.015em;
     }
 
     .badges-row {
@@ -381,7 +453,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       font-family: var(--font-mono);
       color: var(--color-text-muted);
       background: var(--color-bg-surface-elevated);
-      padding: 1px 6px;
+      padding: 1.5px 6px;
       border-radius: var(--radius-xs);
       border: 1px solid var(--color-border-subtle);
     }
@@ -404,15 +476,22 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       gap: var(--space-2);
       margin-top: var(--space-1);
     }
+    .action-btn {
+      padding: 6px 8px;
+      font-size: var(--text-2xs);
+    }
+
     .btn-saved {
-      background-color: var(--color-brand-subtle);
-      border-color: var(--color-brand-border);
-      color: var(--color-brand-accent);
+      background-color: var(--color-warning-bg);
+      border-color: var(--color-warning-border);
+      color: var(--color-warning-text);
+      font-weight: 700;
     }
     .btn-applied {
       background-color: var(--color-success-bg);
       border-color: var(--color-success-border);
       color: var(--color-success-text);
+      font-weight: 700;
     }
 
     /* Modal Styling */
@@ -429,7 +508,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
     }
     .btn-close:hover {
       color: var(--color-text-primary);
-      background-color: rgba(255, 255, 255, 0.05);
+      background-color: rgba(255, 255, 255, 0.08);
     }
     .modal-subtitle {
       font-size: var(--text-xs);
@@ -477,36 +556,41 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       border-bottom: none;
       padding-bottom: 0;
     }
+    .factor-name {
+      text-transform: capitalize;
+    }
+    .factor-val {
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
     .reason-block, .gaps-block {
       margin-bottom: var(--space-4);
     }
-    .reason-block h4, .gaps-block h4, .desc-preview h4 {
+    .reason-block h3, .gaps-block h3 {
       font-size: var(--text-xs);
-      color: var(--color-text-primary);
-      margin-bottom: var(--space-2);
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.03em;
+      margin-bottom: var(--space-2);
     }
+    .reason-block h3 { color: var(--color-success-text); }
+    .gaps-block h3 { color: var(--color-warning-text); }
+
     .reason-block ul, .gaps-block ul {
-      padding-inline-start: var(--space-4);
-      font-size: var(--text-xs);
-      color: var(--color-text-secondary);
+      list-style: none;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
     }
-    .desc-box {
+    .reason-block li, .gaps-block li {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
       font-size: var(--text-xs);
-      color: var(--color-text-secondary);
-      background-color: var(--color-bg-surface-elevated);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-sm);
-      padding: var(--space-3);
-      max-height: 140px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      line-height: 1.5;
+      line-height: 1.4;
     }
+    .icon-match-check { color: var(--color-success-text); flex-shrink: 0; margin-top: 2px; }
+    .icon-gap-x { color: var(--color-warning-text); flex-shrink: 0; margin-top: 2px; }
 
     .loading-state, .empty-state {
       padding: var(--space-10) var(--space-4);
@@ -514,22 +598,19 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: var(--space-2);
-      color: var(--color-text-muted);
-    }
-    .empty-icon {
-      color: var(--color-text-muted);
-      opacity: 0.4;
+      gap: var(--space-2-5);
     }
     .spin {
       animation: spin 1s linear infinite;
+    }
+    .spin-accent {
+      color: var(--color-brand-accent);
     }
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
 
-    /* Mobile / Telegram Mini App */
     @media (max-width: 768px) {
       .filters-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -539,7 +620,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
         grid-template-columns: 1fr;
       }
       .job-card-actions {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, 1fr);
       }
     }
   `],
@@ -552,23 +633,58 @@ export class JobsComponent implements OnInit {
   isLoading = signal<boolean>(false);
   selectedJobDetail = signal<JobDetail | null>(null);
 
-  searchKeyword: string = '';
-  selectedEligibility: string = '';
-  selectedWorkplace: string = '';
-  selectedSeniority: string = '';
-  minScore: number = 0;
+  searchKeyword = '';
+  selectedEligibility = '';
+  selectedWorkplace = '';
+  selectedSeniority = '';
+  minScore = 0;
+  activeQuickChip = signal<string>('all');
+
+  readonly quickChips: QuickChip[] = [
+    { id: 'all', label: 'All Roles', icon: 'layers' },
+    { id: 'remote', label: 'Remote Worldwide', icon: 'globe', eligibility: 'REMOTE_WORLDWIDE' },
+    { id: 'egypt', label: 'Egypt Eligible', icon: 'map-pin', eligibility: 'EGYPT_ELIGIBLE' },
+    { id: 'top_match', label: '70%+ Match', icon: 'sparkles', minScore: 70 },
+  ];
 
   ngOnInit(): void {
-    this.applyFilters();
+    this.fetchJobs();
+  }
+
+  selectQuickChip(id: string): void {
+    this.telegram.haptic('selection');
+    this.activeQuickChip.set(id);
+
+    const chip = this.quickChips.find((c) => c.id === id);
+    if (chip) {
+      this.selectedEligibility = chip.eligibility || '';
+      this.minScore = chip.minScore || 0;
+    }
+    this.fetchJobs();
   }
 
   applyFilters(): void {
-    this.telegram.haptic('light');
+    this.activeQuickChip.set('');
+    this.fetchJobs();
+  }
+
+  resetFilters(): void {
+    this.searchKeyword = '';
+    this.selectedEligibility = '';
+    this.selectedWorkplace = '';
+    this.selectedSeniority = '';
+    this.minScore = 0;
+    this.activeQuickChip.set('all');
+    this.fetchJobs();
+  }
+
+  fetchJobs(): void {
     this.isLoading.set(true);
-    const params: Record<string, string | number> = {};
-    if (this.searchKeyword) params['keyword'] = this.searchKeyword;
+    const params: Record<string, string | number> = { limit: 50 };
+
+    if (this.searchKeyword.trim()) params['keyword'] = this.searchKeyword.trim();
     if (this.selectedEligibility) params['eligibility'] = this.selectedEligibility;
-    if (this.selectedWorkplace) params['workplace_type'] = this.selectedWorkplace;
+    if (this.selectedWorkplace) params['workplace'] = this.selectedWorkplace;
     if (this.selectedSeniority) params['seniority'] = this.selectedSeniority;
     if (this.minScore > 0) params['min_score'] = this.minScore;
 
@@ -581,10 +697,21 @@ export class JobsComponent implements OnInit {
     });
   }
 
+  setStatus(jobId: number, status: ApplicationStatus): void {
+    this.telegram.haptic('selection');
+    this.api.updateJobStatus(jobId, status).subscribe({
+      next: () => {
+        this.jobs.update((items) =>
+          items.map((j) => (j.id === jobId ? { ...j, tracker_status: status } : j))
+        );
+      },
+    });
+  }
+
   openDetail(jobId: number): void {
     this.telegram.haptic('light');
     this.api.getJobDetail(jobId).subscribe({
-      next: (detail) => this.selectedJobDetail.set(detail),
+      next: (detail: JobDetail) => this.selectedJobDetail.set(detail),
     });
   }
 
@@ -592,21 +719,10 @@ export class JobsComponent implements OnInit {
     this.selectedJobDetail.set(null);
   }
 
-  setStatus(jobId: number, status: ApplicationStatus): void {
-    this.telegram.haptic('selection');
-    this.api.updateJobStatus(jobId, status).subscribe({
-      next: () => {
-        this.telegram.haptic('success');
-        this.applyFilters();
-      },
-    });
-  }
-
   onOpenLink(event: MouseEvent, url: string): void {
     if (this.telegram.isTelegram()) {
       event.preventDefault();
-      this.telegram.haptic('light');
-      this.telegram.openUrl(url);
+      this.telegram.openLink(url);
     }
   }
 }

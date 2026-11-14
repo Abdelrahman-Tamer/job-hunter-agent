@@ -21,8 +21,12 @@ interface StatusTab {
       <!-- Header -->
       <header class="tracker-header">
         <div>
+          <div class="pipeline-tag">
+            <span class="pipeline-pulse"></span>
+            <span>Personal ATS Pipeline</span>
+          </div>
           <h1>Application Pipeline</h1>
-          <p class="subtitle">Track and organize your personal job applications stage by stage</p>
+          <p class="subtitle">Track and organize your active job applications stage by stage</p>
         </div>
       </header>
 
@@ -44,11 +48,11 @@ interface StatusTab {
       <!-- Tracked Jobs List -->
       <section class="tracked-list" aria-label="Tracked applications">
         <div *ngIf="filteredItems().length === 0" class="empty-state card">
-          <app-icon name="bookmark" [size]="32" class="empty-icon"></app-icon>
-          <h3>No jobs in this stage</h3>
-          <p>Save or mark jobs as applied from the Job Feed to track them here.</p>
-          <a routerLink="/jobs" class="btn btn-secondary btn-sm">
-            <span>Browse Jobs</span>
+          <app-icon name="bookmark" [size]="36" class="empty-icon"></app-icon>
+          <h3>No opportunities in this stage</h3>
+          <p>Bookmark or mark roles as applied from the Jobs feed to organize them here.</p>
+          <a routerLink="/jobs" class="btn btn-primary btn-sm">
+            <span>Discover Jobs</span>
             <app-icon name="arrow-right" [size]="14"></app-icon>
           </a>
         </div>
@@ -57,10 +61,10 @@ interface StatusTab {
           <article *ngFor="let item of filteredItems()" class="tracked-card">
             <div class="item-main">
               <div class="item-meta-top">
-                <span class="company-name">
-                  <app-icon name="building" [size]="13"></app-icon>
-                  {{ item.company }}
-                </span>
+                <div class="company-row">
+                  <span class="company-avatar">{{ item.company.charAt(0) }}</span>
+                  <span class="company-name">{{ item.company }}</span>
+                </div>
                 <span class="match-score">
                   <app-icon name="sparkles" [size]="12"></app-icon>
                   {{ item.match_score }}%
@@ -69,8 +73,12 @@ interface StatusTab {
 
               <h3 class="item-title">{{ item.title }}</h3>
 
-              <div class="date-row" *ngIf="item.applied_at">
-                <span class="date-text">
+              <div class="meta-bottom-row">
+                <span class="status-stage-pill" [attr.data-status]="item.status">
+                  <span class="stage-dot"></span>
+                  {{ item.status }}
+                </span>
+                <span class="date-text" *ngIf="item.applied_at">
                   <app-icon name="calendar" [size]="12"></app-icon>
                   Applied: {{ item.applied_at | date:'mediumDate' }}
                 </span>
@@ -104,8 +112,8 @@ interface StatusTab {
                 (click)="onOpenLink($event, item.original_application_url)"
                 class="btn btn-secondary btn-sm"
               >
-                <span>Open Link</span>
-                <app-icon name="external-link" [size]="13"></app-icon>
+                <span>View Link</span>
+                <app-icon name="external-link" [size]="12"></app-icon>
               </a>
             </div>
           </article>
@@ -121,9 +129,30 @@ interface StatusTab {
       width: 100%;
     }
 
+    .pipeline-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--text-2xs);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--color-brand-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 3px;
+    }
+    .pipeline-pulse {
+      width: 6px;
+      height: 6px;
+      border-radius: var(--radius-full);
+      background-color: var(--color-brand-accent);
+      box-shadow: 0 0 8px var(--color-brand-accent);
+    }
+
     .tracker-header h1 {
-      font-size: var(--text-xl);
+      font-size: var(--text-2xl);
       margin-bottom: 2px;
+      letter-spacing: -0.025em;
     }
     .subtitle {
       font-size: var(--text-sm);
@@ -194,8 +223,8 @@ interface StatusTab {
     }
     .tracked-card {
       background-color: var(--color-bg-surface-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       border: 1px solid var(--color-border-default);
       border-radius: var(--radius-lg);
       padding: var(--space-4);
@@ -203,13 +232,13 @@ interface StatusTab {
       justify-content: space-between;
       align-items: center;
       gap: var(--space-4);
-      box-shadow: var(--shadow-xs);
+      box-shadow: var(--shadow-sm);
       transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
     }
     .tracked-card:hover {
       border-color: var(--color-border-hover);
-      box-shadow: var(--shadow-sm);
-      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1.5px);
     }
     .item-main {
       display: flex;
@@ -225,10 +254,14 @@ interface StatusTab {
       font-size: var(--text-xs);
       color: var(--color-text-secondary);
     }
-    .company-name {
+    .company-row {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: var(--space-2);
+    }
+    .company-name {
+      font-weight: 700;
+      color: var(--color-text-primary);
     }
     .match-score {
       display: inline-flex;
@@ -237,21 +270,53 @@ interface StatusTab {
       font-family: var(--font-mono);
       font-weight: 700;
       color: var(--color-brand-accent);
+      font-size: var(--text-xs);
     }
     .item-title {
       font-size: var(--text-base);
-      font-weight: 600;
+      font-weight: 700;
       color: var(--color-text-primary);
       margin: 0;
+      line-height: 1.35;
+      letter-spacing: -0.015em;
     }
-    .date-row {
+    .meta-bottom-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2-5);
+      margin-top: 2px;
+    }
+    .status-stage-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
       font-size: var(--text-2xs);
-      color: var(--color-text-muted);
+      font-weight: 600;
+      font-family: var(--font-mono);
+      background: var(--color-bg-surface-elevated);
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border-subtle);
     }
+    .stage-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: var(--radius-full);
+      background-color: currentColor;
+    }
+    .status-stage-pill[data-status="SAVED"] { color: var(--color-warning-text); background: var(--color-warning-bg); border-color: var(--color-warning-border); }
+    .status-stage-pill[data-status="APPLIED"] { color: var(--color-brand-accent); background: var(--color-brand-subtle); border-color: var(--color-brand-border); }
+    .status-stage-pill[data-status="INTERVIEW"] { color: #a855f7; background: rgba(168, 85, 247, 0.12); border-color: rgba(168, 85, 247, 0.3); }
+    .status-stage-pill[data-status="OFFER"] { color: var(--color-success-text); background: var(--color-success-bg); border-color: var(--color-success-border); }
+    .status-stage-pill[data-status="REJECTED"] { color: var(--color-error-text); background: var(--color-error-bg); border-color: var(--color-error-border); }
+
     .date-text {
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      font-size: var(--text-2xs);
+      color: var(--color-text-muted);
     }
 
     .item-controls {
@@ -261,9 +326,10 @@ interface StatusTab {
       flex-shrink: 0;
     }
     .status-select {
-      min-width: 140px;
+      width: 130px;
+      padding: 6px 10px;
       font-size: var(--text-xs);
-      padding: 6px 28px 6px 10px;
+      font-weight: 600;
     }
 
     .empty-state {
@@ -276,28 +342,21 @@ interface StatusTab {
     }
     .empty-icon {
       color: var(--color-text-muted);
-      opacity: 0.4;
+      opacity: 0.5;
     }
 
-    /* Mobile / Telegram Mini App */
     @media (max-width: 768px) {
       .tracked-card {
         flex-direction: column;
-        align-items: stretch;
+        align-items: flex-start;
         gap: var(--space-3);
-        padding: var(--space-3-5);
       }
       .item-controls {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
         width: 100%;
+        justify-content: space-between;
       }
       .status-select {
-        min-width: 0;
-        width: 100%;
-      }
-      .item-controls .btn {
-        width: 100%;
+        flex: 1;
       }
     }
   `],
@@ -306,11 +365,8 @@ export class TrackerComponent implements OnInit {
   private readonly api = inject(ApiService);
   readonly telegram = inject(TelegramService);
 
-  allItems = signal<TrackedJobItem[]>([]);
-  selectedStatus = signal<string>('ALL');
-
   readonly tabs: StatusTab[] = [
-    { status: 'ALL', label: 'All' },
+    { status: 'ALL', label: 'All Stages' },
     { status: 'SAVED', label: 'Saved' },
     { status: 'APPLIED', label: 'Applied' },
     { status: 'INTERVIEW', label: 'Interview' },
@@ -318,13 +374,16 @@ export class TrackerComponent implements OnInit {
     { status: 'REJECTED', label: 'Rejected' },
   ];
 
+  selectedStatus = signal<string>('ALL');
+  trackedItems = signal<TrackedJobItem[]>([]);
+
   ngOnInit(): void {
-    this.loadTracked();
+    this.loadTrackedJobs();
   }
 
-  loadTracked(): void {
+  loadTrackedJobs(): void {
     this.api.getTrackedJobs().subscribe({
-      next: (items) => this.allItems.set(items),
+      next: (items) => this.trackedItems.set(items),
     });
   }
 
@@ -335,21 +394,22 @@ export class TrackerComponent implements OnInit {
 
   filteredItems(): TrackedJobItem[] {
     const s = this.selectedStatus();
-    if (s === 'ALL') return this.allItems();
-    return this.allItems().filter((item) => item.status === s);
+    if (s === 'ALL') return this.trackedItems();
+    return this.trackedItems().filter((item) => item.status === s);
   }
 
   getCountForStatus(status: string): number {
-    if (status === 'ALL') return this.allItems().length;
-    return this.allItems().filter((item) => item.status === status).length;
+    if (status === 'ALL') return this.trackedItems().length;
+    return this.trackedItems().filter((item) => item.status === status).length;
   }
 
   onStatusChange(jobId: number, newStatus: ApplicationStatus): void {
     this.telegram.haptic('selection');
     this.api.updateJobStatus(jobId, newStatus).subscribe({
       next: () => {
-        this.telegram.haptic('success');
-        this.loadTracked();
+        this.trackedItems.update((items) =>
+          items.map((i) => (i.job_id === jobId ? { ...i, status: newStatus } : i))
+        );
       },
     });
   }

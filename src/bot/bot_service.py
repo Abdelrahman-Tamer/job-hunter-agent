@@ -33,6 +33,24 @@ class TelegramBotService:
         self.is_running = True
         logger.info("Starting Telegram Bot long-polling service...")
 
+        # Register official Telegram bot command menu
+        try:
+            await self.client.set_my_commands([
+                {"command": "start", "description": "🎛️ لوحة التحكم الرئيسية | Control Center"},
+                {"command": "today", "description": "📋 أفضل فرص متطابقة مع الـ CV اليوم"},
+                {"command": "run", "description": "🚀 فحص فوري للمصادر العالمية والمحلية"},
+                {"command": "filters", "description": "🔍 تصفية سريعة (Angular / Junior / Remote)"},
+                {"command": "search", "description": "🔎 بحث مخصص في الوظائف المتاحة"},
+                {"command": "profile", "description": "👤 استعراض مهاراتك والـ CV المعتمد"},
+                {"command": "saved", "description": "⭐ الوظائف المحفوظة في قائمتك المفضلة"},
+                {"command": "applied", "description": "📝 سجل التقديمات والمتابعة"},
+                {"command": "settings", "description": "⚙️ إعدادات النشرة اليومية والتنبيهات"},
+                {"command": "help", "description": "📖 دليل استخدام البوت والأوامر"},
+            ])
+            logger.info("Registered Telegram command menu successfully.")
+        except Exception as exc:
+            logger.warning(f"Could not auto-register Telegram bot commands: {exc}")
+
         while self.is_running:
             try:
                 updates = await self.client.get_updates(offset=self._offset, timeout=20)

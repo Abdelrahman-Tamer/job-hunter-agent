@@ -84,52 +84,74 @@ def format_band_label(band: MatchBand) -> str:
 
 
 def format_job_card(job: Job) -> str:
-    """Format an individual job into a Telegram HTML card."""
+    """Format an individual job into an executive Telegram HTML card."""
     lines: List[str] = []
 
-    # Header: Title & Company
+    # Score Tier Header Badge
+    score = job.match_score
+    if score >= 90.0:
+        tier_badge = "🟢 <b>تطابق استثنائي (Top Match) ⭐⭐⭐</b>"
+    elif score >= 75.0:
+        tier_badge = "🔵 <b>تطابق قوي جداً (Strong Match) ⭐⭐</b>"
+    elif score >= 60.0:
+        tier_badge = "🟡 <b>تطابق جيد (Good Match) ⭐</b>"
+    else:
+        tier_badge = "⚪ <b>تطابق محتمل</b>"
+
     lines.append(f"💼 <b>{escape(job.title)}</b>")
     lines.append(f"🏢 <b>{escape(job.company)}</b>")
+    lines.append("─────────────────────────")
 
-    # Score & Visual Progress Bar
-    bar = make_progress_bar(job.match_score, 100.0, 10)
-    score_str = f"🎯 المطابقة / Match: <b>{job.match_score:.1f}%</b> <code>[{bar}]</code>\n    <i>{format_band_label(job.match_band)}</i>"
-    lines.append(score_str)
+    bar = make_progress_bar(score, 100.0, 10)
+    lines.append(f"🎯 التوافق: <b>{score:.1f}%</b> <code>[{bar}]</code>\n    {tier_badge}")
     lines.append(f"📍 الأهلية: <b>{format_eligibility_badge(job.eligibility)}</b>")
 
-    # Workplace & Location
     loc_display = escape(job.raw_location or job.remote_scope or "Remote")
-    lines.append(f"🌍 المكان / Location: <code>{loc_display}</code> ({job.workplace_type.value})")
+    workplace_arabic = {
+        WorkplaceType.REMOTE: "عن بُعد (Remote)",
+        WorkplaceType.ON_SITE: "مقر الشركة (On-site)",
+        WorkplaceType.HYBRID: "هجين (Hybrid)",
+        WorkplaceType.UNKNOWN: "عن بُعد",
+    }.get(job.workplace_type, "عن بُعد")
+    lines.append(f"🌍 المكان: <code>{loc_display}</code> ({workplace_arabic})")
 
-    # Seniority & Employment Type
-    sen_display = job.seniority.value if job.seniority != SeniorityLevel.UNKNOWN else "غير محدد / Unstated"
-    emp_display = job.employment_type.value if job.employment_type != EmploymentType.UNKNOWN else "دوام كامل / Full-time"
-    lines.append(f"📊 المستوى: <b>{sen_display}</b> | نوع التعاقد: <b>{emp_display}</b>")
+    sen_display = job.seniority.value if job.seniority != SeniorityLevel.UNKNOWN else "Junior / Entry"
+    emp_display = job.employment_type.value if job.employment_type != EmploymentType.UNKNOWN else "دوام كامل (Full-time)"
+    lines.append(f"📊 المستوى: <b>{sen_display}</b> | نوع العمل: <b>{emp_display}</b>")
 
-    # Truthful Date & Source Attribution
+    if job.salary_min or job.salary_max:
+        curr = escape(job.salary_currency or "$")
+        if job.salary_min and job.salary_max:
+            sal_str = f"{curr}{job.salary_min:,.0f} - {curr}{job.salary_max:,.0f}"
+        elif job.salary_min:
+            sal_str = f"يبدأ من {curr}{job.salary_min:,.0f}"
+        else:
+            sal_str = f"حتى {curr}{job.salary_max:,.0f}"
+        period = f" / {job.salary_period}" if job.salary_period else ""
+        lines.append(f"💵 الراتب: <b>{sal_str}{period}</b>")
+
     date_label = format_date_label(job.published_at, job.first_seen_at)
-    lines.append(date_label)
-    lines.append(f"🔗 المصدر / Source: <i>{escape(job.source_name)}</i>")
+    lines.append(f"{date_label} • <i>{escape(job.source_name)}</i>")
 
-    # Relevant Technologies
     skills = (job.required_skills or [])[:6]
     if skills:
-        tags = " ".join([f"#{escape(s).replace(' ', '_')}" for s in skills])
+        tags = " ".join([f"#{escape(s).replace(' ', '_').replace('.', '_')}" for s in skills])
         lines.append(f"🛠️ التقنيات: {tags}")
 
-    # Match Reasons
     if job.match_reasons:
-        lines.append("<b>💡 أسباب التوافق / Match Reasons:</b>")
+        lines.append("")
+        lines.append("<b>💡 لماذا تناسبك هذه الفرصة؟</b>")
         for reason in job.match_reasons[:3]:
-            lines.append(f"  • {escape(reason)}")
+            lines.append(f"  ✓ {escape(reason)}")
 
-    # Why not 100%? / Missing requirements & Deductions
-    if job.match_score < 100.0 and job.skill_gaps:
-        lines.append(f"<b>🔍 ما ينقصك للحصول على 100% (-{100.0 - job.match_score:.1f}%):</b>")
-        for gap in job.skill_gaps[:4]:
-            lines.append(f"  • {escape(gap)}")
-    elif job.match_score >= 100.0:
-        lines.append("🌟 <b>تطابق كامل ومثالي 100% مع جميع المتطلبات!</b>")
+    if score < 100.0 and job.skill_gaps:
+        lines.append("")
+        lines.append(f"<b>🔍 ما ينقصك للحصول على 100% (-{100.0 - score:.1f}%):</b>")
+        for gap in job.skill_gaps[:3]:
+            lines.append(f"  ✗ {escape(gap)}")
+    elif score >= 100.0:
+        lines.append("")
+        lines.append("🌟 <b>تطابق كامل ومثالي 100% مع كافة متطلبات الـ CV!</b>")
 
     return "\n".join(lines)
 
@@ -174,28 +196,28 @@ def format_match_breakdown(job: Job) -> str:
 
 
 def build_job_inline_keyboard(job: Job, tracker_status: Optional[str] = None) -> Dict[str, Any]:
-    """Generate interactive inline keyboard for a job card."""
+    """Generate clean, intuitive inline keyboard for a job card."""
     app_url = job.original_application_url or job.source_url
 
-    save_text = "⭐ محفوظ / Saved ✅" if tracker_status == "saved" else "⭐ حفظ / Save"
-    applied_text = "✅ تم التقديم / Applied 🎯" if tracker_status == "applied" else "✅ تم التقديم / Applied"
+    save_text = "⭐ محفوظ في المفضلة ✅" if tracker_status == "saved" else "⭐ حفظ في المفضلة"
+    applied_text = "🎉 تم التقديم بنجاح ✅" if tracker_status == "applied" else "✅ سجلت التقديم"
 
     return {
         "inline_keyboard": [
             [
-                {"text": "🌐 فتح رابط التقديم / Direct Apply", "url": app_url},
+                {"text": "🌐 فتح رابط التقديم المباشر (Direct Apply) ↗", "url": app_url},
             ],
             [
                 {"text": save_text, "callback_data": f"save:{job.id}"},
                 {"text": applied_text, "callback_data": f"applied:{job.id}"},
             ],
             [
-                {"text": "✍️ توليد Cover Letter مخصص", "callback_data": f"cover:{job.id}"},
-                {"text": "🎯 أسئلة الإنترفيو المتوقعة", "callback_data": f"interview:{job.id}"},
+                {"text": "✍️ خطاب تقديم AI مخصص", "callback_data": f"cover:{job.id}"},
+                {"text": "🎯 أسئلة المقابلة المتوقعة", "callback_data": f"interview:{job.id}"},
             ],
             [
-                {"text": "📊 تحليل النقاط / Why?", "callback_data": f"why:{job.id}"},
-                {"text": "❌ استبعاد / Dismiss", "callback_data": f"dismiss:{job.id}"},
+                {"text": "📊 تفاصيل احتساب النسبة", "callback_data": f"why:{job.id}"},
+                {"text": "❌ استبعاد الوظيفة", "callback_data": f"dismiss:{job.id}"},
             ],
         ]
     }
@@ -210,15 +232,16 @@ def build_persistent_reply_keyboard() -> Dict[str, Any]:
                 {"text": "📋 أفضل وظائف اليوم"},
             ],
             [
+                {"text": "🔍 فلاتر وتصنيفات"},
                 {"text": "👤 ملفي والـ CV"},
-                {"text": "⭐ وظائفي المحفوظة"},
             ],
             [
-                {"text": "🔍 فلاتر سريعة"},
+                {"text": "⭐ وظائفي المحفوظة"},
                 {"text": "📝 سجل التقديمات"},
             ],
             [
-                {"text": "🌐 لوحة التحكم المباشرة"},
+                {"text": "🌐 لوحة التحكم (Mini App)"},
+                {"text": "📖 المساعدة والدليل"},
             ],
         ],
         "resize_keyboard": True,
@@ -231,7 +254,7 @@ def build_quick_filters_keyboard() -> Dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "🅰️ فرص Angular و Frontend", "callback_data": "filter:angular"},
+                {"text": "🅰️ فرص Angular وتطوير الواجهات", "callback_data": "filter:angular"},
                 {"text": "⭐ أعلى تطابق بالـ CV (≥ 75%)", "callback_data": "filter:top"},
             ],
             [
@@ -240,11 +263,11 @@ def build_quick_filters_keyboard() -> Dict[str, Any]:
             ],
             [
                 {"text": "⚡ مستوى Junior وخريجين", "callback_data": "filter:junior"},
-                {"text": "🛠️ مهارات الـ CV (TS / RxJS / UI)", "callback_data": "filter:cv_skills"},
+                {"text": "🛠️ مهارات الـ CV (TS / RxJS / APIs)", "callback_data": "filter:cv_skills"},
             ],
             [
-                {"text": "💵 فرص برواتب معلنة فقط", "callback_data": "filter:salary"},
-                {"text": "🔙 إغلاق الفلاتر / Close", "callback_data": "menu:close"},
+                {"text": "💵 فرص برواتب معلنة ومحددة", "callback_data": "filter:salary"},
+                {"text": "🔙 القائمة الرئيسية", "callback_data": "menu:main"},
             ],
         ]
     }
@@ -255,19 +278,23 @@ def build_main_menu_keyboard(dashboard_url: str = "https://job-hunter-agent-bott
     return {
         "inline_keyboard": [
             [
-                {"text": "🚀 تشغيل فحص فوري / Run Scan", "callback_data": "menu:run"},
-                {"text": "📋 أفضل الفرص / Today Jobs", "callback_data": "menu:today"},
+                {"text": "🚀 فحص فوري للمصادر", "callback_data": "menu:run"},
+                {"text": "📋 أفضل وظائف اليوم", "callback_data": "menu:today"},
             ],
             [
-                {"text": "👤 ملفي والـ CV / Profile", "callback_data": "menu:profile"},
-                {"text": "⭐ المحفوظات / Saved", "callback_data": "menu:saved"},
+                {"text": "🔍 فلاتر وتصنيفات ذكية", "callback_data": "menu:filters"},
+                {"text": "👤 مهاراتي والـ CV", "callback_data": "menu:profile"},
             ],
             [
-                {"text": "📝 التقديمات / Applied", "callback_data": "menu:applied"},
-                {"text": "⚙️ الإعدادات / Settings", "callback_data": "menu:settings"},
+                {"text": "⭐ الوظائف المحفوظة", "callback_data": "menu:saved"},
+                {"text": "📝 سجل التقديمات", "callback_data": "menu:applied"},
             ],
             [
-                {"text": "🌐 فتح الـ Dashboard المباشر (Mini App)", "web_app": {"url": dashboard_url}},
+                {"text": "⚙️ إعدادات النشرة", "callback_data": "menu:settings"},
+                {"text": "📖 المساعدة والدليل", "callback_data": "menu:help"},
+            ],
+            [
+                {"text": "🌐 فتح لوحة التحكم المباشرة (Telegram Mini App)", "web_app": {"url": dashboard_url}},
             ],
         ]
     }

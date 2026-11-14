@@ -134,3 +134,7 @@ class TelegramClient:
             payload["offset"] = offset
         res = await self._request("GET", "getUpdates", payload)
         return res.get("result", [])
+
+    async def set_my_commands(self, commands: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Register official command menu with Telegram Bot API."""
+        return await self._request("POST", "setMyCommands", {"commands": commands})
