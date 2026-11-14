@@ -81,8 +81,11 @@ class DailyPipelineRunner:
                 logger.info(f"Daily run {run_key} has already completed successfully. Skipping to prevent duplicate digest.")
                 return daily_run
             if daily_run.status == RunStatus.IN_PROGRESS and not force:
-                logger.warning(f"Daily run {run_key} is currently in progress. Skipping concurrent run.")
-                return daily_run
+                elapsed = (started_at - daily_run.started_at).total_seconds() if daily_run.started_at else 9999
+                if elapsed < 900:  # 15 minutes lock window
+                    logger.warning(f"Daily run {run_key} is currently in progress ({int(elapsed)}s ago). Skipping concurrent run.")
+                    return daily_run
+                logger.warning(f"Daily run {run_key} was stale IN_PROGRESS ({int(elapsed)}s ago). Recovering and restarting.")
             daily_run.status = RunStatus.IN_PROGRESS
             daily_run.started_at = started_at
         else:
@@ -163,6 +166,26 @@ class DailyPipelineRunner:
                                 f"({job_age_days}d old > limit {settings.MAX_JOB_AGE_DAYS}d)"
                             )
                             continue
+
+                    # Non-tech / Irrelevant role pre-filter (Keep only engineering/software/web opportunities)
+                    title_clean = normalized.title.lower()
+                    non_tech_terms = [
+                        "writer", "copywriter", "content creator", "accountant", "bookkeeper",
+                        "clerk", "office assistant", "executive assistant", "virtual assistant",
+                        "nurse", "therapist", "sales representative", "telemarketer", "recruiter",
+                        "talent acquisition", "hr generalist", "hr manager", "human resources",
+                        "chef", "cook", "driver", "warehouse", "security officer", "customer care",
+                        "customer support", "customer service", "receptionist", "legal assistant",
+                        "paralegal", "attorney"
+                    ]
+                    tech_terms = [
+                        "developer", "engineer", "frontend", "front-end", "web", "software",
+                        "programmer", "angular", "typescript", "javascript", "fullstack", "full stack",
+                        "backend", "ui", "ux", "devops", "cloud", "tech", "qa", "intern"
+                    ]
+                    if any(nt in title_clean for nt in non_tech_terms) and not any(tt in title_clean for tt in tech_terms):
+                        logger.debug(f"Skipping non-tech job by title: '{normalized.title}' at {normalized.company}")
+                        continue
 
                     # Deduplication check
                     existing, match_type = await DeduplicationEngine.find_existing_job(session, normalized)
@@ -254,7 +277,10 @@ class DailyPipelineRunner:
                         published_at=normalized.published_at,
                         first_seen_at=datetime.now(timezone.utc),
                         last_seen_at=datetime.now(timezone.utc),
-                        is_active=(eligibility != GeographicEligibility.NOT_ELIGIBLE),
+                        is_active=(
+                            eligibility != GeographicEligibility.NOT_ELIGIBLE
+                            and match_result.score >= settings.MATCH_THRESHOLD_STORE
+                        ),
                         eligibility=eligibility,
                         eligibility_reason=elig_reason,
                         match_score=match_result.score,

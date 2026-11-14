@@ -231,18 +231,19 @@ def build_quick_filters_keyboard() -> Dict[str, Any]:
     return {
         "inline_keyboard": [
             [
-                {"text": "🇪🇬 وظائف داخل مصر (Egypt)", "callback_data": "filter:egypt"},
+                {"text": "🅰️ فرص Angular و Frontend", "callback_data": "filter:angular"},
+                {"text": "⭐ أعلى تطابق بالـ CV (≥ 75%)", "callback_data": "filter:top"},
+            ],
+            [
+                {"text": "🇪🇬 مصر والخليج العربي", "callback_data": "filter:egypt"},
                 {"text": "🌍 ريموت عالمياً (Worldwide)", "callback_data": "filter:remote"},
             ],
             [
-                {"text": "🅰️ فرص Angular حصراً", "callback_data": "filter:angular"},
+                {"text": "⚡ مستوى Junior وخريجين", "callback_data": "filter:junior"},
+                {"text": "🛠️ مهارات الـ CV (TS / RxJS / UI)", "callback_data": "filter:cv_skills"},
+            ],
+            [
                 {"text": "💵 فرص برواتب معلنة فقط", "callback_data": "filter:salary"},
-            ],
-            [
-                {"text": "⚡ مستوى Junior / Entry", "callback_data": "filter:junior"},
-                {"text": "⭐ أفضل الفرص (≥ 80%)", "callback_data": "filter:top"},
-            ],
-            [
                 {"text": "🔙 إغلاق الفلاتر / Close", "callback_data": "menu:close"},
             ],
         ]

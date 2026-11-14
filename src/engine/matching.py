@@ -72,18 +72,41 @@ class MatchingEngine:
         title_lower = job_title.lower()
         desc_lower = job_description[:3000].lower()
 
+        # Check if role is in software / web engineering domain
+        is_software_or_tech = (
+            any(
+                t in title_lower
+                for t in [
+                    "developer", "engineer", "software", "frontend", "front-end", "front end",
+                    "web", "programmer", "angular", "ui", "fullstack", "full stack",
+                    "backend", "tech", "coding", "javascript", "typescript", "intern"
+                ]
+            )
+            or any(
+                t in desc_lower[:1000]
+                for t in ["angular", "typescript", "frontend", "software engineer", "web development"]
+            )
+        )
+
         # -------------------------------------------------------------
         # 1. Role-family relevance (max 20)
         # Priority: Angular / Frontend > Web Dev / Fullstack > General SE
         # -------------------------------------------------------------
         role_score = 0.0
-        if "angular" in title_lower:
+        if not is_software_or_tech:
+            role_score = 0.0
+            gaps.append("المسمى الوظيفي: وظيفة غير برمجية تماماً وخارج مجال هندسة البرمجيات (-20 نقطة)")
+        elif "angular" in title_lower:
             role_score = 20.0
             reasons.append("Exact target match: Title explicitly mentions Angular.")
         elif any(f in title_lower for f in ["frontend", "front-end", "front end", "ui engineer", "web developer"]):
             role_score = 18.0
             reasons.append("Primary domain match: Frontend / Web Development role.")
             gaps.append("المسمى الوظيفي: عام (Frontend/Web) وليس مخصصاً لـ Angular حصراً (-2 نقطة)")
+        elif any(f in title_lower for f in ["fullstack", "full stack", "full-stack"]):
+            role_score = 16.0
+            reasons.append("مجال الويب والواجهات: دور Full-Stack يغطي تطوير الويب.")
+            gaps.append("المسمى الوظيفي: Full-Stack ويشمل متطلبات باك إند بجانب الواجهات (-4 نقاط)")
         elif any(r.lower() in title_lower for r in profile.target_role_terms):
             role_score = 15.0
             reasons.append("Approved target role family match (Software Engineering).")
@@ -267,6 +290,14 @@ class MatchingEngine:
         # Hard Cap for Ineligible jobs
         if eligibility == GeographicEligibility.NOT_ELIGIBLE:
             total = min(total, 40.0)
+
+        # Hard Cap for Non-Software/Non-Tech jobs
+        if not is_software_or_tech:
+            total = min(total, 25.0)
+
+        # Hard Cap if role is tangential with zero confirmed skills overlap
+        if role_score <= 5.0 and skills_score <= 3.0:
+            total = min(total, 45.0)
 
         # Round to 1 decimal place
         total = round(total, 1)

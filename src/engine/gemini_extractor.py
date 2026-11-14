@@ -54,6 +54,8 @@ CRITICAL SECURITY AND ACCURACY RULES:
 class GeminiJobExtractor:
     """Extracts missing attributes using Google GenAI SDK behind safety guardrails."""
 
+    _quota_exhausted: bool = False
+
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
         self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
         self.model_name = model_name or settings.GEMINI_MODEL
@@ -80,8 +82,8 @@ class GeminiJobExtractor:
         """
         Extract missing structured attributes using Gemini or return fallback defaults.
         """
-        # If API key is missing or extraction is disabled, gracefully return empty attributes
-        if not settings.GEMINI_EXTRACTION_ENABLED or not self.api_key or getattr(self, "_quota_exhausted", False):
+        # If API key is missing or extraction is disabled or quota exhausted, gracefully return empty attributes
+        if not settings.GEMINI_EXTRACTION_ENABLED or not self.api_key or GeminiJobExtractor._quota_exhausted:
             return ExtractedJobAttributes()
 
         client = self._get_client()
@@ -129,9 +131,10 @@ Title: {title}
 
         except Exception as exc:
             err_msg = str(exc).lower()
-            if "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg:
+            if isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg:
+                GeminiJobExtractor._quota_exhausted = True
                 self._quota_exhausted = True
-                logger.warning("Gemini API daily quota reached (429). Fast-switching extraction to local heuristics.")
+                logger.warning("Gemini API daily quota reached or timed out (429/timeout). Fast-switching extraction to local heuristics.")
             else:
                 logger.warning(f"Gemini extraction failed ({company} - {title}): {exc}. Falling back to heuristics.")
             return ExtractedJobAttributes(needs_review=True)

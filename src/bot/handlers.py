@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 import html
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, delete, or_
+from sqlalchemy import select, delete, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.formatters import (
@@ -206,7 +206,11 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
         """Display today's top matches."""
         stmt = (
             select(Job)
-            .where(Job.is_active == True, Job.match_score >= 60.0)
+            .where(
+                Job.is_active == True,
+                Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
+                Job.match_score >= 60.0,
+            )
             .order_by(Job.match_score.desc())
             .limit(5)
         )
@@ -230,11 +234,12 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
             await self.client.send_message(chat_id=chat_id, text=card_html, reply_markup=markup)
 
     async def _cmd_search(self, chat_id: int, query: str, session: AsyncSession) -> None:
-        """Search active jobs."""
-        if not query:
+        """Search active jobs with precision across title, company, skills, and location."""
+        clean_q = query.strip()
+        if not clean_q:
             await self.client.send_message(
                 chat_id=chat_id,
-                text="ℹ️ يرجى كتابة كلمة البحث بعد الأمر، مثال:\n<code>/search angular</code>",
+                text="ℹ️ يرجى كتابة كلمة البحث بعد الأمر، مثال:\n<code>/search angular</code> أو <code>/search remote</code>",
             )
             return
 
@@ -242,7 +247,13 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
             select(Job)
             .where(
                 Job.is_active == True,
-                (Job.title.ilike(f"%{query}%") | Job.description_text.ilike(f"%{query}%")),
+                Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
+                or_(
+                    Job.title.ilike(f"%{clean_q}%"),
+                    Job.company.ilike(f"%{clean_q}%"),
+                    Job.raw_location.ilike(f"%{clean_q}%"),
+                    Job.description_text.ilike(f"%{clean_q}%"),
+                ),
             )
             .order_by(Job.match_score.desc())
             .limit(5)
@@ -654,49 +665,74 @@ All legacy jobs have been deleted.
 
     async def _handle_filter_query(self, chat_id: int, key: str, session: AsyncSession) -> None:
         """Filter and display active opportunities based on user-selected criteria."""
-        stmt = select(Job).where(Job.is_active == True)
+        stmt = select(Job).where(
+            Job.is_active == True,
+            Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
+        )
 
         filter_titles = {
-            "egypt": "🇪🇬 الوظائف المتاحة داخل مصر أو مفتوحة للمصريين",
+            "angular": "🅰️ فرص Angular وتطوير الواجهات Frontend",
+            "top": "⭐ أعلى الوظائف تطابقاً مع سيرتك الذاتية (≥ 75%)",
+            "egypt": "🇪🇬 الوظائف المتاحة في مصر والخليج العربي",
             "remote": "🌍 وظائف العمل عن بُعد عالمياً (Remote Worldwide)",
-            "angular": "🅰️ وظائف تركز على Angular وتطوير الويب",
+            "junior": "⚡ وظائف مخصصة لمستوى Junior وخريجين",
+            "cv_skills": "🛠️ وظائف تطابق مهاراتك الأساسية (TypeScript, RxJS, REST API)",
             "salary": "💵 وظائف ذات رواتب معلنة وواضحة",
-            "junior": "⚡ وظائف مخصصة لمستوى Junior / Entry Level",
-            "top": "⭐ أعلى الوظائف تطابقاً مع سيرتك الذاتية (≥ 80%)",
         }
         title = filter_titles.get(key, "نتائج الفلترة")
 
-        if key == "egypt":
-            stmt = stmt.where(
-                or_(
-                    Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE,
-                    Job.eligibility == GeographicEligibility.REMOTE_WORLDWIDE,
-                    Job.raw_location.ilike("%egypt%"),
-                    Job.raw_location.ilike("%cairo%"),
-                )
-            )
-        elif key == "remote":
-            stmt = stmt.where(Job.workplace_type == WorkplaceType.REMOTE)
-        elif key == "angular":
+        if key == "angular":
             stmt = stmt.where(
                 or_(
                     Job.title.ilike("%angular%"),
                     Job.description_text.ilike("%angular%"),
+                    Job.title.ilike("%frontend%"),
+                    Job.title.ilike("%front-end%"),
+                )
+            )
+        elif key == "top":
+            stmt = stmt.where(Job.match_score >= 75.0)
+        elif key == "egypt":
+            stmt = stmt.where(
+                or_(
+                    Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE,
+                    Job.raw_location.ilike("%egypt%"),
+                    Job.raw_location.ilike("%cairo%"),
+                    Job.raw_location.ilike("%alexandria%"),
+                    Job.raw_location.ilike("%saudi%"),
+                    Job.raw_location.ilike("%uae%"),
+                    Job.raw_location.ilike("%dubai%"),
+                    Job.raw_location.ilike("%riyadh%"),
+                )
+            )
+        elif key == "remote":
+            stmt = stmt.where(Job.workplace_type == WorkplaceType.REMOTE)
+        elif key == "junior":
+            stmt = stmt.where(
+                or_(
+                    Job.seniority.in_([
+                        SeniorityLevel.ENTRY,
+                        SeniorityLevel.JUNIOR,
+                        SeniorityLevel.GRADUATE,
+                        SeniorityLevel.INTERNSHIP,
+                    ]),
+                    and_(Job.required_experience_years != None, Job.required_experience_years <= 2.0),
+                )
+            )
+        elif key == "cv_skills":
+            stmt = stmt.where(
+                or_(
+                    Job.title.ilike("%typescript%"),
+                    Job.description_text.ilike("%typescript%"),
+                    Job.description_text.ilike("%rxjs%"),
+                    Job.description_text.ilike("%tailwind%"),
+                    Job.description_text.ilike("%bootstrap%"),
+                    Job.description_text.ilike("%rest api%"),
+                    Job.description_text.ilike("%firebase%"),
                 )
             )
         elif key == "salary":
-            stmt = stmt.where(Job.salary_min != None)
-        elif key == "junior":
-            stmt = stmt.where(
-                Job.seniority.in_([
-                    SeniorityLevel.ENTRY,
-                    SeniorityLevel.JUNIOR,
-                    SeniorityLevel.GRADUATE,
-                    SeniorityLevel.INTERNSHIP,
-                ])
-            )
-        elif key == "top":
-            stmt = stmt.where(Job.match_score >= 80.0)
+            stmt = stmt.where(Job.salary_min != None, Job.salary_min > 0)
 
         stmt = stmt.order_by(Job.match_score.desc()).limit(5)
         res = await session.execute(stmt)

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy import select
 
+from src.engine.gemini_extractor import ExtractedJobAttributes
 from src.models import (
     DailyRun,
     Job,
@@ -16,6 +17,12 @@ from src.models import (
 from src.scheduler.runner import DailyPipelineRunner
 from src.sources.base import BaseSourceAdapter, NormalizedJobData, RawJobData, SourceMetadata
 from src.sources.registry import SourceRegistry
+
+
+def create_mock_gemini():
+    mock = AsyncMock()
+    mock.extract_attributes.return_value = ExtractedJobAttributes()
+    return mock
 
 
 class MockFailingSourceAdapter(BaseSourceAdapter):
@@ -100,7 +107,11 @@ async def test_scheduler_idempotency_prevents_duplicate_runs(db_session):
     registry.register(MockHealthySourceAdapter())
     mock_telegram = AsyncMock()
 
-    runner = DailyPipelineRunner(registry=registry, telegram_client=mock_telegram)
+    runner = DailyPipelineRunner(
+        registry=registry,
+        telegram_client=mock_telegram,
+        gemini_extractor=create_mock_gemini(),
+    )
 
     # First run: completes
     run1 = await runner.execute_daily_run(db_session, target_chat_id=123456)
@@ -127,7 +138,11 @@ async def test_source_failure_isolation(db_session):
     registry.register(MockHealthySourceAdapter())
     mock_telegram = AsyncMock()
 
-    runner = DailyPipelineRunner(registry=registry, telegram_client=mock_telegram)
+    runner = DailyPipelineRunner(
+        registry=registry,
+        telegram_client=mock_telegram,
+        gemini_extractor=create_mock_gemini(),
+    )
     run = await runner.execute_daily_run(db_session, force=True, target_chat_id=123456)
 
     assert run.status == RunStatus.COMPLETED
@@ -143,7 +158,11 @@ async def test_zero_results_truthful_summary(db_session):
     mock_telegram = AsyncMock()
 
     # Empty registry -> 0 discovered
-    runner = DailyPipelineRunner(registry=registry, telegram_client=mock_telegram)
+    runner = DailyPipelineRunner(
+        registry=registry,
+        telegram_client=mock_telegram,
+        gemini_extractor=create_mock_gemini(),
+    )
     run = await runner.execute_daily_run(db_session, force=True, target_chat_id=123456)
 
     assert run.jobs_notified == 0
