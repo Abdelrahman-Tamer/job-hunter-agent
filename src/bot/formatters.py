@@ -188,8 +188,60 @@ def build_job_inline_keyboard(job: Job, tracker_status: Optional[str] = None) ->
                 {"text": applied_text, "callback_data": f"applied:{job.id}"},
             ],
             [
+                {"text": "✍️ توليد Cover Letter مخصص", "callback_data": f"cover:{job.id}"},
+                {"text": "🎯 أسئلة الإنترفيو المتوقعة", "callback_data": f"interview:{job.id}"},
+            ],
+            [
                 {"text": "📊 تحليل النقاط / Why?", "callback_data": f"why:{job.id}"},
                 {"text": "❌ استبعاد / Dismiss", "callback_data": f"dismiss:{job.id}"},
+            ],
+        ]
+    }
+
+
+def build_persistent_reply_keyboard() -> Dict[str, Any]:
+    """Bottom pinned reply keyboard for instant zero-typing control."""
+    return {
+        "keyboard": [
+            [
+                {"text": "🚀 فحص الوظائف الآن"},
+                {"text": "📋 أفضل وظائف اليوم"},
+            ],
+            [
+                {"text": "👤 ملفي والـ CV"},
+                {"text": "⭐ وظائفي المحفوظة"},
+            ],
+            [
+                {"text": "🔍 فلاتر سريعة"},
+                {"text": "📝 سجل التقديمات"},
+            ],
+            [
+                {"text": "🌐 لوحة التحكم المباشرة"},
+            ],
+        ],
+        "resize_keyboard": True,
+        "is_persistent": True,
+    }
+
+
+def build_quick_filters_keyboard() -> Dict[str, Any]:
+    """Interactive filter options for targeted discovery."""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "🇪🇬 وظائف داخل مصر (Egypt)", "callback_data": "filter:egypt"},
+                {"text": "🌍 ريموت عالمياً (Worldwide)", "callback_data": "filter:remote"},
+            ],
+            [
+                {"text": "🅰️ فرص Angular حصراً", "callback_data": "filter:angular"},
+                {"text": "💵 فرص برواتب معلنة فقط", "callback_data": "filter:salary"},
+            ],
+            [
+                {"text": "⚡ مستوى Junior / Entry", "callback_data": "filter:junior"},
+                {"text": "⭐ أفضل الفرص (≥ 80%)", "callback_data": "filter:top"},
+            ],
+            [
+                {"text": "🔙 إغلاق الفلاتر / Close", "callback_data": "menu:close"},
             ],
         ]
     }

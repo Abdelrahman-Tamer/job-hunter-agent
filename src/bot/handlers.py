@@ -3,12 +3,14 @@
 from datetime import datetime, timezone
 import html
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.formatters import (
     build_job_inline_keyboard,
     build_main_menu_keyboard,
+    build_persistent_reply_keyboard,
+    build_quick_filters_keyboard,
     escape,
     format_job_card,
     format_match_breakdown,
@@ -16,6 +18,7 @@ from src.bot.formatters import (
 from src.bot.telegram_client import TelegramClient
 from src.core.config import settings
 from src.core.logging import logger
+from src.engine.gemini_extractor import GeminiJobExtractor
 from src.models import (
     ApplicationStatus,
     CandidateProfile,
@@ -24,6 +27,8 @@ from src.models import (
     JobStatusTracker,
     MatchBand,
     NotificationLog,
+    SeniorityLevel,
+    WorkplaceType,
 )
 from src.services.profile_service import apply_verified_cv_to_profile, get_or_create_candidate_profile
 
@@ -34,6 +39,7 @@ class TelegramBotDispatcher:
     def __init__(self, telegram_client: Optional[TelegramClient] = None):
         self.client = telegram_client or TelegramClient()
         self.owner_id = settings.TELEGRAM_OWNER_ID
+        self.gemini = GeminiJobExtractor()
 
     def is_authorized(self, user_id: int) -> bool:
         """Verify user matches numeric owner ID allow-list."""
@@ -71,12 +77,43 @@ class TelegramBotDispatcher:
         command = parts[0].lower().split("@")[0]
         args = parts[1] if len(parts) > 1 else ""
 
-        if command in ("/start", "/menu"):
+        clean_text = text.strip()
+        if clean_text in ("🚀 فحص الوظائف الآن", "🚀 Run Scan Now", "فحص الوظائف"):
+            await self._cmd_trigger_run(chat_id, session)
+            return
+        elif clean_text in ("📋 أفضل وظائف اليوم", "📋 Today Jobs", "وظائف اليوم"):
+            await self._cmd_today(chat_id, session)
+            return
+        elif clean_text in ("👤 ملفي والـ CV", "👤 My Profile", "ملفي الشخصي", "البروفايل"):
+            await self._cmd_profile(chat_id, session)
+            return
+        elif clean_text in ("⭐ وظائفي المحفوظة", "⭐ Saved Jobs", "المحفوظات"):
+            await self._cmd_saved(chat_id, session)
+            return
+        elif clean_text in ("📝 سجل التقديمات", "📝 Applied Pipeline", "التقديمات"):
+            await self._cmd_applied(chat_id, session)
+            return
+        elif clean_text in ("🔍 فلاتر سريعة", "🔍 Quick Filters", "فلاتر"):
+            await self._cmd_quick_filters(chat_id)
+            return
+        elif clean_text in ("🌐 لوحة التحكم المباشرة", "🌐 Dashboard", "الموقع"):
+            await self._cmd_open_dashboard(chat_id)
+            return
+
+        parts = text.split(maxsplit=1)
+        command = parts[0].lower().split("@")[0]
+        args = parts[1] if len(parts) > 1 else ""
+
+        if command == "/start":
             await self._cmd_start(chat_id, session)
+        elif command == "/menu":
+            await self._cmd_menu(chat_id, session)
         elif command == "/today":
             await self._cmd_today(chat_id, session)
         elif command == "/search":
             await self._cmd_search(chat_id, args, session)
+        elif command == "/filters":
+            await self._cmd_quick_filters(chat_id)
         elif command == "/profile":
             await self._cmd_profile(chat_id, session)
         elif command == "/settings":
@@ -95,10 +132,13 @@ class TelegramBotDispatcher:
             await self._cmd_trigger_run(chat_id, session)
         elif command == "/help":
             await self._cmd_help(chat_id)
+        elif not command.startswith("/"):
+            # Natural language query fallback
+            await self._cmd_search(chat_id, text, session)
         else:
             await self.client.send_message(
                 chat_id=chat_id,
-                text="❓ أمر غير معروف. أرسل /help لعرض قائمة الأوامر المتاحة.\nUnknown command. Type /help.",
+                text="❓ أمر غير معروف. أرسل /help لعرض قائمة الأوامر أو اضغط على الأزرار السريعة أسفل الشاشة.\nUnknown command. Type /help.",
             )
 
     async def _cmd_start(self, chat_id: int, session: AsyncSession) -> None:
@@ -119,10 +159,48 @@ Welcome, <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>.
 • موعد النشرة: <b>{profile.digest_time} بتوقيت القاهرة (Africa/Cairo)</b>
 • الحالة: <b>{'نشرة نشطة ✅' if profile.digest_enabled else 'متوقفة مؤقتاً ⏸️'}</b>
 
-👇 <i>اختر إجراءً سريعاً من لوحة التحكم التفاعلية أدناه:</i>
+👇 <i>استخدم الأزرار السريعة الثابتة أسفل الشاشة أو أرسل /menu لفتح لوحة التحكم:</i>
 """
+        reply_kb = build_persistent_reply_keyboard()
+        await self.client.send_message(chat_id=chat_id, text=welcome, reply_markup=reply_kb)
+
+    async def _cmd_menu(self, chat_id: int, session: AsyncSession) -> None:
+        """Display interactive inline control center."""
+        profile = await get_or_create_candidate_profile(session)
+        text = f"""🎛️ <b>BottaJobs Interactive Control Center</b>
+═════════════════════════════
+👤 <b>المرشح:</b> {escape(profile.full_name or 'Abdelrahman Emam')}
+🎯 <b>الهدف:</b> {escape(profile.priority_target)}
+🛠️ <b>المهارات المؤكدة:</b> {len(profile.confirmed_skills or [])} مهارة
+
+<i>اضغط على أي زر تفاعلي للتحكم المباشر أو فتح التطبيق:</i>"""
         markup = build_main_menu_keyboard()
-        await self.client.send_message(chat_id=chat_id, text=welcome, reply_markup=markup)
+        await self.client.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+
+    async def _cmd_open_dashboard(self, chat_id: int) -> None:
+        markup = {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "🌐 فتح لوحة التحكم المباشرة (Angular App)",
+                        "web_app": {"url": "https://job-hunter-agent-bottajobs.onrender.com"},
+                    }
+                ]
+            ]
+        }
+        await self.client.send_message(
+            chat_id=chat_id,
+            text="🚀 <b>لوحة تحكم BottaJobs المباشرة (Web App):</b>\nاضغط على الزر أدناه لفتح لوحة التحكم والتعديل على سيرتك الذاتية ومتابعة الوظائف مباشرة داخل تيليجرام.",
+            reply_markup=markup,
+        )
+
+    async def _cmd_quick_filters(self, chat_id: int) -> None:
+        markup = build_quick_filters_keyboard()
+        await self.client.send_message(
+            chat_id=chat_id,
+            text="🔍 <b>اختر تصنيفاً سريعاً لتصفية الوظائف المتاحة:</b>\nSelect a quick filter to display matching opportunities:",
+            reply_markup=markup,
+        )
 
     async def _cmd_today(self, chat_id: int, session: AsyncSession) -> None:
         """Display today's top matches."""
@@ -449,6 +527,19 @@ All legacy jobs have been deleted.
                 await self._cmd_applied(chat_id, session)
             elif action == "settings":
                 await self._cmd_settings(chat_id, session)
+            elif action == "close" and message_id:
+                await self.client.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text="✅ تم إغلاق القائمة.",
+                    reply_markup=None,
+                )
+            return
+
+        if data.startswith("filter:"):
+            key = data.split(":", 1)[1]
+            await self.client.answer_callback_query(query_id, text="🔍 جاري التصفية...")
+            await self._handle_filter_query(chat_id, key, session)
             return
 
         if ":" not in data:
@@ -517,3 +608,113 @@ All legacy jobs have been deleted.
             breakdown_text = format_match_breakdown(job)
             await self.client.send_message(chat_id=chat_id, text=breakdown_text)
             await self.client.answer_callback_query(query_id, text="📊 تم تحميل تفاصيل المطابقة!")
+        elif action == "cover":
+            await self.client.answer_callback_query(query_id, text="✍️ جاري صياغة خطاب التقديم المخصص...")
+            await self.client.send_chat_action(chat_id, "typing")
+
+            profile = await get_or_create_candidate_profile(session)
+            cover_letter = await self.gemini.generate_cover_letter(
+                candidate_name=profile.full_name or "Abdelrahman Emam",
+                candidate_title=profile.priority_target or "Frontend Developer (Angular)",
+                skills=profile.confirmed_skills or [],
+                projects=profile.projects or [],
+                company=job.company,
+                job_title=job.title,
+                job_description=job.description_text or "",
+            )
+
+            msg = f"""✍️ <b>خطاب تقديم مخصص بالذكاء الاصطناعي / Tailored Cover Letter</b>
+💼 <b>الوظيفة:</b> {escape(job.title)}
+🏢 <b>الشركة:</b> {escape(job.company)}
+─────────────────────────
+<code>{escape(cover_letter)}</code>
+─────────────────────────
+💡 <i>اضغط على النص بالأعلى لنسخه فوراً والصقه في استمارة التقديم أو أرسله عبر الإيميل/LinkedIn!</i>"""
+            await self.client.send_message(chat_id=chat_id, text=msg)
+        elif action == "interview":
+            await self.client.answer_callback_query(query_id, text="🎯 جاري تحليل متطلبات الوظيفة وتوقع أسئلة المقابلة...")
+            await self.client.send_chat_action(chat_id, "typing")
+
+            profile = await get_or_create_candidate_profile(session)
+            prep_content = await self.gemini.generate_interview_prep(
+                candidate_name=profile.full_name or "Abdelrahman Emam",
+                skills=profile.confirmed_skills or [],
+                company=job.company,
+                job_title=job.title,
+                job_description=job.description_text or "",
+            )
+
+            msg = f"""🎯 <b>دليل وتوقعات الإنترفيو التقني / Interview Preparation</b>
+💼 <b>{escape(job.title)}</b> — <i>{escape(job.company)}</i>
+─────────────────────────
+{prep_content}
+─────────────────────────
+🌟 <i>راجع هذه النقاط وركز على مشاريعك العملية لتضمن تميزك في المقابلة!</i>"""
+            await self.client.send_message(chat_id=chat_id, text=msg)
+
+    async def _handle_filter_query(self, chat_id: int, key: str, session: AsyncSession) -> None:
+        """Filter and display active opportunities based on user-selected criteria."""
+        stmt = select(Job).where(Job.is_active == True)
+
+        filter_titles = {
+            "egypt": "🇪🇬 الوظائف المتاحة داخل مصر أو مفتوحة للمصريين",
+            "remote": "🌍 وظائف العمل عن بُعد عالمياً (Remote Worldwide)",
+            "angular": "🅰️ وظائف تركز على Angular وتطوير الويب",
+            "salary": "💵 وظائف ذات رواتب معلنة وواضحة",
+            "junior": "⚡ وظائف مخصصة لمستوى Junior / Entry Level",
+            "top": "⭐ أعلى الوظائف تطابقاً مع سيرتك الذاتية (≥ 80%)",
+        }
+        title = filter_titles.get(key, "نتائج الفلترة")
+
+        if key == "egypt":
+            stmt = stmt.where(
+                or_(
+                    Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE,
+                    Job.eligibility == GeographicEligibility.REMOTE_WORLDWIDE,
+                    Job.raw_location.ilike("%egypt%"),
+                    Job.raw_location.ilike("%cairo%"),
+                )
+            )
+        elif key == "remote":
+            stmt = stmt.where(Job.workplace_type == WorkplaceType.REMOTE)
+        elif key == "angular":
+            stmt = stmt.where(
+                or_(
+                    Job.title.ilike("%angular%"),
+                    Job.description_text.ilike("%angular%"),
+                )
+            )
+        elif key == "salary":
+            stmt = stmt.where(Job.salary_min != None)
+        elif key == "junior":
+            stmt = stmt.where(
+                Job.seniority.in_([
+                    SeniorityLevel.ENTRY,
+                    SeniorityLevel.JUNIOR,
+                    SeniorityLevel.GRADUATE,
+                    SeniorityLevel.INTERNSHIP,
+                ])
+            )
+        elif key == "top":
+            stmt = stmt.where(Job.match_score >= 80.0)
+
+        stmt = stmt.order_by(Job.match_score.desc()).limit(5)
+        res = await session.execute(stmt)
+        jobs = res.scalars().all()
+
+        if not jobs:
+            await self.client.send_message(
+                chat_id=chat_id,
+                text=f"🔍 لم يتم العثور على وظائف مسجلة تطابق: <b>{title}</b> حالياً.\nأرسل /run لتشغيل فحص وتحديث المصادر فوراً.",
+            )
+            return
+
+        await self.client.send_message(
+            chat_id=chat_id,
+            text=f"🎯 <b>{title} ({len(jobs)} وظائف):</b>",
+        )
+        for job in jobs:
+            tracker_status = job.tracker.status.value if job.tracker else None
+            card_html = format_job_card(job)
+            markup = build_job_inline_keyboard(job, tracker_status=tracker_status)
+            await self.client.send_message(chat_id=chat_id, text=card_html, reply_markup=markup)

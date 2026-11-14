@@ -160,3 +160,76 @@ async def test_callback_save_and_applied(db_session):
     await db_session.refresh(job, ["tracker"])
     assert job.tracker.status == ApplicationStatus.APPLIED
     assert job.tracker.applied_at is not None
+
+    # Test Cover Letter Callback
+    mock_client.reset_mock()
+    dispatcher.gemini.generate_cover_letter = AsyncMock(return_value="Dear Hiring Team at GlobalTech, I am interested.")
+    cover_callback = {
+        "callback_query": {
+            "id": "cb3",
+            "from": {"id": 123456},
+            "message": {"chat": {"id": 123456}},
+            "data": f"cover:{job.id}",
+        }
+    }
+    await dispatcher.handle_update(cover_callback, db_session)
+    mock_client.send_message.assert_called_once()
+    args, kwargs = mock_client.send_message.call_args
+    assert "Tailored Cover Letter" in kwargs["text"]
+    assert "GlobalTech" in kwargs["text"]
+
+    # Test Interview Prep Callback
+    mock_client.reset_mock()
+    dispatcher.gemini.generate_interview_prep = AsyncMock(return_value="🎯 1️⃣ Angular Signals & State Management")
+    interview_callback = {
+        "callback_query": {
+            "id": "cb4",
+            "from": {"id": 123456},
+            "message": {"chat": {"id": 123456}},
+            "data": f"interview:{job.id}",
+        }
+    }
+    await dispatcher.handle_update(interview_callback, db_session)
+    mock_client.send_message.assert_called_once()
+    args, kwargs = mock_client.send_message.call_args
+    assert "Interview Preparation" in kwargs["text"] or "أسئلة" in kwargs["text"]
+
+
+@pytest.mark.asyncio
+async def test_persistent_keyboard_and_natural_search(db_session):
+    """Verify reply keyboard buttons and natural language searches."""
+    from src.bot.formatters import build_persistent_reply_keyboard, build_quick_filters_keyboard
+
+    kb = build_persistent_reply_keyboard()
+    assert kb["is_persistent"] is True
+    assert len(kb["keyboard"]) >= 4
+
+    filters_kb = build_quick_filters_keyboard()
+    assert len(filters_kb["inline_keyboard"]) >= 3
+
+    mock_client = AsyncMock()
+    dispatcher = TelegramBotDispatcher(telegram_client=mock_client)
+    dispatcher.owner_id = 555666
+
+    # Test persistent button click
+    btn_update = {
+        "message": {
+            "from": {"id": 555666},
+            "chat": {"id": 555666},
+            "text": "📋 أفضل وظائف اليوم",
+        }
+    }
+    await dispatcher.handle_update(btn_update, db_session)
+    mock_client.send_message.assert_called_once()
+
+    # Test natural language query
+    mock_client.reset_mock()
+    nl_update = {
+        "message": {
+            "from": {"id": 555666},
+            "chat": {"id": 555666},
+            "text": "angular remote developer",
+        }
+    }
+    await dispatcher.handle_update(nl_update, db_session)
+    mock_client.send_message.assert_called_once()
