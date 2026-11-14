@@ -1,37 +1,44 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { TelegramService } from './core/services/telegram.service';
+import { ThemeService } from './core/services/theme.service';
+import { IconComponent, IconName } from './core/components/icon/icon.component';
 
 interface NavItem {
   path: string;
-  labelEn: string;
-  labelAr: string;
-  icon: string;
+  label: string;
+  icon: IconName;
 }
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [
+    CommonModule,
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    IconComponent,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
   readonly telegram = inject(TelegramService);
-  readonly isRtl = signal<boolean>(false);
+  readonly theme = inject(ThemeService);
 
   readonly navItems: NavItem[] = [
-    { path: '/overview', labelEn: 'Overview', labelAr: 'نظرة عامة', icon: '📊' },
-    { path: '/jobs', labelEn: 'Job Feed', labelAr: 'الوظائف', icon: '💼' },
-    { path: '/tracker', labelEn: 'Tracker', labelAr: 'المتابعة', icon: '📌' },
-    { path: '/profile', labelEn: 'Profile', labelAr: 'الملف', icon: '👤' },
-    { path: '/settings', labelEn: 'Settings', labelAr: 'الإعدادات', icon: '⚙️' },
+    { path: '/overview', label: 'Overview', icon: 'layers' },
+    { path: '/jobs', label: 'Jobs', icon: 'briefcase' },
+    { path: '/tracker', label: 'Tracker', icon: 'bookmark' },
+    { path: '/profile', label: 'Profile', icon: 'user' },
+    { path: '/settings', label: 'Settings', icon: 'settings' },
   ];
 
-  toggleRtl(): void {
-    this.telegram.haptic('light');
-    this.isRtl.update((val) => !val);
+  toggleTheme(): void {
+    this.telegram.haptic('selection');
+    this.theme.toggleTheme();
   }
 
   onTabClick(): void {

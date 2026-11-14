@@ -1,191 +1,290 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
+import { IconComponent } from '../../core/components/icon/icon.component';
 import { ApplicationStatus, TrackedJobItem } from '../../core/models/job.model';
+
+interface StatusTab {
+  status: string;
+  label: string;
+}
 
 @Component({
   selector: 'app-tracker',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink, IconComponent],
   template: `
     <div class="tracker-view">
+      <!-- Header -->
       <header class="tracker-header">
         <div>
-          <h1>📌 Application Tracker</h1>
-          <p class="subtitle">Track opportunities without ever submitting automatic applications.</p>
+          <h1>Application Pipeline</h1>
+          <p class="subtitle">Track and organize your personal job applications stage by stage</p>
         </div>
       </header>
 
-      <!-- Status Tabs (Horizontal Scrolling for Mobile / Telegram) -->
-      <nav class="status-tabs" aria-label="Status filter tabs">
-        <button
-          *ngFor="let tab of tabs"
-          (click)="selectTab(tab.status)"
-          [class.active]="selectedStatus() === tab.status"
-          class="tab-btn"
-        >
-          {{ tab.label }}
-        </button>
+      <!-- Horizontal Tabs -->
+      <nav class="status-tabs-container" aria-label="Application stages">
+        <div class="tabs-scroll">
+          <button
+            *ngFor="let tab of tabs"
+            (click)="selectTab(tab.status)"
+            [class.active]="selectedStatus() === tab.status"
+            class="tab-btn"
+          >
+            <span>{{ tab.label }}</span>
+            <span class="tab-count" *ngIf="getCountForStatus(tab.status) as c">{{ c }}</span>
+          </button>
+        </div>
       </nav>
 
       <!-- Tracked Jobs List -->
-      <div class="tracked-list">
-        <div *ngIf="items().length === 0" class="empty-state">
-          <p>No jobs currently in this stage.</p>
+      <section class="tracked-list" aria-label="Tracked applications">
+        <div *ngIf="filteredItems().length === 0" class="empty-state card">
+          <app-icon name="bookmark" [size]="32" class="empty-icon"></app-icon>
+          <h3>No jobs in this stage</h3>
+          <p>Save or mark jobs as applied from the Job Feed to track them here.</p>
+          <a routerLink="/jobs" class="btn btn-secondary btn-sm">
+            <span>Browse Jobs</span>
+            <app-icon name="arrow-right" [size]="14"></app-icon>
+          </a>
         </div>
 
-        <div *ngFor="let item of items()" class="tracked-item">
-          <div class="item-main">
-            <h3>{{ item.title }}</h3>
-            <p class="company-sub">🏢 {{ item.company }}</p>
-            <div class="meta-row">
-              <span class="score-badge">Match: {{ item.match_score }}/100</span>
-              <span *ngIf="item.applied_at" class="applied-date">
-                🗓️ Applied: {{ item.applied_at | date:'yyyy-MM-dd' }}
-              </span>
+        <div class="items-grid" *ngIf="filteredItems().length > 0">
+          <article *ngFor="let item of filteredItems()" class="tracked-card">
+            <div class="item-main">
+              <div class="item-meta-top">
+                <span class="company-name">
+                  <app-icon name="building" [size]="13"></app-icon>
+                  {{ item.company }}
+                </span>
+                <span class="match-score">
+                  <app-icon name="sparkles" [size]="12"></app-icon>
+                  {{ item.match_score }}%
+                </span>
+              </div>
+
+              <h3 class="item-title">{{ item.title }}</h3>
+
+              <div class="date-row" *ngIf="item.applied_at">
+                <span class="date-text">
+                  <app-icon name="calendar" [size]="12"></app-icon>
+                  Applied: {{ item.applied_at | date:'mediumDate' }}
+                </span>
+              </div>
             </div>
-          </div>
 
-          <div class="item-actions">
-            <select
-              [ngModel]="item.status"
-              (ngModelChange)="onStatusChange(item.job_id, $event)"
-              class="status-select"
-            >
-              <option value="SAVED">⭐ Saved</option>
-              <option value="INTERESTED">💡 Interested</option>
-              <option value="APPLIED">✅ Applied</option>
-              <option value="INTERVIEW">🎙️ Interview</option>
-              <option value="OFFER">🎉 Offer</option>
-              <option value="REJECTED">❌ Rejected</option>
-              <option value="ARCHIVED">📦 Archived</option>
-            </select>
+            <div class="item-controls">
+              <div class="status-select-wrap">
+                <select
+                  [ngModel]="item.status"
+                  (ngModelChange)="onStatusChange(item.job_id, $event)"
+                  class="form-select status-select"
+                  aria-label="Change status"
+                >
+                  <option value="DISCOVERED">Discovered</option>
+                  <option value="SAVED">Saved</option>
+                  <option value="INTERESTED">Interested</option>
+                  <option value="APPLIED">Applied</option>
+                  <option value="INTERVIEW">Interview</option>
+                  <option value="OFFER">Offer</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="ARCHIVED">Archived</option>
+                </select>
+              </div>
 
-            <a
-              [href]="item.original_application_url"
-              target="_blank"
-              rel="noopener"
-              (click)="onOpenLink($event, item.original_application_url)"
-              class="btn open-link-btn"
-            >
-              Apply URL ↗
-            </a>
-          </div>
+              <a
+                *ngIf="item.original_application_url"
+                [href]="item.original_application_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                (click)="onOpenLink($event, item.original_application_url)"
+                class="btn btn-secondary btn-sm"
+              >
+                <span>Open Link</span>
+                <app-icon name="external-link" [size]="13"></app-icon>
+              </a>
+            </div>
+          </article>
         </div>
-      </div>
+      </section>
     </div>
   `,
   styles: [`
-    .tracker-view { display: flex; flex-direction: column; gap: 16px; width: 100%; box-sizing: border-box; }
-    .tracker-header h1 { margin: 0 0 4px 0; font-size: 1.45rem; color: #0f172a; font-weight: 700; }
-    .subtitle { margin: 0; color: #64748b; font-size: 0.9rem; line-height: 1.4; }
-
-    .status-tabs {
+    .tracker-view {
       display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      border-bottom: 1px solid #e2e8f0;
-      padding-bottom: 8px;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
+      flex-direction: column;
+      gap: var(--space-4);
       width: 100%;
-      box-sizing: border-box;
     }
-    .status-tabs::-webkit-scrollbar { display: none; }
+
+    .tracker-header h1 {
+      font-size: var(--text-xl);
+      margin-bottom: 2px;
+    }
+    .subtitle {
+      font-size: var(--text-sm);
+      color: var(--color-text-secondary);
+      margin: 0;
+    }
+
+    /* Tabs */
+    .status-tabs-container {
+      width: 100%;
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding-bottom: 2px;
+    }
+    .tabs-scroll {
+      display: flex;
+      gap: var(--space-2);
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 6px;
+    }
+    .tabs-scroll::-webkit-scrollbar {
+      display: none;
+    }
 
     .tab-btn {
-      background: none;
-      border: 1px solid transparent;
-      padding: 7px 14px;
-      border-radius: 20px;
-      font-size: 0.82rem;
-      font-weight: 500;
-      color: #64748b;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--color-border-subtle);
+      background: var(--color-bg-surface);
+      color: var(--color-text-secondary);
+      font-size: var(--text-xs);
+      font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
-      transition: all 0.15s ease;
-      flex-shrink: 0;
+      transition: all var(--motion-fast);
     }
-    .tab-btn:hover { background: #f1f5f9; }
+    .tab-btn:hover {
+      color: var(--color-text-primary);
+      border-color: var(--color-border-hover);
+    }
     .tab-btn.active {
-      background: #eff6ff;
-      border-color: #bfdbfe;
-      color: #1d4ed8;
-      font-weight: 600;
+      color: #ffffff;
+      background: var(--color-brand-primary);
+      border-color: transparent;
+    }
+    .tab-count {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 1px 6px;
+      border-radius: var(--radius-pill);
+      font-size: var(--text-2xs);
+      font-family: var(--font-mono);
     }
 
-    .tracked-list { display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
-    .empty-state {
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 32px 16px;
-      text-align: center;
-      color: #94a3b8;
-      font-size: 0.9rem;
+    /* Items Grid */
+    .items-grid {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
     }
-    .tracked-item {
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 16px;
+    .tracked-card {
+      background-color: var(--color-bg-surface);
+      border: 1px solid var(--color-border-default);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      box-sizing: border-box;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      gap: var(--space-4);
+      box-shadow: var(--shadow-xs);
     }
-    .item-main { min-width: 0; flex: 1; }
-    .item-main h3 { margin: 0 0 4px 0; font-size: 1rem; color: #1e293b; line-height: 1.3; }
-    .company-sub { margin: 0 0 6px 0; font-size: 0.82rem; color: #64748b; }
-    .meta-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .score-badge { font-size: 0.78rem; background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
-    .applied-date { font-size: 0.78rem; color: #10b981; font-weight: 500; }
+    .item-main {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1-5);
+      flex: 1;
+      min-width: 0;
+    }
+    .item-meta-top {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-size: var(--text-xs);
+      color: var(--color-text-secondary);
+    }
+    .company-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .match-score {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--color-brand-accent);
+    }
+    .item-title {
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin: 0;
+    }
+    .date-row {
+      font-size: var(--text-2xs);
+      color: var(--color-text-muted);
+    }
+    .date-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
 
-    .item-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .item-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2-5);
+      flex-shrink: 0;
+    }
     .status-select {
-      padding: 7px 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      font-size: 0.82rem;
-      background: #fff;
-      color: #334155;
-      box-sizing: border-box;
-    }
-    .open-link-btn {
-      background: #2563eb;
-      color: #fff;
-      padding: 7px 12px;
-      border-radius: 6px;
-      text-decoration: none;
-      font-size: 0.82rem;
-      font-weight: 500;
-      text-align: center;
-      white-space: nowrap;
+      min-width: 140px;
+      font-size: var(--text-xs);
+      padding: 6px 28px 6px 10px;
     }
 
-    /* Mobile & Telegram Mini App Optimizations (<= 768px) */
+    .empty-state {
+      padding: var(--space-10) var(--space-4);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-2-5);
+    }
+    .empty-icon {
+      color: var(--color-text-muted);
+      opacity: 0.4;
+    }
+
+    /* Mobile / Telegram Mini App */
     @media (max-width: 768px) {
-      .tracker-header h1 { font-size: 1.3rem; }
-      .tracked-item {
+      .tracked-card {
         flex-direction: column;
         align-items: stretch;
-        gap: 12px;
-        padding: 14px;
+        gap: var(--space-3);
+        padding: var(--space-3-5);
       }
-      .item-actions {
+      .item-controls {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
         width: 100%;
       }
-      .status-select, .open-link-btn {
+      .status-select {
+        min-width: 0;
         width: 100%;
-        text-align: center;
-        box-sizing: border-box;
+      }
+      .item-controls .btn {
+        width: 100%;
       }
     }
   `],
@@ -194,33 +293,42 @@ export class TrackerComponent implements OnInit {
   private readonly api = inject(ApiService);
   readonly telegram = inject(TelegramService);
 
-  selectedStatus = signal<ApplicationStatus | undefined>(undefined);
-  items = signal<TrackedJobItem[]>([]);
+  allItems = signal<TrackedJobItem[]>([]);
+  selectedStatus = signal<string>('ALL');
 
-  tabs = [
-    { label: 'All Tracked', status: undefined },
-    { label: '⭐ Saved', status: 'SAVED' as ApplicationStatus },
-    { label: '💡 Interested', status: 'INTERESTED' as ApplicationStatus },
-    { label: '✅ Applied', status: 'APPLIED' as ApplicationStatus },
-    { label: '🎙️ Interview', status: 'INTERVIEW' as ApplicationStatus },
-    { label: '🎉 Offer', status: 'OFFER' as ApplicationStatus },
-    { label: '❌ Rejected', status: 'REJECTED' as ApplicationStatus },
+  readonly tabs: StatusTab[] = [
+    { status: 'ALL', label: 'All' },
+    { status: 'SAVED', label: 'Saved' },
+    { status: 'APPLIED', label: 'Applied' },
+    { status: 'INTERVIEW', label: 'Interview' },
+    { status: 'OFFER', label: 'Offer' },
+    { status: 'REJECTED', label: 'Rejected' },
   ];
 
   ngOnInit(): void {
     this.loadTracked();
   }
 
-  selectTab(status?: ApplicationStatus): void {
-    this.telegram.haptic('selection');
-    this.selectedStatus.set(status);
-    this.loadTracked();
+  loadTracked(): void {
+    this.api.getTrackedJobs().subscribe({
+      next: (items) => this.allItems.set(items),
+    });
   }
 
-  loadTracked(): void {
-    this.api.getTrackedJobs(this.selectedStatus()).subscribe({
-      next: (data) => this.items.set(data),
-    });
+  selectTab(status: string): void {
+    this.telegram.haptic('selection');
+    this.selectedStatus.set(status);
+  }
+
+  filteredItems(): TrackedJobItem[] {
+    const s = this.selectedStatus();
+    if (s === 'ALL') return this.allItems();
+    return this.allItems().filter((item) => item.status === s);
+  }
+
+  getCountForStatus(status: string): number {
+    if (status === 'ALL') return this.allItems().length;
+    return this.allItems().filter((item) => item.status === status).length;
   }
 
   onStatusChange(jobId: number, newStatus: ApplicationStatus): void {
@@ -236,8 +344,7 @@ export class TrackerComponent implements OnInit {
   onOpenLink(event: MouseEvent, url: string): void {
     if (this.telegram.isTelegram()) {
       event.preventDefault();
-      this.telegram.haptic('light');
-      this.telegram.openUrl(url);
+      this.telegram.openLink(url);
     }
   }
 }

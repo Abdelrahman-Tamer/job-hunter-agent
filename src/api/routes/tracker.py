@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db_session
@@ -27,7 +28,11 @@ async def list_tracked_jobs(
     db: AsyncSession = Depends(get_db_session),
 ) -> List[Dict[str, Any]]:
     """List tracked opportunities."""
-    stmt = select(JobStatusTracker).join(Job)
+    stmt = (
+        select(JobStatusTracker)
+        .options(joinedload(JobStatusTracker.job))
+        .join(Job)
+    )
     if status_filter:
         stmt = stmt.where(JobStatusTracker.status == status_filter)
     stmt = stmt.order_by(JobStatusTracker.updated_at.desc())

@@ -1,39 +1,51 @@
-<div class="app-layout" [attr.dir]="isRtl() ? 'rtl' : 'ltr'" [class.telegram-app]="telegram.isTelegram()">
-  <!-- Top Compact Header -->
-  <header class="app-header">
-    <div class="header-brand">
-      <img src="bottajobs-logo.png" alt="BottaJobs Logo" class="brand-logo-img">
-      <div class="brand-text">
-        <span class="brand-title">BottaJobs</span>
-        <span class="brand-badge">Cairo • 09:00</span>
+<div class="app-layout" dir="ltr" [class.telegram-app]="telegram.isTelegram()">
+  <!-- Top Navigation Header -->
+  <header class="app-header" role="banner">
+    <div class="header-inner">
+      <div class="header-brand">
+        <a routerLink="/overview" class="brand-link" (click)="onTabClick()">
+          <img src="bottajobs-logo.png" alt="BottaJobs Logo" class="brand-logo-img">
+          <div class="brand-meta">
+            <span class="brand-title">BottaJobs</span>
+            <span class="brand-status-pill">
+              <span class="status-dot"></span>
+              <span>Cairo 09:00</span>
+            </span>
+          </div>
+        </a>
       </div>
-    </div>
 
-    <!-- Desktop Navigation Bar (Hidden on Mobile & Telegram Mini App) -->
-    <nav class="desktop-nav" aria-label="Desktop navigation">
-      <a
-        *ngFor="let item of navItems"
-        [routerLink]="item.path"
-        routerLinkActive="active"
-        (click)="onTabClick()"
-        class="nav-item"
-      >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span>{{ isRtl() ? item.labelAr : item.labelEn }}</span>
-      </a>
-    </nav>
+      <!-- Desktop Navigation Bar -->
+      <nav class="desktop-nav" aria-label="Primary navigation">
+        <a
+          *ngFor="let item of navItems"
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          (click)="onTabClick()"
+          class="nav-item"
+        >
+          <app-icon [name]="item.icon" [size]="16" class="nav-icon"></app-icon>
+          <span>{{ item.label }}</span>
+        </a>
+      </nav>
 
-    <!-- Header Actions (RTL Toggle & Status) -->
-    <div class="header-actions">
-      <button (click)="toggleRtl()" class="rtl-toggle-btn" [title]="isRtl() ? 'Switch to English' : 'التحويل للعربية'">
-        <span class="rtl-icon">🌐</span>
-        <span class="rtl-label">{{ isRtl() ? 'EN' : 'عربي' }}</span>
-      </button>
+      <!-- Header Actions: Theme Toggle -->
+      <div class="header-actions">
+        <button
+          (click)="toggleTheme()"
+          class="theme-toggle-btn"
+          [title]="theme.isDark() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+          aria-label="Toggle color theme"
+        >
+          <app-icon [name]="theme.isDark() ? 'moon' : 'sun'" [size]="14"></app-icon>
+          <span class="theme-label">{{ theme.isDark() ? 'Dark' : 'Light' }}</span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <!-- Main Content Area -->
-  <main class="app-main">
+  <!-- Main View Content Area -->
+  <main class="app-main" id="main-content" role="main">
     <router-outlet></router-outlet>
   </main>
 
@@ -46,8 +58,8 @@
       (click)="onTabClick()"
       class="bottom-nav-item"
     >
-      <span class="bottom-nav-icon">{{ item.icon }}</span>
-      <span class="bottom-nav-label">{{ isRtl() ? item.labelAr : item.labelEn }}</span>
+      <app-icon [name]="item.icon" [size]="20" class="bottom-nav-icon"></app-icon>
+      <span class="bottom-nav-label">{{ item.label }}</span>
     </a>
   </nav>
 </div>

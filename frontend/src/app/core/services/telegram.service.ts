@@ -63,8 +63,8 @@ export class TelegramService {
       try {
         tg.ready();
         tg.expand();
-        tg.setHeaderColor('#ffffff');
-        tg.setBackgroundColor('#f8fafc');
+        tg.setHeaderColor('#111520');
+        tg.setBackgroundColor('#090c13');
 
         if (tg.initDataUnsafe?.user) {
           this.telegramUser.set(tg.initDataUnsafe.user);
@@ -75,7 +75,7 @@ export class TelegramService {
     }
   }
 
-  haptic(style: 'light' | 'medium' | 'heavy' | 'selection' | 'success'): void {
+  haptic(style: 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'error'): void {
     if (typeof window === 'undefined') return;
     const haptic = window.Telegram?.WebApp?.HapticFeedback;
     if (!haptic) return;
@@ -85,6 +85,8 @@ export class TelegramService {
         haptic.selectionChanged();
       } else if (style === 'success') {
         haptic.notificationOccurred('success');
+      } else if (style === 'error') {
+        haptic.notificationOccurred('error');
       } else {
         haptic.impactOccurred(style);
       }
@@ -101,5 +103,9 @@ export class TelegramService {
     } else {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
+  }
+
+  openLink(url: string): void {
+    this.openUrl(url);
   }
 }
