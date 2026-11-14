@@ -3,7 +3,7 @@
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db_session
@@ -13,9 +13,11 @@ from src.models import (
     Job,
     JobStatusTracker,
     MatchBand,
+    NotificationLog,
     SeniorityLevel,
     WorkplaceType,
 )
+from src.services.profile_service import apply_verified_cv_to_profile
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
 
@@ -172,3 +174,22 @@ async def get_job_detail(
         required_skills=j.required_skills or [],
         tracker_status=j.tracker.status if j.tracker else None,
     )
+
+
+@router.post("/wipe-and-reset", response_model=Dict[str, Any])
+async def wipe_all_jobs(db: AsyncSession = Depends(get_db_session)) -> Dict[str, Any]:
+    """
+    Wipe all existing jobs, application trackers, and notification records.
+    Applies the verified CV profile to ensure all future crawls search by Abdelrahman Emam's actual skills.
+    """
+    await db.execute(delete(JobStatusTracker))
+    await db.execute(delete(NotificationLog))
+    await db.execute(delete(Job))
+    profile = await apply_verified_cv_to_profile(db)
+    await db.commit()
+    return {
+        "status": "success",
+        "message": "All legacy jobs have been completely wiped. Candidate profile loaded with verified CV (Abdelrahman Emam - Angular/Frontend).",
+        "candidate": profile.full_name,
+        "confirmed_skills_count": len(profile.confirmed_skills),
+    }

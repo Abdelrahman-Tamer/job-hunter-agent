@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 import html
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.formatters import build_job_inline_keyboard, escape, format_job_card
@@ -17,8 +17,9 @@ from src.models import (
     Job,
     JobStatusTracker,
     MatchBand,
+    NotificationLog,
 )
-from src.services.profile_service import get_or_create_candidate_profile
+from src.services.profile_service import apply_verified_cv_to_profile, get_or_create_candidate_profile
 
 
 class TelegramBotDispatcher:
@@ -82,6 +83,10 @@ class TelegramBotDispatcher:
             await self._cmd_toggle_digest(chat_id, enabled=False, session=session)
         elif command == "/resume":
             await self._cmd_toggle_digest(chat_id, enabled=True, session=session)
+        elif command in ("/wipe", "/reset"):
+            await self._cmd_wipe(chat_id, session)
+        elif command in ("/run", "/crawl"):
+            await self._cmd_trigger_run(chat_id, session)
         elif command == "/help":
             await self._cmd_help(chat_id)
         else:
@@ -266,10 +271,71 @@ Welcome, {escape(profile.priority_target)} candidate.
             header = f"💼 <b>{escape(job.title)}</b> في {escape(job.company)} (تم التقديم: {applied_date})"
             await self.client.send_message(chat_id=chat_id, text=header)
 
+    async def _cmd_wipe(self, chat_id: int, session: AsyncSession) -> None:
+        """Wipe all legacy jobs to start fresh with verified CV."""
+        await session.execute(delete(JobStatusTracker))
+        await session.execute(delete(NotificationLog))
+        await session.execute(delete(Job))
+        await session.commit()
+
+        # Ensure verified profile is active
+        profile = await apply_verified_cv_to_profile(session)
+
+        msg = f"""🧹 <b>تم مسح جميع الوظائف السابقة بنجاح!</b>
+All legacy jobs have been deleted.
+
+👤 <b>الملف المعتمد للبحث الآن:</b>
+• المرشح: {escape(profile.full_name or 'Abdelrahman Emam')}
+• التخصص: {escape(profile.priority_target)}
+• المهارات المؤكدة: {len(profile.confirmed_skills)} مهارة (Angular, TypeScript, RxJS, REST APIs, ...)
+• الخبرة الموثقة: {profile.experience_years} سنة
+
+🚀 لبدء فحص المصادر والبحث عن الوظائف المتطابقة مع الـ CV فوراً، أرسل:
+/run"""
+        await self.client.send_message(chat_id=chat_id, text=msg)
+
+    async def _cmd_trigger_run(self, chat_id: int, session: AsyncSession) -> None:
+        """Trigger an on-demand discovery and matching run."""
+        await self.client.send_message(
+            chat_id=chat_id,
+            text="⏳ <b>جاري فحص المصادر واكتشاف الوظائف ومطابقتها مع ملفك...</b>\nRunning discovery pipeline. Please wait 15-30 seconds...",
+        )
+        from src.scheduler.runner import DailyPipelineRunner
+        runner = DailyPipelineRunner()
+        run_record = await runner.execute_daily_run(session, force=True)
+
+        stmt = (
+            select(Job)
+            .where(Job.is_active == True, Job.match_score >= 70.0)
+            .order_by(Job.match_score.desc())
+            .limit(5)
+        )
+        res = await session.execute(stmt)
+        top_jobs = res.scalars().all()
+
+        summary_msg = f"""✅ <b>اكتمل فحص المصادر بنجاح!</b>
+• إجمالي الوظائف المكتشفة: {run_record.jobs_discovered}
+• وظائف جديدة تمت إضافتها: {run_record.jobs_new}
+• وظائف مؤهلة تم إرسالها: {run_record.jobs_notified}"""
+        await self.client.send_message(chat_id=chat_id, text=summary_msg)
+
+        if top_jobs:
+            for job in top_jobs:
+                card_html = format_job_card(job)
+                markup = build_job_inline_keyboard(job)
+                await self.client.send_message(chat_id=chat_id, text=card_html, reply_markup=markup)
+        else:
+            await self.client.send_message(
+                chat_id=chat_id,
+                text="ℹ️ تم مسح الوظائف وجاري متابعة المصادر الجديدة في مواعيدها المجدولة (09:00 صباحاً).",
+            )
+
     async def _cmd_help(self, chat_id: int) -> None:
         help_text = """📖 <b>أوامر Job Hunter Agent المتاحة:</b>
 
 /today - استعراض أبرز الفرص المتطابقة اليوم
+/run - تشغيل الفحص والبحث الفوري الآن
+/wipe - مسح جميع الوظائف السابقة للبدء ببيانات نظيفة
 /search [كلمة] - البحث في الوظائف النشطة
 /profile - عرض وتفاصيل الملف الشخصي للمرشح
 /settings - إعدادات النشرة ومواعيد الإرسال
