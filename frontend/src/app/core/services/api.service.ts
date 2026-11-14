@@ -17,7 +17,10 @@ import {
 })
 export class ApiService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = 'http://localhost:8000';
+  private readonly baseUrl =
+    typeof window !== 'undefined' && window.location.port !== '4200'
+      ? ''
+      : 'http://localhost:8000';
 
   getJobs(paramsMap?: Record<string, string | number>): Observable<{
     page: number;

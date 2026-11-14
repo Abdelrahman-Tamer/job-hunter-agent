@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
+import { TelegramService } from '../../core/services/telegram.service';
 import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.model';
 
 @Component({
@@ -17,7 +18,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
             type="text"
             [(ngModel)]="searchKeyword"
             (keyup.enter)="applyFilters()"
-            placeholder="Search title, company, skills (e.g. Angular, TypeScript)..."
+            placeholder="Search role, skills (Angular, TypeScript)..."
             class="input-control"
           />
           <button (click)="applyFilters()" class="btn filter-btn">Search</button>
@@ -59,7 +60,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
       <!-- Jobs Grid -->
       <section class="jobs-grid">
         <div *ngIf="isLoading()" class="loading-state">
-          <p>Loading matching opportunities...</p>
+          <p>⏳ Loading matching opportunities...</p>
         </div>
 
         <div *ngIf="!isLoading() && jobs().length === 0" class="empty-state">
@@ -98,7 +99,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
           </div>
 
           <div class="actions-row">
-            <a [href]="job.original_application_url" target="_blank" rel="noopener" class="btn apply-btn">
+            <a [href]="job.original_application_url" target="_blank" rel="noopener" (click)="onOpenLink($event, job.original_application_url)" class="btn apply-btn">
               Apply ↗
             </a>
             <button (click)="openDetail(job.id)" class="btn secondary-btn">
@@ -159,69 +160,97 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
     </div>
   `,
   styles: [`
-    .jobs-view { display: flex; flex-direction: column; gap: 20px; }
+    .jobs-view { display: flex; flex-direction: column; gap: 16px; width: 100%; box-sizing: border-box; }
     .filters-toolbar {
       background: #fff;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
-      padding: 18px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
       gap: 12px;
+      box-sizing: border-box;
+      width: 100%;
     }
-    .search-box { display: flex; gap: 10px; }
+    .search-box { display: flex; gap: 8px; width: 100%; }
     .input-control {
       flex: 1;
-      padding: 9px 14px;
+      min-width: 0;
+      padding: 9px 12px;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
+      box-sizing: border-box;
     }
     .filter-btn {
       background: #2563eb;
       color: #fff;
       border: none;
       border-radius: 6px;
-      padding: 0 18px;
+      padding: 0 16px;
       font-weight: 600;
       cursor: pointer;
+      font-size: 0.9rem;
+      white-space: nowrap;
     }
-    .filters-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .filters-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      width: 100%;
+    }
     .select-control {
-      padding: 7px 12px;
+      padding: 7px 10px;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       background: #fff;
+      color: #334155;
+      box-sizing: border-box;
     }
 
     .jobs-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+      gap: 14px;
+      width: 100%;
+      box-sizing: border-box;
     }
+    .loading-state, .empty-state {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 32px 16px;
+      text-align: center;
+      color: #64748b;
+      grid-column: 1 / -1;
+    }
+
     .job-card {
       background: #fff;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
-      padding: 18px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      gap: 10px;
+      box-sizing: border-box;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
       transition: transform 0.15s, box-shadow 0.15s;
     }
     .job-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
     .job-card.excellent { border-left: 4px solid #10b981; }
 
-    .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-    .title-company h3 { margin: 0 0 4px 0; font-size: 1.05rem; color: #0f172a; }
-    .company-name { margin: 0; font-size: 0.85rem; color: #64748b; }
-    .score-display { text-align: right; background: #f8fafc; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; }
-    .score-num { font-weight: 700; font-size: 1.1rem; color: #2563eb; }
-    .score-label { font-size: 0.75rem; color: #94a3b8; }
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .title-company h3 { margin: 0 0 4px 0; font-size: 1rem; color: #0f172a; line-height: 1.3; }
+    .company-name { margin: 0; font-size: 0.82rem; color: #64748b; }
+    .score-display { text-align: right; background: #f8fafc; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; flex-shrink: 0; }
+    .score-num { font-weight: 700; font-size: 1.05rem; color: #2563eb; }
+    .score-label { font-size: 0.72rem; color: #94a3b8; }
 
-    .badges-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-    .badge { font-size: 0.75rem; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+    .badges-row { display: flex; gap: 5px; flex-wrap: wrap; }
+    .badge { font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
     .elig-badge { background: #e2e8f0; color: #334155; }
     .elig-badge.eg { background: #dcfce7; color: #166534; }
     .elig-badge.world { background: #dbeafe; color: #1e40af; }
@@ -229,33 +258,74 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.
     .sen-badge { background: #fef3c7; color: #92400e; }
     .source-badge { background: #f3e8ff; color: #6b21a8; }
 
-    .tech-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-    .tech-tag { font-size: 0.75rem; color: #64748b; }
-    .date-row { font-size: 0.75rem; color: #94a3b8; margin-bottom: 12px; }
+    .tech-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+    .tech-tag { font-size: 0.72rem; color: #64748b; }
+    .date-row { font-size: 0.72rem; color: #94a3b8; }
 
-    .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .btn { font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; font-weight: 500; }
+    .actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .btn { font-size: 0.8rem; padding: 7px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; font-weight: 500; text-align: center; }
     .apply-btn { background: #2563eb; color: #fff; border: none; }
     .secondary-btn { background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; }
     .icon-btn { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
 
     .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
       display: flex; align-items: center; justify-content: center; z-index: 1000;
+      padding: 12px;
+      box-sizing: border-box;
     }
     .modal-card {
-      background: #fff; border-radius: 12px; max-width: 600px; width: 90%; max-height: 85vh;
-      overflow-y: auto; padding: 24px;
+      background: #fff; border-radius: 12px; max-width: 600px; width: 100%; max-height: 85vh;
+      overflow-y: auto; padding: 20px; box-sizing: border-box;
     }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 16px; }
-    .close-btn { font-size: 1.5rem; background: none; border: none; cursor: pointer; }
-    .breakdown-list { list-style: none; padding: 0; margin: 0 0 16px 0; }
-    .breakdown-list li { padding: 4px 0; border-bottom: 1px dashed #f1f5f9; font-size: 0.9rem; }
-    .desc-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; font-size: 0.85rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; margin-bottom: 14px; }
+    .modal-header h2 { margin: 0; font-size: 1.15rem; color: #0f172a; }
+    .close-btn { font-size: 1.5rem; background: none; border: none; cursor: pointer; line-height: 1; color: #64748b; }
+    .breakdown-list { list-style: none; padding: 0; margin: 0 0 14px 0; }
+    .breakdown-list li { padding: 4px 0; border-bottom: 1px dashed #f1f5f9; font-size: 0.85rem; }
+    .desc-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; font-size: 0.82rem; max-height: 180px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; }
+
+    /* Mobile & Telegram Mini App Optimizations (<= 768px) */
+    @media (max-width: 768px) {
+      .filters-toolbar { padding: 12px; gap: 10px; }
+      .filters-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .select-control {
+        width: 100%;
+        font-size: 0.78rem;
+        padding: 8px 6px;
+      }
+      .jobs-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      .job-card {
+        padding: 14px;
+      }
+      .actions-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+      }
+      .actions-row .btn {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 6px;
+        font-size: 0.78rem;
+      }
+      .modal-card {
+        padding: 16px;
+      }
+    }
   `],
 })
 export class JobsComponent implements OnInit {
   private readonly api = inject(ApiService);
+  readonly telegram = inject(TelegramService);
 
   jobs = signal<JobSummary[]>([]);
   isLoading = signal<boolean>(false);
@@ -272,6 +342,7 @@ export class JobsComponent implements OnInit {
   }
 
   applyFilters(): void {
+    this.telegram.haptic('light');
     this.isLoading.set(true);
     const params: Record<string, string | number> = {};
     if (this.searchKeyword) params['keyword'] = this.searchKeyword;
@@ -290,6 +361,7 @@ export class JobsComponent implements OnInit {
   }
 
   openDetail(jobId: number): void {
+    this.telegram.haptic('light');
     this.api.getJobDetail(jobId).subscribe({
       next: (detail) => this.selectedJobDetail.set(detail),
     });
@@ -300,10 +372,20 @@ export class JobsComponent implements OnInit {
   }
 
   setStatus(jobId: number, status: ApplicationStatus): void {
+    this.telegram.haptic('selection');
     this.api.updateJobStatus(jobId, status).subscribe({
       next: () => {
+        this.telegram.haptic('success');
         this.applyFilters();
       },
     });
+  }
+
+  onOpenLink(event: MouseEvent, url: string): void {
+    if (this.telegram.isTelegram()) {
+      event.preventDefault();
+      this.telegram.haptic('light');
+      this.telegram.openUrl(url);
+    }
   }
 }

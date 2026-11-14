@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
+import { TelegramService } from '../../core/services/telegram.service';
 import { ApplicationStatus, TrackedJobItem } from '../../core/models/job.model';
 
 @Component({
@@ -17,8 +18,8 @@ import { ApplicationStatus, TrackedJobItem } from '../../core/models/job.model';
         </div>
       </header>
 
-      <!-- Status Tabs -->
-      <nav class="status-tabs">
+      <!-- Status Tabs (Horizontal Scrolling for Mobile / Telegram) -->
+      <nav class="status-tabs" aria-label="Status filter tabs">
         <button
           *ngFor="let tab of tabs"
           (click)="selectTab(tab.status)"
@@ -42,7 +43,7 @@ import { ApplicationStatus, TrackedJobItem } from '../../core/models/job.model';
             <div class="meta-row">
               <span class="score-badge">Match: {{ item.match_score }}/100</span>
               <span *ngIf="item.applied_at" class="applied-date">
-                🗓️ Applied on: {{ item.applied_at | date:'yyyy-MM-dd' }}
+                🗓️ Applied: {{ item.applied_at | date:'yyyy-MM-dd' }}
               </span>
             </div>
           </div>
@@ -62,7 +63,13 @@ import { ApplicationStatus, TrackedJobItem } from '../../core/models/job.model';
               <option value="ARCHIVED">📦 Archived</option>
             </select>
 
-            <a [href]="item.original_application_url" target="_blank" rel="noopener" class="btn open-link-btn">
+            <a
+              [href]="item.original_application_url"
+              target="_blank"
+              rel="noopener"
+              (click)="onOpenLink($event, item.original_application_url)"
+              class="btn open-link-btn"
+            >
               Apply URL ↗
             </a>
           </div>
@@ -71,9 +78,9 @@ import { ApplicationStatus, TrackedJobItem } from '../../core/models/job.model';
     </div>
   `,
   styles: [`
-    .tracker-view { display: flex; flex-direction: column; gap: 20px; }
-    .tracker-header h1 { margin: 0 0 4px 0; font-size: 1.5rem; color: #0f172a; }
-    .subtitle { margin: 0; color: #64748b; font-size: 0.95rem; }
+    .tracker-view { display: flex; flex-direction: column; gap: 16px; width: 100%; box-sizing: border-box; }
+    .tracker-header h1 { margin: 0 0 4px 0; font-size: 1.45rem; color: #0f172a; font-weight: 700; }
+    .subtitle { margin: 0; color: #64748b; font-size: 0.9rem; line-height: 1.4; }
 
     .status-tabs {
       display: flex;
@@ -81,16 +88,25 @@ import { ApplicationStatus, TrackedJobItem } from '../../core/models/job.model';
       overflow-x: auto;
       border-bottom: 1px solid #e2e8f0;
       padding-bottom: 8px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      width: 100%;
+      box-sizing: border-box;
     }
+    .status-tabs::-webkit-scrollbar { display: none; }
+
     .tab-btn {
       background: none;
       border: 1px solid transparent;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 0.85rem;
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
       font-weight: 500;
       color: #64748b;
       cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
     }
     .tab-btn:hover { background: #f1f5f9; }
     .tab-btn.active {
@@ -100,55 +116,83 @@ import { ApplicationStatus, TrackedJobItem } from '../../core/models/job.model';
       font-weight: 600;
     }
 
-    .tracked-list { display: flex; flex-direction: column; gap: 12px; }
+    .tracked-list { display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
     .empty-state {
       background: #fff;
       border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 32px;
+      border-radius: 10px;
+      padding: 32px 16px;
       text-align: center;
       color: #94a3b8;
+      font-size: 0.9rem;
     }
     .tracked-item {
       background: #fff;
       border: 1px solid #e2e8f0;
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
+      box-sizing: border-box;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
     }
-    @media (max-width: 600px) {
-      .tracked-item { flex-direction: column; align-items: flex-start; }
-    }
-    .item-main h3 { margin: 0 0 4px 0; font-size: 1rem; color: #1e293b; }
-    .company-sub { margin: 0 0 8px 0; font-size: 0.85rem; color: #64748b; }
-    .meta-row { display: flex; gap: 12px; align-items: center; }
-    .score-badge { font-size: 0.8rem; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
-    .applied-date { font-size: 0.8rem; color: #10b981; }
+    .item-main { min-width: 0; flex: 1; }
+    .item-main h3 { margin: 0 0 4px 0; font-size: 1rem; color: #1e293b; line-height: 1.3; }
+    .company-sub { margin: 0 0 6px 0; font-size: 0.82rem; color: #64748b; }
+    .meta-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .score-badge { font-size: 0.78rem; background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
+    .applied-date { font-size: 0.78rem; color: #10b981; font-weight: 500; }
 
-    .item-actions { display: flex; gap: 10px; align-items: center; }
+    .item-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
     .status-select {
-      padding: 6px 12px;
+      padding: 7px 10px;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       background: #fff;
+      color: #334155;
+      box-sizing: border-box;
     }
     .open-link-btn {
       background: #2563eb;
       color: #fff;
-      padding: 6px 14px;
+      padding: 7px 12px;
       border-radius: 6px;
       text-decoration: none;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-weight: 500;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    /* Mobile & Telegram Mini App Optimizations (<= 768px) */
+    @media (max-width: 768px) {
+      .tracker-header h1 { font-size: 1.3rem; }
+      .tracked-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 14px;
+      }
+      .item-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+      }
+      .status-select, .open-link-btn {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+      }
     }
   `],
 })
 export class TrackerComponent implements OnInit {
   private readonly api = inject(ApiService);
+  readonly telegram = inject(TelegramService);
 
   selectedStatus = signal<ApplicationStatus | undefined>(undefined);
   items = signal<TrackedJobItem[]>([]);
@@ -168,6 +212,7 @@ export class TrackerComponent implements OnInit {
   }
 
   selectTab(status?: ApplicationStatus): void {
+    this.telegram.haptic('selection');
     this.selectedStatus.set(status);
     this.loadTracked();
   }
@@ -179,8 +224,20 @@ export class TrackerComponent implements OnInit {
   }
 
   onStatusChange(jobId: number, newStatus: ApplicationStatus): void {
+    this.telegram.haptic('selection');
     this.api.updateJobStatus(jobId, newStatus).subscribe({
-      next: () => this.loadTracked(),
+      next: () => {
+        this.telegram.haptic('success');
+        this.loadTracked();
+      },
     });
+  }
+
+  onOpenLink(event: MouseEvent, url: string): void {
+    if (this.telegram.isTelegram()) {
+      event.preventDefault();
+      this.telegram.haptic('light');
+      this.telegram.openUrl(url);
+    }
   }
 }

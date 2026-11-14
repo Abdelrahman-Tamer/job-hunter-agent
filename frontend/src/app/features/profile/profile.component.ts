@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
+import { TelegramService } from '../../core/services/telegram.service';
 import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
 
 @Component({
@@ -448,10 +449,30 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     @media (max-width: 600px) { .review-grid { grid-template-columns: 1fr; } }
     .review-sub-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; font-size: 0.85rem; }
     .review-sub-card p { margin: 4px 0 0 0; }
+
+    /* Mobile & Telegram Mini App Optimizations (<= 768px) */
+    @media (max-width: 768px) {
+      .profile-header h1 { font-size: 1.3rem; }
+      .profile-layout { grid-template-columns: 1fr; gap: 14px; }
+      .panel { padding: 16px; }
+      .form-row { grid-template-columns: 1fr; gap: 10px; }
+      .add-skill-row { flex-direction: column; width: 100%; gap: 6px; }
+      .input-control.small { max-width: 100%; width: 100%; }
+      .add-skill-row .btn { width: 100%; text-align: center; }
+      .form-actions { flex-direction: column; width: 100%; }
+      .form-actions .btn { width: 100%; text-align: center; }
+      .upload-dropzone { padding: 16px; }
+      .modal-card.review-modal { width: 95%; max-height: 88vh; }
+      .modal-header { padding: 14px 16px; }
+      .modal-body { padding: 14px 16px; }
+      .modal-footer { padding: 14px 16px; flex-direction: column; gap: 8px; }
+      .modal-footer .btn { width: 100%; text-align: center; }
+    }
   `],
 })
 export class ProfileComponent implements OnInit {
   private readonly api = inject(ApiService);
+  readonly telegram = inject(TelegramService);
 
   profile = signal<CandidateProfile | null>(null);
   confirmedSkills = signal<string[]>([]);

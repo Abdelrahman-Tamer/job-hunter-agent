@@ -1,38 +1,33 @@
-<div class="app-layout" [attr.dir]="isRtl() ? 'rtl' : 'ltr'">
-  <!-- Top Navigation Header -->
+<div class="app-layout" [attr.dir]="isRtl() ? 'rtl' : 'ltr'" [class.telegram-app]="telegram.isTelegram()">
+  <!-- Top Compact Header -->
   <header class="app-header">
     <div class="header-brand">
       <img src="bottajobs-logo.png" alt="BottaJobs Logo" class="brand-logo-img">
-      <span class="brand-title">BottaJobs</span>
-      <span class="brand-badge">Cairo • 09:00</span>
+      <div class="brand-text">
+        <span class="brand-title">BottaJobs</span>
+        <span class="brand-badge">Cairo • 09:00</span>
+      </div>
     </div>
 
-    <nav class="app-nav">
-      <a routerLink="/overview" routerLinkActive="active" class="nav-item">
-        <span class="nav-icon">📊</span>
-        <span>Overview</span>
-      </a>
-      <a routerLink="/jobs" routerLinkActive="active" class="nav-item">
-        <span class="nav-icon">💼</span>
-        <span>Job Feed</span>
-      </a>
-      <a routerLink="/tracker" routerLinkActive="active" class="nav-item">
-        <span class="nav-icon">📌</span>
-        <span>Tracker</span>
-      </a>
-      <a routerLink="/profile" routerLinkActive="active" class="nav-item">
-        <span class="nav-icon">👤</span>
-        <span>Profile</span>
-      </a>
-      <a routerLink="/settings" routerLinkActive="active" class="nav-item">
-        <span class="nav-icon">⚙️</span>
-        <span>Settings</span>
+    <!-- Desktop Navigation Bar (Hidden on Mobile & Telegram Mini App) -->
+    <nav class="desktop-nav" aria-label="Desktop navigation">
+      <a
+        *ngFor="let item of navItems"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        (click)="onTabClick()"
+        class="nav-item"
+      >
+        <span class="nav-icon">{{ item.icon }}</span>
+        <span>{{ isRtl() ? item.labelAr : item.labelEn }}</span>
       </a>
     </nav>
 
+    <!-- Header Actions (RTL Toggle & Status) -->
     <div class="header-actions">
-      <button (click)="toggleRtl()" class="rtl-toggle-btn" title="Toggle RTL / Arabic layout">
-        {{ isRtl() ? 'LTR / English' : 'عربي / RTL' }}
+      <button (click)="toggleRtl()" class="rtl-toggle-btn" [title]="isRtl() ? 'Switch to English' : 'التحويل للعربية'">
+        <span class="rtl-icon">🌐</span>
+        <span class="rtl-label">{{ isRtl() ? 'EN' : 'عربي' }}</span>
       </button>
     </div>
   </header>
@@ -41,4 +36,18 @@
   <main class="app-main">
     <router-outlet></router-outlet>
   </main>
+
+  <!-- Mobile & Telegram Mini App Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+    <a
+      *ngFor="let item of navItems"
+      [routerLink]="item.path"
+      routerLinkActive="active"
+      (click)="onTabClick()"
+      class="bottom-nav-item"
+    >
+      <span class="bottom-nav-icon">{{ item.icon }}</span>
+      <span class="bottom-nav-label">{{ isRtl() ? item.labelAr : item.labelEn }}</span>
+    </a>
+  </nav>
 </div>
