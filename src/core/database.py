@@ -39,10 +39,17 @@ if db_url.startswith("postgres://"):
 elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+"):
     db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+engine_kwargs = {
+    "echo": settings.DEBUG,
+    "future": True,
+}
+if "sqlite" not in settings.DATABASE_URL:
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = 300
+
 engine: AsyncEngine = create_async_engine(
     db_url,
-    echo=settings.DEBUG,
-    future=True,
+    **engine_kwargs,
 )
 
 # Apply SQLite-specific optimizations if SQLite is used
