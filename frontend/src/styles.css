@@ -279,6 +279,15 @@ a {
   padding: var(--space-5);
   box-shadow: var(--shadow-sm);
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .card, .panel {
+    padding: var(--space-3-5, 14px);
+  }
 }
 
 .card:hover, .panel:hover {

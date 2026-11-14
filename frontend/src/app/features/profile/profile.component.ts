@@ -318,9 +318,10 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     /* Grid Layout */
     .profile-grid {
       display: grid;
-      grid-template-columns: 2fr 1.2fr;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
       gap: var(--space-4);
       width: 100%;
+      min-width: 0;
     }
 
     .panel-header {
@@ -341,9 +342,10 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
 
     .form-row-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-3);
       margin-bottom: var(--space-3-5);
+      min-width: 0;
     }
     .form-group {
       display: flex;
@@ -549,10 +551,10 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     /* Mobile */
     @media (max-width: 768px) {
       .profile-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
       .form-row-2 {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         gap: 0;
       }
       .panel-footer-actions {

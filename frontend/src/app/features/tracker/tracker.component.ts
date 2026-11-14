@@ -138,8 +138,11 @@ interface StatusTab {
     /* Tabs */
     .status-tabs-container {
       width: 100%;
+      max-width: 100%;
+      overflow: hidden;
       border-bottom: 1px solid var(--color-border-subtle);
       padding-bottom: 2px;
+      box-sizing: border-box;
     }
     .tabs-scroll {
       display: flex;
@@ -148,6 +151,8 @@ interface StatusTab {
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
       padding-bottom: 6px;
+      max-width: 100%;
+      box-sizing: border-box;
     }
     .tabs-scroll::-webkit-scrollbar {
       display: none;
@@ -169,6 +174,7 @@ interface StatusTab {
       cursor: pointer;
       white-space: nowrap;
       transition: all var(--motion-fast);
+      flex-shrink: 0;
     }
     .tab-btn:hover {
       color: var(--color-text-primary);
@@ -195,6 +201,8 @@ interface StatusTab {
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+      width: 100%;
+      min-width: 0;
     }
     .tracked-card {
       background-color: var(--color-bg-surface-glass);
@@ -209,6 +217,10 @@ interface StatusTab {
       gap: var(--space-4);
       box-shadow: var(--shadow-sm);
       transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
     }
     .tracked-card:hover {
       border-color: var(--color-border-hover);
@@ -228,15 +240,25 @@ interface StatusTab {
       gap: var(--space-3);
       font-size: var(--text-xs);
       color: var(--color-text-secondary);
+      min-width: 0;
     }
     .company-row {
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
+      min-width: 0;
+      max-width: 100%;
+    }
+    .company-avatar {
+      flex-shrink: 0;
     }
     .company-name {
       font-weight: 700;
       color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
     .match-score {
       display: inline-flex;
@@ -246,6 +268,8 @@ interface StatusTab {
       font-weight: 700;
       color: var(--color-brand-accent);
       font-size: var(--text-xs);
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     .item-title {
       font-size: var(--text-base);
@@ -254,6 +278,8 @@ interface StatusTab {
       margin: 0;
       line-height: 1.35;
       letter-spacing: -0.015em;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
     .meta-bottom-row {
       display: flex;

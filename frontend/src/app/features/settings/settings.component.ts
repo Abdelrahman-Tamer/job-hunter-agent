@@ -172,6 +172,15 @@ import { CandidateProfile } from '../../core/models/job.model';
       flex-direction: column;
       gap: var(--space-4);
       max-width: 800px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .settings-card {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
     }
 
     .panel-header {

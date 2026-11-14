@@ -359,8 +359,10 @@ interface QuickChip {
     /* Jobs Grid */
     .jobs-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: var(--space-3-5);
+      width: 100%;
+      min-width: 0;
     }
     .job-card {
       background-color: var(--color-bg-surface-glass);
@@ -374,6 +376,10 @@ interface QuickChip {
       gap: var(--space-3);
       box-shadow: var(--shadow-sm);
       transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
     }
     .job-card:hover {
       border-color: var(--color-border-hover);
@@ -387,23 +393,35 @@ interface QuickChip {
     .job-card-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       gap: var(--space-2);
+      min-width: 0;
     }
     .company-loc-row {
       display: flex;
       align-items: center;
       gap: var(--space-2-5);
+      min-width: 0;
+      flex: 1;
+    }
+    .company-avatar {
+      flex-shrink: 0;
     }
     .company-info-block {
       display: flex;
       flex-direction: column;
       line-height: 1.25;
+      min-width: 0;
+      flex: 1;
     }
     .company-name-text {
       font-size: var(--text-xs);
       font-weight: 700;
       color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
     .location-chip {
       display: inline-flex;
@@ -411,6 +429,10 @@ interface QuickChip {
       gap: 3px;
       font-size: var(--text-2xs);
       color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
 
     .score-pill {
@@ -426,6 +448,7 @@ interface QuickChip {
       border: 1px solid var(--color-brand-border);
       color: var(--color-brand-accent);
       white-space: nowrap;
+      flex-shrink: 0;
     }
     .score-pill.score-top {
       background-color: var(--color-success-bg);
@@ -440,6 +463,8 @@ interface QuickChip {
       margin: 0;
       line-height: 1.35;
       letter-spacing: -0.015em;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     .badges-row {
@@ -617,14 +642,14 @@ interface QuickChip {
 
     @media (max-width: 768px) {
       .filters-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--space-2);
       }
       .jobs-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
       .job-card-actions {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
   `],

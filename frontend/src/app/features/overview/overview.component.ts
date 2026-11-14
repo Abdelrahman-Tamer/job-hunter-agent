@@ -354,9 +354,18 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
     /* Content Grid */
     .content-grid {
       display: grid;
-      grid-template-columns: 2fr 1fr;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
       gap: var(--space-4);
       width: 100%;
+      min-width: 0;
+    }
+
+    .opportunities-panel,
+    .sources-panel {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
     }
 
     .panel-header {
@@ -366,11 +375,14 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       margin-bottom: var(--space-4);
       border-bottom: 1px solid var(--color-border-subtle);
       padding-bottom: var(--space-3);
+      gap: var(--space-2);
+      min-width: 0;
     }
     .panel-title-wrap {
       display: flex;
       align-items: center;
       gap: var(--space-2);
+      min-width: 0;
     }
     .panel-title-wrap h2 {
       font-size: var(--text-base);
@@ -378,9 +390,13 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       color: var(--color-text-primary);
       margin: 0;
       letter-spacing: -0.015em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .panel-icon-accent {
       color: var(--color-brand-accent);
+      flex-shrink: 0;
     }
     .view-all-link {
       display: inline-flex;
@@ -390,6 +406,8 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       color: var(--color-brand-accent);
       font-weight: 600;
       transition: color var(--motion-fast);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .view-all-link:hover {
       color: var(--color-brand-primary-hover);
@@ -425,6 +443,7 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+      min-width: 0;
     }
     .job-item-card {
       background-color: var(--color-bg-surface-elevated-glass);
@@ -438,6 +457,10 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       gap: var(--space-2-5);
       box-shadow: var(--shadow-xs);
       transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
     }
     .job-item-card:hover {
       border-color: var(--color-border-hover);
@@ -447,23 +470,35 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
     .job-item-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       gap: var(--space-2);
+      min-width: 0;
     }
     .company-row {
       display: flex;
       align-items: center;
       gap: var(--space-2-5);
+      min-width: 0;
+      flex: 1;
+    }
+    .company-avatar {
+      flex-shrink: 0;
     }
     .company-text {
       display: flex;
       flex-direction: column;
       line-height: 1.25;
+      min-width: 0;
+      flex: 1;
     }
     .company-name {
       font-size: var(--text-xs);
       font-weight: 700;
       color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
     .location-name {
       display: inline-flex;
@@ -471,6 +506,10 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       gap: 3px;
       font-size: var(--text-2xs);
       color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
     .score-pill {
       display: inline-flex;
@@ -484,6 +523,8 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       background-color: var(--color-brand-subtle);
       color: var(--color-brand-accent);
       border: 1px solid var(--color-brand-border);
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     .score-high {
       background-color: var(--color-success-bg);
@@ -496,6 +537,8 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
       color: var(--color-text-primary);
       margin: 0;
       line-height: 1.35;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
     .job-tags-row {
       display: flex;
@@ -615,8 +658,10 @@ import { JobSummary, DailyRunRecord, SourceInfo } from '../../core/models/job.mo
         font-size: var(--text-xl);
       }
       .content-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         gap: var(--space-3);
+        width: 100%;
+        min-width: 0;
       }
       .job-item-footer .btn {
         width: 100%;
