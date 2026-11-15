@@ -66,6 +66,14 @@ export class TelegramService {
         tg.setHeaderColor('#111520');
         tg.setBackgroundColor('#090c13');
 
+        // Enable vertical swipes in Telegram Mini App for natural touch & wheel scrolling
+        if (typeof (tg as any).enableVerticalSwipes === 'function') {
+          (tg as any).enableVerticalSwipes();
+        }
+
+        // Ensure window has focus for desktop mouse wheel events
+        window.focus();
+
         if (tg.initDataUnsafe?.user) {
           this.telegramUser.set(tg.initDataUnsafe.user);
         }

@@ -31,9 +31,10 @@ interface Dot {
   `,
   styles: [`
     :host {
+      display: block;
       position: fixed;
       inset: 0;
-      pointer-events: none;
+      pointer-events: none !important;
       z-index: 0;
       overflow: hidden;
     }
@@ -41,6 +42,7 @@ interface Dot {
       display: block;
       width: 100%;
       height: 100%;
+      pointer-events: none !important;
     }
   `],
 })
