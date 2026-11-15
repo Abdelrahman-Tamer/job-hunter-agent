@@ -2,12 +2,35 @@
   <!-- Antigravity Interactive Dot Matrix Canvas -->
   <app-antigravity-canvas></app-antigravity-canvas>
 
-  <!-- Top Navigation Header -->
+  <!-- Global Glass Toast Notifications Host -->
+  <aside class="toast-container" aria-live="polite" aria-label="System notifications">
+    <div
+      *ngFor="let toast of toastService.toasts()"
+      class="toast-pill"
+      [attr.data-type]="toast.type"
+      role="status"
+    >
+      <app-icon
+        [name]="toast.type === 'success' ? 'check-circle' : toast.type === 'error' ? 'alert-circle' : toast.type === 'warning' ? 'alert-circle' : 'info'"
+        [size]="15"
+        class="toast-icon"
+      ></app-icon>
+      <span class="toast-text">{{ toast.message }}</span>
+      <button (click)="toastService.dismiss(toast.id)" class="toast-close" aria-label="Dismiss notification">
+        <app-icon name="x" [size]="12"></app-icon>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Top Navigation Command Bar Header -->
   <header class="app-header" role="banner">
     <div class="header-inner">
       <div class="header-brand">
         <a routerLink="/overview" class="brand-link" (click)="onTabClick()">
-          <img src="bottajobs-logo.png" alt="BottaJobs Logo" class="brand-logo-img">
+          <div class="brand-logo-wrap">
+            <img src="bottajobs-logo.png" alt="BottaJobs Logo" class="brand-logo-img">
+            <span class="brand-pulse-ring"></span>
+          </div>
           <div class="brand-meta">
             <span class="brand-title">BottaJobs</span>
             <span class="brand-status-pill">
@@ -27,13 +50,26 @@
           (click)="onTabClick()"
           class="nav-item"
         >
-          <app-icon [name]="item.icon" [size]="16" class="nav-icon"></app-icon>
+          <app-icon [name]="item.icon" [size]="15" class="nav-icon"></app-icon>
           <span>{{ item.label }}</span>
         </a>
       </nav>
 
-      <!-- Header Actions: Theme Toggle -->
+      <!-- Header Actions -->
       <div class="header-actions">
+        <!-- Quick Sweep Trigger -->
+        <button
+          (click)="triggerQuickScan()"
+          [disabled]="isScanning()"
+          class="btn-header-action sweep-btn"
+          title="Trigger immediate feed scan"
+          aria-label="Scan job feeds now"
+        >
+          <app-icon [name]="isScanning() ? 'refresh' : 'play'" [size]="13" [class.spin]="isScanning()"></app-icon>
+          <span class="sweep-label">{{ isScanning() ? 'Scanning...' : 'Scan Feeds' }}</span>
+        </button>
+
+        <!-- Theme Toggle -->
         <button
           (click)="toggleTheme()"
           class="theme-toggle-btn"
@@ -52,17 +88,21 @@
     <router-outlet></router-outlet>
   </main>
 
-  <!-- Mobile & Telegram Mini App Bottom Navigation Bar -->
-  <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
-    <a
-      *ngFor="let item of navItems"
-      [routerLink]="item.path"
-      routerLinkActive="active"
-      (click)="onTabClick()"
-      class="bottom-nav-item"
-    >
-      <app-icon [name]="item.icon" [size]="20" class="bottom-nav-icon"></app-icon>
-      <span class="bottom-nav-label">{{ item.label }}</span>
-    </a>
+  <!-- Mobile Floating Dock Navigation Bar -->
+  <nav class="mobile-floating-dock" aria-label="Mobile navigation">
+    <div class="dock-inner">
+      <a
+        *ngFor="let item of navItems"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        (click)="onTabClick()"
+        class="dock-item"
+      >
+        <div class="dock-icon-box">
+          <app-icon [name]="item.icon" [size]="18" class="dock-icon"></app-icon>
+        </div>
+        <span class="dock-label">{{ item.label }}</span>
+      </a>
+    </div>
   </nav>
 </div>

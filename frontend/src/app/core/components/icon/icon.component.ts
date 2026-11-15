@@ -22,6 +22,8 @@ export type IconName =
   | 'trash'
   | 'x'
   | 'chevron-down'
+  | 'chevron-right'
+  | 'chevron-left'
   | 'arrow-right'
   | 'arrow-left'
   | 'globe'
@@ -38,7 +40,14 @@ export type IconName =
   | 'play'
   | 'activity'
   | 'sun'
-  | 'moon';
+  | 'moon'
+  | 'grid'
+  | 'list'
+  | 'eye'
+  | 'copy'
+  | 'plus'
+  | 'trending-up'
+  | 'shield-check';
 
 @Component({
   selector: 'app-icon',
@@ -209,6 +218,16 @@ export type IconName =
           <polyline points="6 9 12 15 18 9"></polyline>
         </g>
 
+        <!-- Chevron Right -->
+        <g *ngSwitchCase="'chevron-right'">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </g>
+
+        <!-- Chevron Left -->
+        <g *ngSwitchCase="'chevron-left'">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </g>
+
         <!-- Arrow Right -->
         <g *ngSwitchCase="'arrow-right'">
           <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -291,6 +310,54 @@ export type IconName =
         <!-- Activity -->
         <g *ngSwitchCase="'activity'">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+        </g>
+
+        <!-- Grid -->
+        <g *ngSwitchCase="'grid'">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </g>
+
+        <!-- List -->
+        <g *ngSwitchCase="'list'">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </g>
+
+        <!-- Eye -->
+        <g *ngSwitchCase="'eye'">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </g>
+
+        <!-- Copy -->
+        <g *ngSwitchCase="'copy'">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </g>
+
+        <!-- Plus -->
+        <g *ngSwitchCase="'plus'">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </g>
+
+        <!-- Trending Up -->
+        <g *ngSwitchCase="'trending-up'">
+          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+          <polyline points="17 6 23 6 23 12"></polyline>
+        </g>
+
+        <!-- Shield Check -->
+        <g *ngSwitchCase="'shield-check'">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          <polyline points="9 12 11 14 15 10"></polyline>
         </g>
       </ng-container>
     </svg>

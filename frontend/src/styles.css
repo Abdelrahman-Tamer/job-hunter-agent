@@ -9,24 +9,17 @@
   padding: 0;
 }
 
-html {
-  font-size: 16px;
-  scroll-behavior: smooth;
-  min-height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
+html, body {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
-  width: 100%;
-  min-height: 100%;
-  min-height: 100dvh;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-  overflow-y: visible;
-  overscroll-behavior-y: contain;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--color-bg-canvas);
@@ -34,8 +27,6 @@ body {
   font-family: var(--font-sans);
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
-  display: flex;
-  flex-direction: column;
   transition: background-color var(--motion-base), color var(--motion-base);
 }
 
@@ -110,9 +101,11 @@ a {
 .btn-primary:hover {
   background: var(--color-brand-primary-hover);
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
 .btn-primary:active {
   background-color: var(--color-brand-primary-active);
+  transform: scale(0.98);
 }
 
 .btn-secondary {
@@ -126,6 +119,7 @@ a {
 .btn-secondary:hover {
   border-color: var(--color-border-hover);
   background-color: var(--color-bg-surface-muted);
+  transform: translateY(-1px);
 }
 
 .btn-outline {
@@ -174,6 +168,9 @@ a {
   border-radius: var(--radius-md);
   width: 36px;
   height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn-icon-sm {
   padding: 6px;
@@ -259,8 +256,8 @@ a {
 
 /* Company Initials Avatar */
 .company-avatar {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
@@ -302,66 +299,23 @@ a {
 }
 
 /* =========================================================================
-   Modals & Overlays
+   Skeleton Loading Animation (Zero Layout Shift)
    ========================================================================= */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: var(--space-4);
-  animation: fadeIn 0.15s ease-out;
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-surface-elevated) 25%,
+    var(--color-border-default) 50%,
+    var(--color-bg-surface-elevated) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-dialog {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  max-width: 580px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  animation: scaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes scaleUp {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-.modal-header {
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.modal-body {
-  padding: var(--space-5);
-  flex: 1;
-  overflow-y: auto;
-}
-
-.modal-footer {
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid var(--color-border-subtle);
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Minimal Custom Scrollbar */

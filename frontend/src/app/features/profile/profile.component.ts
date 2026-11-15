@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
+import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
 import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
 
@@ -12,15 +13,15 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
   imports: [CommonModule, FormsModule, IconComponent],
   template: `
     <div class="profile-view">
-      <!-- Header -->
+      <!-- Executive Header -->
       <header class="profile-header">
         <div>
-          <h1>Candidate Profile</h1>
-          <p class="subtitle">Your background, technical skills, and target criteria used to match opportunities</p>
+          <h1>Candidate Intelligence Profile</h1>
+          <p class="subtitle">Your technical background, verified competencies, and targeting criteria used by the matching engine</p>
         </div>
       </header>
 
-      <!-- Alert -->
+      <!-- Success Alert Pill -->
       <div *ngIf="successMessage()" class="alert-box" role="status">
         <app-icon name="check-circle" [size]="16" class="alert-icon"></app-icon>
         <span class="alert-text">{{ successMessage() }}</span>
@@ -29,11 +30,45 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
         </button>
       </div>
 
+      <!-- Match Readiness Diagnostic Gauge -->
+      <section class="readiness-banner card" aria-label="Match readiness meter">
+        <div class="gauge-left">
+          <div class="readiness-meter-circle">
+            <span class="meter-num">{{ calculateCompleteness() }}%</span>
+            <span class="meter-sub">Engine Fit</span>
+          </div>
+          <div class="readiness-text">
+            <h3>Candidate Profile Calibrated</h3>
+            <p>
+              Your verified skills, experience, and educational background directly fuel the daily Telegram digest and match scoring.
+            </p>
+          </div>
+        </div>
+
+        <div class="gauge-actions">
+          <button (click)="saveProfile()" class="btn btn-primary">
+            <app-icon name="check" [size]="14"></app-icon>
+            <span>Save Changes</span>
+          </button>
+          <button (click)="exportProfile()" class="btn btn-outline" title="Export Profile as JSON">
+            <app-icon name="file-text" [size]="14"></app-icon>
+            <span>Export JSON</span>
+          </button>
+        </div>
+      </section>
+
       <div class="profile-grid">
-        <!-- Main Profile Form -->
+        <!-- Main Candidate Details Form -->
         <section class="panel profile-form-panel" aria-labelledby="core-info-title">
           <div class="panel-header">
-            <h2 id="core-info-title">Candidate Details</h2>
+            <div class="panel-title-wrap">
+              <app-icon name="user" [size]="16" class="panel-icon-accent"></app-icon>
+              <h2 id="core-info-title">Candidate Details</h2>
+            </div>
+            <span class="verified-seal">
+              <app-icon name="shield-check" [size]="13"></app-icon>
+              <span>Verified Identity</span>
+            </span>
           </div>
 
           <div class="form-row-2">
@@ -53,7 +88,7 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
               id="profSummary"
               [(ngModel)]="professionalSummary"
               rows="3"
-              placeholder="Frontend Engineer specializing in Angular and modern TypeScript..."
+              placeholder="Frontend Engineer specializing in Angular, TypeScript, and modern web architectures..."
               class="form-textarea"
             ></textarea>
           </div>
@@ -82,11 +117,11 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
 
           <div class="form-row-2">
             <div class="form-group">
-              <label for="linkedin">LinkedIn</label>
+              <label for="linkedin">LinkedIn Profile URL</label>
               <input id="linkedin" type="text" [(ngModel)]="linkedinUrl" class="form-input" />
             </div>
             <div class="form-group">
-              <label for="github">GitHub</label>
+              <label for="github">GitHub Profile URL</label>
               <input id="github" type="text" [(ngModel)]="githubUrl" placeholder="https://github.com/..." class="form-input" />
             </div>
           </div>
@@ -98,27 +133,46 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
                 <app-icon name="check-circle" [size]="15" class="icon-verified"></app-icon>
                 <h3>Verified Confirmed Skills (Earns up to 25 pts)</h3>
               </div>
-              <span class="badge badge-green">{{ confirmedSkills().length }}</span>
+              <span class="badge badge-green">{{ confirmedSkills().length }} Verified</span>
             </div>
-            <p class="skills-hint">Verified from your CV or portfolio. Direct contributor to job match score.</p>
+            <p class="skills-hint">Extracted and confirmed from your CV or portfolio. Direct contributor to matching algorithms.</p>
+
             <div class="chips-wrap">
               <span *ngFor="let s of confirmedSkills(); let i = index" class="skill-chip confirmed">
+                <app-icon name="check" [size]="11"></app-icon>
                 <span>{{ s }}</span>
                 <button (click)="removeSkill('confirmed', i)" class="chip-delete" aria-label="Remove skill">
                   <app-icon name="x" [size]="12"></app-icon>
                 </button>
               </span>
             </div>
+
+            <!-- Quick Add Chips Suggestions -->
+            <div class="quick-suggest-row">
+              <span class="suggest-label">Suggested:</span>
+              <div class="suggest-chips">
+                <button
+                  *ngFor="let sug of popularSuggestions"
+                  (click)="quickAddSkill('confirmed', sug)"
+                  [disabled]="confirmedSkills().includes(sug)"
+                  class="suggest-pill"
+                >
+                  <app-icon name="plus" [size]="10"></app-icon>
+                  <span>{{ sug }}</span>
+                </button>
+              </div>
+            </div>
+
             <div class="add-chip-row">
               <input
                 type="text"
                 [(ngModel)]="newConfirmedSkill"
                 (keyup.enter)="addSkill('confirmed')"
-                placeholder="Add verified skill (RxJS, Tailwind)..."
+                placeholder="Add custom skill (RxJS, Tailwind, Jest)..."
                 class="form-input add-chip-input"
               />
               <button (click)="addSkill('confirmed')" class="btn btn-secondary btn-sm">
-                <span>Add</span>
+                <span>Add Skill</span>
               </button>
             </div>
           </div>
@@ -128,11 +182,12 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
             <div class="skills-header">
               <div class="skills-title">
                 <app-icon name="sparkles" [size]="15" class="icon-target"></app-icon>
-                <h3>Target Skills (Learning Goals)</h3>
+                <h3>Target Learning Goals</h3>
               </div>
-              <span class="badge badge-blue">{{ targetSkills().length }}</span>
+              <span class="badge badge-blue">{{ targetSkills().length }} Goals</span>
             </div>
-            <p class="skills-hint">Skills you target or aspire to work with. Kept separate from confirmed score.</p>
+            <p class="skills-hint">Technologies you aspire to work with. Kept separate from confirmed score.</p>
+
             <div class="chips-wrap">
               <span *ngFor="let s of targetSkills(); let i = index" class="skill-chip target">
                 <span>{{ s }}</span>
@@ -141,38 +196,35 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
                 </button>
               </span>
             </div>
+
             <div class="add-chip-row">
               <input
                 type="text"
                 [(ngModel)]="newTargetSkill"
                 (keyup.enter)="addSkill('target')"
-                placeholder="Add target skill..."
+                placeholder="Add target technology goal..."
                 class="form-input add-chip-input"
               />
               <button (click)="addSkill('target')" class="btn btn-secondary btn-sm">
-                <span>Add</span>
+                <span>Add Goal</span>
               </button>
             </div>
-          </div>
-
-          <!-- Form Actions -->
-          <div class="panel-footer-actions">
-            <button (click)="saveProfile()" class="btn btn-primary">
-              <span>Save Profile</span>
-            </button>
-            <button (click)="exportProfile()" class="btn btn-outline">
-              <app-icon name="file-text" [size]="14"></app-icon>
-              <span>Export JSON</span>
-            </button>
           </div>
         </section>
 
         <!-- CV Upload & Local Parser Panel -->
         <section class="panel cv-parser-panel" aria-labelledby="cv-upload-title">
           <div class="panel-header">
-            <h2 id="cv-upload-title">Local CV Parser</h2>
+            <div class="panel-title-wrap">
+              <app-icon name="upload-cloud" [size]="16" class="panel-icon-accent"></app-icon>
+              <h2 id="cv-upload-title">Local CV Intelligence Parser</h2>
+            </div>
           </div>
-          <p class="panel-hint">Supports PDF, DOCX, and text. Extracted 100% locally on your machine.</p>
+
+          <div class="privacy-seal-pill">
+            <app-icon name="shield-check" [size]="13" class="text-green"></app-icon>
+            <span>100% Local Processing · No PII Cloud Storage</span>
+          </div>
 
           <!-- Dropzone -->
           <div
@@ -182,15 +234,18 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
             (dragleave)="isDragging = false"
             (drop)="onDrop($event)"
           >
-            <app-icon name="upload-cloud" [size]="36" class="dropzone-icon"></app-icon>
+            <div class="dropzone-icon-wrap">
+              <app-icon name="upload-cloud" [size]="32" class="dropzone-icon"></app-icon>
+            </div>
             <div class="dropzone-text">
               <p class="dropzone-lead">
-                <strong>Drag & drop CV file here</strong>
+                <strong>Drag & drop your CV resume</strong>
               </p>
-              <p class="dropzone-sub">PDF, DOCX, TXT</p>
+              <p class="dropzone-sub">Supports PDF, DOCX, and TXT documents</p>
             </div>
             <label class="btn btn-secondary btn-sm file-picker-label">
-              <span>Browse File</span>
+              <app-icon name="file-text" [size]="13"></app-icon>
+              <span>Choose Document</span>
               <input type="file" (change)="onFileSelected($event)" accept=".pdf,.docx,.txt" class="hidden-input" />
             </label>
           </div>
@@ -205,12 +260,12 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
 
           <!-- Plain Text Fallback -->
           <div class="text-fallback">
-            <label for="rawText">Or paste raw CV text:</label>
+            <label for="rawText">Or paste plain CV text directly:</label>
             <textarea
               id="rawText"
               [(ngModel)]="rawCvText"
               rows="4"
-              placeholder="Paste plain text CV here..."
+              placeholder="Paste plain text résumé content here..."
               class="form-textarea"
             ></textarea>
           </div>
@@ -221,7 +276,7 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
             class="btn btn-primary parse-btn"
           >
             <app-icon [name]="isParsing() ? 'refresh' : 'sparkles'" [size]="15" [class.spin]="isParsing()"></app-icon>
-            <span>{{ isParsing() ? 'Extracting...' : 'Extract & Parse CV' }}</span>
+            <span>{{ isParsing() ? 'Extracting Technical Facts...' : 'Extract & Parse Skills' }}</span>
           </button>
         </section>
       </div>
@@ -236,19 +291,25 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       >
         <div class="modal-dialog review-modal">
           <div class="modal-header">
-            <h2 id="review-title">Review Extracted CV Facts</h2>
+            <div class="modal-title-wrap">
+              <app-icon name="check-circle" [size]="18" class="text-green"></app-icon>
+              <h2 id="review-title">Review Extracted Facts</h2>
+            </div>
             <button (click)="parsedCvResult.set(null)" class="alert-close" aria-label="Close">
               <app-icon name="x" [size]="18"></app-icon>
             </button>
           </div>
 
           <div class="modal-body">
-            <p class="modal-desc">Review the facts extracted from your CV before applying them to your profile.</p>
+            <p class="modal-desc">
+              Review and confirm the technical skills extracted from your resume before applying them to your active candidate profile.
+            </p>
 
             <div class="review-section">
-              <h4>Confirmed Skills</h4>
+              <h4>Extracted Confirmed Skills</h4>
               <div class="chips-wrap">
                 <span *ngFor="let s of reviewData.confirmed_skills; let i = index" class="skill-chip confirmed">
+                  <app-icon name="check" [size]="11"></app-icon>
                   <span>{{ s }}</span>
                   <button (click)="removeReviewSkill(i)" class="chip-delete">&times;</button>
                 </span>
@@ -259,7 +320,7 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
           <div class="modal-footer">
             <button (click)="confirmAndSaveProfile()" [disabled]="isSaving()" class="btn btn-primary">
               <app-icon [name]="isSaving() ? 'refresh' : 'check'" [size]="14" [class.spin]="isSaving()"></app-icon>
-              <span>{{ isSaving() ? 'Saving...' : 'Confirm & Apply to Profile' }}</span>
+              <span>{{ isSaving() ? 'Applying...' : 'Confirm & Apply to Profile' }}</span>
             </button>
             <button (click)="parsedCvResult.set(null)" class="btn btn-secondary">
               Cancel
@@ -299,13 +360,10 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       border: 1px solid var(--color-success-border);
       color: var(--color-success-text);
       font-size: var(--text-sm);
+      font-weight: 500;
     }
-    .alert-icon {
-      color: var(--color-success-text);
-    }
-    .alert-text {
-      flex: 1;
-    }
+    .alert-icon { color: var(--color-success-text); }
+    .alert-text { flex: 1; }
     .alert-close {
       background: transparent;
       border: none;
@@ -315,43 +373,135 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       align-items: center;
     }
 
+    /* Match Readiness Gauge Banner */
+    .readiness-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+      background: var(--color-bg-surface-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .gauge-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+    .readiness-meter-circle {
+      width: 58px;
+      height: 58px;
+      border-radius: var(--radius-full);
+      background: var(--color-bg-surface-elevated);
+      border: 2px solid var(--color-success);
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .meter-num {
+      font-size: var(--text-sm);
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: var(--color-success-text);
+      line-height: 1;
+    }
+    .meter-sub {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+    .readiness-text h3 {
+      font-size: var(--text-base);
+      font-weight: 700;
+      margin: 0 0 3px 0;
+    }
+    .readiness-text p {
+      font-size: var(--text-xs);
+      color: var(--color-text-secondary);
+      margin: 0;
+      max-width: 560px;
+      line-height: 1.4;
+    }
+    .gauge-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2-5);
+      flex-shrink: 0;
+    }
+
     /* Grid Layout */
     .profile-grid {
       display: grid;
       grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
       gap: var(--space-4);
       width: 100%;
-      min-width: 0;
     }
 
     .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       border-bottom: 1px solid var(--color-border-subtle);
       padding-bottom: var(--space-3);
       margin-bottom: var(--space-4);
     }
-    .panel-header h2 {
+    .panel-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .panel-title-wrap h2 {
       font-size: var(--text-base);
-      font-weight: 600;
+      font-weight: 700;
       margin: 0;
     }
-    .panel-hint {
-      font-size: var(--text-xs);
+    .panel-icon-accent {
+      color: var(--color-brand-accent);
+    }
+    .verified-seal {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: var(--text-2xs);
+      font-weight: 600;
+      color: var(--color-success-text);
+      background: var(--color-success-bg);
+      border: 1px solid var(--color-success-border);
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
+    }
+
+    .privacy-seal-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--text-2xs);
       color: var(--color-text-secondary);
-      margin-bottom: var(--space-4);
+      background: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-subtle);
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      margin-bottom: var(--space-3);
+      font-weight: 500;
     }
 
     .form-row-2 {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-3);
-      margin-bottom: var(--space-3-5);
-      min-width: 0;
+      margin-bottom: var(--space-3);
     }
     .form-group {
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      margin-bottom: var(--space-3-5);
+      gap: 4px;
+      margin-bottom: var(--space-3);
     }
     .form-group label {
       font-size: var(--text-xs);
@@ -372,7 +522,7 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       background-color: var(--color-bg-surface-elevated-glass);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      margin-bottom: var(--space-4);
+      margin-bottom: var(--space-3-5);
     }
     .skills-header {
       display: flex;
@@ -387,6 +537,7 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     }
     .skills-title h3 {
       font-size: var(--text-sm);
+      font-weight: 700;
       margin: 0;
     }
     .icon-verified { color: var(--color-success-text); }
@@ -406,10 +557,10 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 3px 8px;
+      padding: 3px 9px;
       border-radius: var(--radius-pill);
       font-size: var(--text-xs);
-      font-weight: 500;
+      font-weight: 600;
       border: 1px solid var(--color-border-default);
       background: var(--color-bg-surface-muted);
       color: var(--color-text-primary);
@@ -434,9 +585,51 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       padding: 0;
       opacity: 0.7;
     }
-    .chip-delete:hover {
-      opacity: 1;
+    .chip-delete:hover { opacity: 1; }
+
+    /* Quick Suggest Chips */
+    .quick-suggest-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-3);
+      flex-wrap: wrap;
     }
+    .suggest-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      letter-spacing: 0.04em;
+    }
+    .suggest-chips {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .suggest-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
+      background: var(--color-bg-surface-muted);
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: all var(--motion-fast);
+    }
+    .suggest-pill:hover:not(:disabled) {
+      border-color: var(--color-brand-border);
+      color: var(--color-brand-accent);
+      background: var(--color-brand-subtle);
+    }
+    .suggest-pill:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
     .add-chip-row {
       display: flex;
       gap: var(--space-2);
@@ -444,14 +637,6 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     .add-chip-input {
       font-size: var(--text-xs);
       padding: 6px 10px;
-    }
-
-    .panel-footer-actions {
-      display: flex;
-      gap: var(--space-3);
-      border-top: 1px solid var(--color-border-subtle);
-      padding-top: var(--space-4);
-      margin-top: var(--space-2);
     }
 
     /* Dropzone */
@@ -474,8 +659,18 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       border-color: var(--color-brand-accent);
       background-color: var(--color-brand-subtle);
     }
+    .dropzone-icon-wrap {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-full);
+      background: var(--color-bg-surface-muted);
+      border: 1px solid var(--color-border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
     .dropzone-icon {
-      color: var(--color-text-muted);
+      color: var(--color-brand-accent);
     }
     .dropzone-lead {
       font-size: var(--text-sm);
@@ -485,15 +680,13 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     .dropzone-sub {
       font-size: var(--text-2xs);
       color: var(--color-text-muted);
-      margin: 0;
+      margin: 2px 0 0 0;
     }
     .file-picker-label {
       cursor: pointer;
       margin-top: var(--space-1);
     }
-    .hidden-input {
-      display: none;
-    }
+    .hidden-input { display: none; }
     .selected-file-pill {
       display: flex;
       align-items: center;
@@ -514,13 +707,14 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     }
 
     .text-fallback {
-      margin-top: var(--space-4);
+      margin-top: var(--space-3-5);
       display: flex;
       flex-direction: column;
       gap: 5px;
     }
     .text-fallback label {
       font-size: var(--text-xs);
+      font-weight: 600;
       color: var(--color-text-secondary);
     }
     .parse-btn {
@@ -528,10 +722,16 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       margin-top: var(--space-3-5);
     }
 
+    .modal-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
     .modal-desc {
       font-size: var(--text-sm);
       color: var(--color-text-secondary);
       margin-bottom: var(--space-4);
+      line-height: 1.45;
     }
     .review-section h4 {
       font-size: var(--text-xs);
@@ -548,20 +748,19 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       to { transform: rotate(360deg); }
     }
 
-    /* Mobile */
     @media (max-width: 768px) {
+      .readiness-banner {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .gauge-actions .btn {
+        flex: 1;
+      }
       .profile-grid {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: 1fr;
       }
       .form-row-2 {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 0;
-      }
-      .panel-footer-actions {
-        flex-direction: column;
-      }
-      .panel-footer-actions .btn {
-        width: 100%;
+        grid-template-columns: 1fr;
       }
     }
   `],
@@ -569,6 +768,7 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
 export class ProfileComponent implements OnInit {
   private readonly api = inject(ApiService);
   readonly telegram = inject(TelegramService);
+  private readonly toast = inject(ToastService);
 
   profile = signal<CandidateProfile | null>(null);
   confirmedSkills = signal<string[]>([]);
@@ -587,6 +787,19 @@ export class ProfileComponent implements OnInit {
 
   newConfirmedSkill: string = '';
   newTargetSkill: string = '';
+
+  readonly popularSuggestions: string[] = [
+    'Angular',
+    'TypeScript',
+    'RxJS',
+    'NgRx',
+    'Tailwind CSS',
+    'JavaScript',
+    'REST APIs',
+    'Git',
+    'Node.js',
+    'Docker',
+  ];
 
   selectedFile: File | null = null;
   selectedFileName: string = '';
@@ -623,19 +836,40 @@ export class ProfileComponent implements OnInit {
     });
   }
 
+  calculateCompleteness(): number {
+    let score = 30; // baseline
+    if (this.fullName) score += 10;
+    if (this.professionalSummary) score += 15;
+    if (this.educationInst) score += 10;
+    if (this.confirmedSkills().length >= 3) score += 20;
+    if (this.confirmedSkills().length >= 6) score += 10;
+    if (this.linkedinUrl || this.githubUrl) score += 5;
+    return Math.min(score, 100);
+  }
+
   addSkill(type: 'confirmed' | 'target'): void {
     if (type === 'confirmed') {
       const s = this.newConfirmedSkill.trim();
       if (s && !this.confirmedSkills().includes(s)) {
         this.confirmedSkills.update((list) => [...list, s]);
         this.newConfirmedSkill = '';
+        this.telegram.haptic('selection');
       }
     } else {
       const s = this.newTargetSkill.trim();
       if (s && !this.targetSkills().includes(s)) {
         this.targetSkills.update((list) => [...list, s]);
         this.newTargetSkill = '';
+        this.telegram.haptic('selection');
       }
+    }
+  }
+
+  quickAddSkill(type: 'confirmed' | 'target', skill: string): void {
+    if (type === 'confirmed' && !this.confirmedSkills().includes(skill)) {
+      this.confirmedSkills.update((list) => [...list, skill]);
+      this.telegram.haptic('selection');
+      this.toast.show(`Added ${skill} to verified skills`, 'success', 1500);
     }
   }
 
@@ -666,10 +900,10 @@ export class ProfileComponent implements OnInit {
       .subscribe({
         next: () => {
           this.telegram.haptic('success');
-          this.successMessage.set('Profile successfully saved and active in matching algorithm.');
-          setTimeout(() => this.successMessage.set(''), 4000);
+          this.toast.show('Profile successfully saved & active in matching algorithm.', 'success');
           this.loadProfile();
         },
+        error: () => this.toast.show('Failed to save profile', 'error'),
       });
   }
 
@@ -682,6 +916,7 @@ export class ProfileComponent implements OnInit {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    this.toast.show('Profile JSON exported', 'info', 1500);
   }
 
   onFileSelected(event: any): void {
@@ -689,6 +924,7 @@ export class ProfileComponent implements OnInit {
     if (file) {
       this.selectedFile = file;
       this.selectedFileName = file.name;
+      this.toast.show(`Selected ${file.name}`, 'info', 1500);
     }
   }
 
@@ -708,6 +944,7 @@ export class ProfileComponent implements OnInit {
     if (event.dataTransfer?.files?.length) {
       this.selectedFile = event.dataTransfer.files[0];
       this.selectedFileName = this.selectedFile.name;
+      this.toast.show(`Dropped ${this.selectedFile.name}`, 'info', 1500);
     }
   }
 
@@ -746,7 +983,7 @@ export class ProfileComponent implements OnInit {
       },
       error: (err: any) => {
         this.isParsing.set(false);
-        this.successMessage.set('Failed to parse CV: ' + (err.error?.detail || err.message));
+        this.toast.show('Failed to parse CV: ' + (err.error?.detail || err.message), 'error');
       },
     });
   }
@@ -767,13 +1004,12 @@ export class ProfileComponent implements OnInit {
         this.selectedFileName = '';
         this.rawCvText = '';
         this.telegram.haptic('success');
-        this.successMessage.set('CV confirmed! Your verified skills, experience, and education are now active in job matching.');
-        setTimeout(() => this.successMessage.set(''), 4000);
+        this.toast.show('CV facts confirmed & applied to profile!', 'success');
         this.loadProfile();
       },
       error: (err: any) => {
         this.isSaving.set(false);
-        this.successMessage.set('Error saving profile: ' + (err.error?.detail || err.message));
+        this.toast.show('Error saving profile: ' + (err.error?.detail || err.message), 'error');
       },
     });
   }

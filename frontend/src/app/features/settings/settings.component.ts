@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
+import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
 import { CandidateProfile } from '../../core/models/job.model';
 
@@ -15,34 +16,28 @@ import { CandidateProfile } from '../../core/models/job.model';
       <!-- Header -->
       <header class="settings-header">
         <div>
-          <h1>Settings</h1>
-          <p class="subtitle">Notification preferences, match thresholds, and automation settings</p>
+          <h1>Automation & Preferences</h1>
+          <p class="subtitle">Configure automated Telegram dispatches, matching thresholds, and security guardrails</p>
         </div>
       </header>
 
-      <!-- Alert -->
-      <div *ngIf="savedNotice()" class="alert-box" role="status">
-        <app-icon name="check-circle" [size]="16" class="alert-icon"></app-icon>
-        <span class="alert-text">Settings saved successfully!</span>
-        <button (click)="savedNotice.set(false)" class="alert-close" aria-label="Dismiss">
-          <app-icon name="x" [size]="14"></app-icon>
-        </button>
-      </div>
-
       <div class="settings-stack">
-        <!-- Delivery Preferences -->
+        <!-- Delivery Preferences Card -->
         <section class="panel settings-card" aria-labelledby="delivery-title">
           <div class="panel-header">
             <div class="panel-title-wrap">
               <app-icon name="bell" [size]="18" class="panel-icon-accent"></app-icon>
-              <h2 id="delivery-title">Digest & Delivery Schedule</h2>
+              <h2 id="delivery-title">Daily Telegram Dispatch</h2>
             </div>
+            <span class="status-pill" [class.active]="digestEnabled()">
+              {{ digestEnabled() ? 'Daily Sweep Active' : 'Dispatch Paused' }}
+            </span>
           </div>
 
           <div class="setting-row">
             <div class="row-info">
-              <strong>Daily Telegram Digest</strong>
-              <p>Send a curated summary of eligible matches to your Telegram chat every morning.</p>
+              <strong>Automated Morning Digest</strong>
+              <p>Receive a curated summary of software engineering matches delivered directly to your Telegram chat.</p>
             </div>
             <div class="row-action">
               <button
@@ -52,19 +47,25 @@ import { CandidateProfile } from '../../core/models/job.model';
                 [class.btn-secondary]="!digestEnabled()"
               >
                 <app-icon [name]="digestEnabled() ? 'check' : 'clock'" [size]="13"></app-icon>
-                <span>{{ digestEnabled() ? 'Active' : 'Paused' }}</span>
+                <span>{{ digestEnabled() ? 'Enabled' : 'Paused' }}</span>
               </button>
             </div>
           </div>
 
           <div class="setting-row">
             <div class="row-info">
-              <strong>Dispatch Time</strong>
-              <p>Scheduled daily execution time in Cairo timezone.</p>
+              <strong>Scheduled Execution Time</strong>
+              <p>Daily time when the autonomous hunter initiates feed sweeping and sends your digest.</p>
             </div>
             <div class="row-action">
               <div class="time-input-group">
-                <input type="text" [(ngModel)]="digestTime" class="form-input time-input" aria-label="Digest time" />
+                <input
+                  type="text"
+                  [(ngModel)]="digestTime"
+                  class="form-input time-input"
+                  aria-label="Digest time"
+                  placeholder="09:00"
+                />
                 <span class="tz-badge">Africa/Cairo</span>
               </div>
             </div>
@@ -72,13 +73,31 @@ import { CandidateProfile } from '../../core/models/job.model';
 
           <div class="setting-row">
             <div class="row-info">
-              <strong>Minimum Match Score for Digest</strong>
-              <p>Jobs scored below this threshold are saved in feed but omitted from morning digest.</p>
+              <strong>Minimum Match Score Threshold</strong>
+              <p>Only opportunities matching at or above this score are included in your morning digest.</p>
             </div>
             <div class="row-action">
-              <div class="score-input-group">
-                <input type="number" [(ngModel)]="digestThreshold" min="50" max="95" class="form-input score-input" aria-label="Threshold" />
-                <span class="unit-text">%</span>
+              <div class="score-slider-group">
+                <input
+                  type="range"
+                  min="50"
+                  max="95"
+                  step="5"
+                  [(ngModel)]="digestThreshold"
+                  class="score-range"
+                  aria-label="Threshold slider"
+                />
+                <div class="score-input-wrap">
+                  <input
+                    type="number"
+                    [(ngModel)]="digestThreshold"
+                    min="50"
+                    max="95"
+                    class="form-input score-input"
+                    aria-label="Threshold number"
+                  />
+                  <span class="unit-text">%</span>
+                </div>
               </div>
             </div>
           </div>
@@ -86,34 +105,49 @@ import { CandidateProfile } from '../../core/models/job.model';
           <div class="card-footer">
             <button (click)="saveSettings()" [disabled]="isSaving()" class="btn btn-primary">
               <app-icon [name]="isSaving() ? 'refresh' : 'check'" [size]="14" [class.spin]="isSaving()"></app-icon>
-              <span>{{ isSaving() ? 'Saving...' : 'Save Settings' }}</span>
+              <span>{{ isSaving() ? 'Saving Preferences...' : 'Save Preferences' }}</span>
             </button>
           </div>
         </section>
 
-        <!-- Privacy & Safety Info -->
+        <!-- Privacy & Safety Information Card -->
         <section class="panel settings-card" aria-labelledby="privacy-title">
           <div class="panel-header">
             <div class="panel-title-wrap">
-              <app-icon name="alert-circle" [size]="18" class="panel-icon-accent"></app-icon>
+              <app-icon name="shield-check" [size]="18" class="panel-icon-accent text-green"></app-icon>
               <h2 id="privacy-title">Privacy & Safety Guardrails</h2>
             </div>
+            <span class="badge badge-green">Enforced by Agent</span>
           </div>
 
           <div class="info-list">
             <div class="info-item">
-              <app-icon name="check-circle" [size]="15" class="icon-check"></app-icon>
-              <div>
-                <strong>Zero Auto-Submit</strong>
-                <p>The agent never submits applications on your behalf without your explicit review and direct application link.</p>
+              <div class="info-icon-box">
+                <app-icon name="check-circle" [size]="16" class="icon-check text-green"></app-icon>
+              </div>
+              <div class="info-text-block">
+                <strong>Zero Auto-Submission</strong>
+                <p>The agent never submits applications on your behalf without your explicit manual review and direct link submission.</p>
               </div>
             </div>
 
             <div class="info-item">
-              <app-icon name="check-circle" [size]="15" class="icon-check"></app-icon>
-              <div>
-                <strong>Local CV Processing</strong>
-                <p>CV documents are processed locally on your machine with strict PII sanitization.</p>
+              <div class="info-icon-box">
+                <app-icon name="shield-check" [size]="16" class="icon-check text-green"></app-icon>
+              </div>
+              <div class="info-text-block">
+                <strong>Client-Side PII Sanitization</strong>
+                <p>CV files and personal identifiers are sanitized before parsing, keeping sensitive contact information private.</p>
+              </div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-icon-box">
+                <app-icon name="database" [size]="16" class="icon-check text-blue"></app-icon>
+              </div>
+              <div class="info-text-block">
+                <strong>Clean Source Verification</strong>
+                <p>All job postings are crawled from verified employer ATS feeds (Greenhouse, Lever, RemoteOK, Arbeitnow) with duplicate filtering.</p>
               </div>
             </div>
           </div>
@@ -140,53 +174,23 @@ import { CandidateProfile } from '../../core/models/job.model';
       margin: 0;
     }
 
-    /* Alert */
-    .alert-box {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2-5);
-      padding: var(--space-3) var(--space-4);
-      border-radius: var(--radius-md);
-      background-color: var(--color-success-bg);
-      border: 1px solid var(--color-success-border);
-      color: var(--color-success-text);
-      font-size: var(--text-sm);
-    }
-    .alert-icon {
-      color: var(--color-success-text);
-    }
-    .alert-text {
-      flex: 1;
-    }
-    .alert-close {
-      background: transparent;
-      border: none;
-      color: var(--color-success-text);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-    }
-
     .settings-stack {
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
-      max-width: 800px;
       width: 100%;
-      min-width: 0;
     }
 
     .settings-card {
-      min-width: 0;
-      max-width: 100%;
-      box-sizing: border-box;
-      overflow: hidden;
+      padding: var(--space-5);
     }
-
     .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       border-bottom: 1px solid var(--color-border-subtle);
       padding-bottom: var(--space-3);
-      margin-bottom: var(--space-3-5);
+      margin-bottom: var(--space-4);
     }
     .panel-title-wrap {
       display: flex;
@@ -195,28 +199,48 @@ import { CandidateProfile } from '../../core/models/job.model';
     }
     .panel-title-wrap h2 {
       font-size: var(--text-base);
-      font-weight: 600;
+      font-weight: 700;
       margin: 0;
     }
     .panel-icon-accent {
       color: var(--color-brand-accent);
     }
+    .text-green { color: var(--color-success-text); }
+    .text-blue { color: var(--color-brand-accent); }
+
+    .status-pill {
+      font-size: var(--text-2xs);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: var(--radius-pill);
+      background: var(--color-bg-surface-elevated);
+      color: var(--color-text-muted);
+      border: 1px solid var(--color-border-subtle);
+    }
+    .status-pill.active {
+      background: var(--color-success-bg);
+      color: var(--color-success-text);
+      border-color: var(--color-success-border);
+    }
 
     .setting-row {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
       padding: var(--space-3-5) 0;
       border-bottom: 1px solid var(--color-border-subtle);
-      gap: var(--space-4);
     }
     .setting-row:last-of-type {
       border-bottom: none;
     }
+
     .row-info {
       display: flex;
       flex-direction: column;
       gap: 3px;
+      max-width: 680px;
     }
     .row-info strong {
       font-size: var(--text-sm);
@@ -226,52 +250,67 @@ import { CandidateProfile } from '../../core/models/job.model';
       font-size: var(--text-xs);
       color: var(--color-text-secondary);
       margin: 0;
-    }
-    .row-action {
-      flex-shrink: 0;
+      line-height: 1.45;
     }
 
-    .time-input-group, .score-input-group {
+    .time-input-group {
       display: flex;
       align-items: center;
       gap: var(--space-2);
     }
     .time-input {
-      width: 90px;
+      width: 88px;
       text-align: center;
       font-family: var(--font-mono);
-      font-size: var(--text-xs);
-    }
-    .score-input {
-      width: 70px;
-      text-align: center;
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
+      font-weight: 700;
     }
     .tz-badge {
       font-size: var(--text-2xs);
-      color: var(--color-text-muted);
       font-family: var(--font-mono);
+      color: var(--color-text-muted);
       background: var(--color-bg-surface-elevated);
-      padding: 3px 7px;
-      border-radius: var(--radius-sm);
       border: 1px solid var(--color-border-subtle);
+      padding: 5px 9px;
+      border-radius: var(--radius-md);
+      white-space: nowrap;
+    }
+
+    .score-slider-group {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .score-range {
+      width: 130px;
+      cursor: pointer;
+      accent-color: var(--color-brand-primary);
+    }
+    .score-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .score-input {
+      width: 64px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-weight: 700;
     }
     .unit-text {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
-      font-family: var(--font-mono);
+      font-weight: 700;
     }
 
     .card-footer {
       display: flex;
       justify-content: flex-end;
       padding-top: var(--space-4);
-      border-top: 1px solid var(--color-border-subtle);
       margin-top: var(--space-2);
+      border-top: 1px solid var(--color-border-subtle);
     }
 
-    /* Info list */
+    /* Info Items */
     .info-list {
       display: flex;
       flex-direction: column;
@@ -280,24 +319,26 @@ import { CandidateProfile } from '../../core/models/job.model';
     .info-item {
       display: flex;
       align-items: flex-start;
-      gap: var(--space-2-5);
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-3-5);
+      background: var(--color-bg-surface-elevated-glass);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
     }
-    .icon-check {
-      color: var(--color-success-text);
+    .info-icon-box {
       margin-top: 2px;
-      flex-shrink: 0;
     }
-    .info-item strong {
+    .info-text-block strong {
       font-size: var(--text-xs);
       color: var(--color-text-primary);
       display: block;
       margin-bottom: 2px;
     }
-    .info-item p {
+    .info-text-block p {
       font-size: var(--text-2xs);
       color: var(--color-text-secondary);
       margin: 0;
-      line-height: 1.45;
+      line-height: 1.4;
     }
 
     .spin {
@@ -312,7 +353,7 @@ import { CandidateProfile } from '../../core/models/job.model';
       .setting-row {
         flex-direction: column;
         align-items: flex-start;
-        gap: var(--space-2);
+        gap: var(--space-2-5);
       }
       .card-footer .btn {
         width: 100%;
@@ -322,16 +363,20 @@ import { CandidateProfile } from '../../core/models/job.model';
 })
 export class SettingsComponent implements OnInit {
   private readonly api = inject(ApiService);
-  readonly telegram = inject(TelegramService);
+  private readonly telegram = inject(TelegramService);
+  private readonly toast = inject(ToastService);
 
   profile = signal<CandidateProfile | null>(null);
   digestEnabled = signal<boolean>(true);
   digestTime: string = '09:00';
   digestThreshold: number = 70;
   isSaving = signal<boolean>(false);
-  savedNotice = signal<boolean>(false);
 
   ngOnInit(): void {
+    this.loadSettings();
+  }
+
+  loadSettings(): void {
     this.api.getProfile().subscribe({
       next: (p) => {
         this.profile.set(p);
@@ -344,12 +389,12 @@ export class SettingsComponent implements OnInit {
 
   toggleDigest(): void {
     this.telegram.haptic('selection');
-    this.digestEnabled.update((val) => !val);
+    this.digestEnabled.update((v) => !v);
   }
 
   saveSettings(): void {
-    this.telegram.haptic('medium');
     this.isSaving.set(true);
+    this.telegram.haptic('medium');
 
     this.api
       .updateProfile({
@@ -360,13 +405,12 @@ export class SettingsComponent implements OnInit {
       .subscribe({
         next: () => {
           this.isSaving.set(false);
-          this.savedNotice.set(true);
           this.telegram.haptic('success');
-          setTimeout(() => this.savedNotice.set(false), 3000);
+          this.toast.show('Settings & automation preferences saved!', 'success');
         },
-        error: () => {
+        error: (err) => {
           this.isSaving.set(false);
-          this.telegram.haptic('error');
+          this.toast.show('Failed to save settings: ' + (err.error?.detail || err.message), 'error');
         },
       });
   }
