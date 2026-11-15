@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -35,6 +36,9 @@ class JobStatusTracker(Base):
         index=True,
     )
     applied_at = Column(DateTime(timezone=True), nullable=True)
+    follow_up_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    follow_up_sent = Column(Boolean, default=False, nullable=False)
+    follow_up_note = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)

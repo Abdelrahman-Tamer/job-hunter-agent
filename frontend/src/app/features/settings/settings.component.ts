@@ -16,30 +16,31 @@ import { CandidateProfile } from '../../core/models/job.model';
       <!-- Header -->
       <header class="settings-header">
         <div>
-          <h1>Automation & Preferences</h1>
+          <h1>Automation & Agent Preferences</h1>
           <p class="subtitle">Configure automated Telegram dispatches, matching thresholds, and security guardrails</p>
         </div>
       </header>
 
+      <!-- Settings Stack -->
       <div class="settings-stack">
         <!-- Delivery Preferences Card -->
-        <section class="panel settings-card" aria-labelledby="delivery-title">
+        <section class="panel settings-panel" aria-labelledby="delivery-title">
           <div class="panel-header">
             <div class="panel-title-wrap">
-              <app-icon name="bell" [size]="18" class="panel-icon-accent"></app-icon>
+              <app-icon name="bell" [size]="16" class="panel-icon-accent"></app-icon>
               <h2 id="delivery-title">Daily Telegram Dispatch</h2>
             </div>
-            <span class="status-pill" [class.active]="digestEnabled()">
+            <span class="status-badge" [class.active]="digestEnabled()">
               {{ digestEnabled() ? 'Daily Sweep Active' : 'Dispatch Paused' }}
             </span>
           </div>
 
-          <div class="setting-row">
-            <div class="row-info">
+          <div class="setting-item">
+            <div class="item-text">
               <strong>Automated Morning Digest</strong>
               <p>Receive a curated summary of software engineering matches delivered directly to your Telegram chat.</p>
             </div>
-            <div class="row-action">
+            <div class="item-control">
               <button
                 (click)="toggleDigest()"
                 class="btn btn-sm"
@@ -52,13 +53,13 @@ import { CandidateProfile } from '../../core/models/job.model';
             </div>
           </div>
 
-          <div class="setting-row">
-            <div class="row-info">
-              <strong>Scheduled Execution Time</strong>
+          <div class="setting-item">
+            <div class="item-text">
+              <strong>Scheduled Sweep Time</strong>
               <p>Daily time when the autonomous hunter initiates feed sweeping and sends your digest.</p>
             </div>
-            <div class="row-action">
-              <div class="time-input-group">
+            <div class="item-control">
+              <div class="time-control-group">
                 <input
                   type="text"
                   [(ngModel)]="digestTime"
@@ -66,18 +67,18 @@ import { CandidateProfile } from '../../core/models/job.model';
                   aria-label="Digest time"
                   placeholder="09:00"
                 />
-                <span class="tz-badge">Africa/Cairo</span>
+                <span class="tz-tag">Africa/Cairo (UTC+2)</span>
               </div>
             </div>
           </div>
 
-          <div class="setting-row">
-            <div class="row-info">
+          <div class="setting-item">
+            <div class="item-text">
               <strong>Minimum Match Score Threshold</strong>
               <p>Only opportunities matching at or above this score are included in your morning digest.</p>
             </div>
-            <div class="row-action">
-              <div class="score-slider-group">
+            <div class="item-control">
+              <div class="score-control-group">
                 <input
                   type="range"
                   min="50"
@@ -102,7 +103,7 @@ import { CandidateProfile } from '../../core/models/job.model';
             </div>
           </div>
 
-          <div class="card-footer">
+          <div class="panel-footer">
             <button (click)="saveSettings()" [disabled]="isSaving()" class="btn btn-primary">
               <app-icon [name]="isSaving() ? 'refresh' : 'check'" [size]="14" [class.spin]="isSaving()"></app-icon>
               <span>{{ isSaving() ? 'Saving Preferences...' : 'Save Preferences' }}</span>
@@ -111,43 +112,43 @@ import { CandidateProfile } from '../../core/models/job.model';
         </section>
 
         <!-- Privacy & Safety Information Card -->
-        <section class="panel settings-card" aria-labelledby="privacy-title">
+        <section class="panel settings-panel" aria-labelledby="privacy-title">
           <div class="panel-header">
             <div class="panel-title-wrap">
-              <app-icon name="shield-check" [size]="18" class="panel-icon-accent text-green"></app-icon>
-              <h2 id="privacy-title">Privacy & Safety Guardrails</h2>
+              <app-icon name="shield-check" [size]="16" class="text-green"></app-icon>
+              <h2 id="privacy-title">Privacy & Security Guardrails</h2>
             </div>
-            <span class="badge badge-green">Enforced by Agent</span>
+            <span class="badge badge-green">Enforced by Engine</span>
           </div>
 
-          <div class="info-list">
-            <div class="info-item">
-              <div class="info-icon-box">
-                <app-icon name="check-circle" [size]="16" class="icon-check text-green"></app-icon>
+          <div class="guardrail-grid">
+            <div class="guardrail-row">
+              <div class="guardrail-icon-box">
+                <app-icon name="check-circle" [size]="15" class="text-green"></app-icon>
               </div>
-              <div class="info-text-block">
+              <div class="guardrail-info">
                 <strong>Zero Auto-Submission</strong>
-                <p>The agent never submits applications on your behalf without your explicit manual review and direct link submission.</p>
+                <p>The agent never submits applications on your behalf without your explicit manual review and deliberate application.</p>
               </div>
             </div>
 
-            <div class="info-item">
-              <div class="info-icon-box">
-                <app-icon name="shield-check" [size]="16" class="icon-check text-green"></app-icon>
+            <div class="guardrail-row">
+              <div class="guardrail-icon-box">
+                <app-icon name="shield-check" [size]="15" class="text-green"></app-icon>
               </div>
-              <div class="info-text-block">
-                <strong>Client-Side PII Sanitization</strong>
-                <p>CV files and personal identifiers are sanitized before parsing, keeping sensitive contact information private.</p>
+              <div class="guardrail-info">
+                <strong>Local PII Sanitization</strong>
+                <p>CV files and personal identifiers are sanitized before parsing, keeping sensitive contact information confidential.</p>
               </div>
             </div>
 
-            <div class="info-item">
-              <div class="info-icon-box">
-                <app-icon name="database" [size]="16" class="icon-check text-blue"></app-icon>
+            <div class="guardrail-row">
+              <div class="guardrail-icon-box">
+                <app-icon name="database" [size]="15" class="text-blue"></app-icon>
               </div>
-              <div class="info-text-block">
-                <strong>Clean Source Verification</strong>
-                <p>All job postings are crawled from verified employer ATS feeds (Greenhouse, Lever, RemoteOK, Arbeitnow) with duplicate filtering.</p>
+              <div class="guardrail-info">
+                <strong>Direct ATS Ingestion</strong>
+                <p>All job postings are crawled from verified employer ATS feeds (Greenhouse, Lever, RemoteOK, Arbeitnow) with deduplication.</p>
               </div>
             </div>
           </div>
@@ -181,8 +182,9 @@ import { CandidateProfile } from '../../core/models/job.model';
       width: 100%;
     }
 
-    .settings-card {
+    .settings-panel {
       padding: var(--space-5);
+      border-radius: var(--radius-lg);
     }
     .panel-header {
       display: flex;
@@ -190,7 +192,7 @@ import { CandidateProfile } from '../../core/models/job.model';
       justify-content: space-between;
       border-bottom: 1px solid var(--color-border-subtle);
       padding-bottom: var(--space-3);
-      margin-bottom: var(--space-4);
+      margin-bottom: var(--space-2);
     }
     .panel-title-wrap {
       display: flex;
@@ -198,33 +200,32 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: var(--space-2);
     }
     .panel-title-wrap h2 {
-      font-size: var(--text-base);
+      font-size: var(--text-sm);
       font-weight: 700;
       margin: 0;
+      letter-spacing: -0.01em;
     }
-    .panel-icon-accent {
-      color: var(--color-brand-accent);
-    }
+    .panel-icon-accent { color: var(--color-brand-accent); }
     .text-green { color: var(--color-success-text); }
     .text-blue { color: var(--color-brand-accent); }
 
-    .status-pill {
-      font-size: var(--text-2xs);
+    .status-badge {
+      font-size: 10px;
       font-family: var(--font-mono);
-      font-weight: 600;
-      padding: 3px 9px;
-      border-radius: var(--radius-pill);
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
       background: var(--color-bg-surface-elevated);
       color: var(--color-text-muted);
       border: 1px solid var(--color-border-subtle);
     }
-    .status-pill.active {
+    .status-badge.active {
       background: var(--color-success-bg);
       color: var(--color-success-text);
       border-color: var(--color-success-border);
     }
 
-    .setting-row {
+    .setting-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -232,56 +233,57 @@ import { CandidateProfile } from '../../core/models/job.model';
       padding: var(--space-3-5) 0;
       border-bottom: 1px solid var(--color-border-subtle);
     }
-    .setting-row:last-of-type {
+    .setting-item:last-of-type {
       border-bottom: none;
     }
 
-    .row-info {
+    .item-text {
       display: flex;
       flex-direction: column;
       gap: 3px;
       max-width: 680px;
     }
-    .row-info strong {
+    .item-text strong {
       font-size: var(--text-sm);
       color: var(--color-text-primary);
     }
-    .row-info p {
+    .item-text p {
       font-size: var(--text-xs);
       color: var(--color-text-secondary);
       margin: 0;
       line-height: 1.45;
     }
 
-    .time-input-group {
+    .time-control-group {
       display: flex;
       align-items: center;
       gap: var(--space-2);
     }
     .time-input {
-      width: 88px;
+      width: 80px;
       text-align: center;
       font-family: var(--font-mono);
       font-weight: 700;
+      padding: 6px 8px;
     }
-    .tz-badge {
-      font-size: var(--text-2xs);
+    .tz-tag {
+      font-size: 10px;
       font-family: var(--font-mono);
       color: var(--color-text-muted);
       background: var(--color-bg-surface-elevated);
       border: 1px solid var(--color-border-subtle);
-      padding: 5px 9px;
-      border-radius: var(--radius-md);
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
       white-space: nowrap;
     }
 
-    .score-slider-group {
+    .score-control-group {
       display: flex;
       align-items: center;
       gap: var(--space-3);
     }
     .score-range {
-      width: 130px;
+      width: 120px;
       cursor: pointer;
       accent-color: var(--color-brand-primary);
     }
@@ -291,10 +293,11 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: 4px;
     }
     .score-input {
-      width: 64px;
+      width: 60px;
       text-align: center;
       font-family: var(--font-mono);
       font-weight: 700;
+      padding: 6px 8px;
     }
     .unit-text {
       font-size: var(--text-xs);
@@ -302,7 +305,7 @@ import { CandidateProfile } from '../../core/models/job.model';
       font-weight: 700;
     }
 
-    .card-footer {
+    .panel-footer {
       display: flex;
       justify-content: flex-end;
       padding-top: var(--space-4);
@@ -310,13 +313,14 @@ import { CandidateProfile } from '../../core/models/job.model';
       border-top: 1px solid var(--color-border-subtle);
     }
 
-    /* Info Items */
-    .info-list {
+    /* Guardrail Grid */
+    .guardrail-grid {
       display: flex;
       flex-direction: column;
-      gap: var(--space-3);
+      gap: var(--space-2-5);
+      margin-top: var(--space-2);
     }
-    .info-item {
+    .guardrail-row {
       display: flex;
       align-items: flex-start;
       gap: var(--space-3);
@@ -324,17 +328,25 @@ import { CandidateProfile } from '../../core/models/job.model';
       background: var(--color-bg-surface-elevated-glass);
       border: 1px solid var(--color-border-subtle);
       border-radius: var(--radius-md);
+      transition: background-color var(--motion-fast), border-color var(--motion-fast);
     }
-    .info-icon-box {
+    .guardrail-row:hover {
+      background-color: var(--color-bg-surface-hover);
+      border-color: var(--color-border-hover);
+    }
+    .guardrail-icon-box {
       margin-top: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .info-text-block strong {
+    .guardrail-info strong {
       font-size: var(--text-xs);
       color: var(--color-text-primary);
       display: block;
       margin-bottom: 2px;
     }
-    .info-text-block p {
+    .guardrail-info p {
       font-size: var(--text-2xs);
       color: var(--color-text-secondary);
       margin: 0;
@@ -350,12 +362,12 @@ import { CandidateProfile } from '../../core/models/job.model';
     }
 
     @media (max-width: 768px) {
-      .setting-row {
+      .setting-item {
         flex-direction: column;
         align-items: flex-start;
         gap: var(--space-2-5);
       }
-      .card-footer .btn {
+      .panel-footer .btn {
         width: 100%;
       }
     }

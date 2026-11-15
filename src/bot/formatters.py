@@ -211,6 +211,10 @@ def build_job_inline_keyboard(job: Job, tracker_status: Optional[str] = None) ->
             ],
             [
                 {"text": "✍️ AI Cover Letter", "callback_data": f"cover:{job.id}"},
+                {"text": "💬 Recruiter DM", "callback_data": f"dm:{job.id}"},
+            ],
+            [
+                {"text": "📄 Tailored PDF", "callback_data": f"resume:{job.id}"},
                 {"text": "🎯 Interview Prep", "callback_data": f"interview:{job.id}"},
             ],
             [

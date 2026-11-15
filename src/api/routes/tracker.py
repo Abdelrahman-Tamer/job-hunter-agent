@@ -1,6 +1,6 @@
 """Application tracker and notes endpoints."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/v1/tracker", tags=["Tracker"])
 
 class TrackerUpdateDTO(BaseModel):
     status: ApplicationStatus
+    follow_up_at: Optional[datetime] = None
 
 
 class NoteCreateDTO(BaseModel):
@@ -50,6 +51,9 @@ async def list_tracked_jobs(
             "match_score": j.match_score,
             "status": t.status,
             "applied_at": t.applied_at.isoformat() if t.applied_at else None,
+            "follow_up_at": t.follow_up_at.isoformat() if t.follow_up_at else None,
+            "follow_up_sent": t.follow_up_sent,
+            "follow_up_note": t.follow_up_note,
             "updated_at": t.updated_at.isoformat() if t.updated_at else None,
             "original_application_url": j.original_application_url,
         })
@@ -73,11 +77,22 @@ async def update_job_status(
     else:
         tracker.status = dto.status
 
-    if dto.status == ApplicationStatus.APPLIED and not tracker.applied_at:
-        tracker.applied_at = datetime.now(timezone.utc)
+    if dto.status == ApplicationStatus.APPLIED:
+        if not tracker.applied_at:
+            tracker.applied_at = datetime.now(timezone.utc)
+        if dto.follow_up_at:
+            tracker.follow_up_at = dto.follow_up_at
+            tracker.follow_up_sent = False
+        elif not tracker.follow_up_at:
+            tracker.follow_up_at = datetime.now(timezone.utc) + timedelta(days=5)
+            tracker.follow_up_sent = False
 
     await db.commit()
-    return {"status": "success", "new_status": tracker.status.value}
+    return {
+        "status": "success",
+        "new_status": tracker.status.value,
+        "follow_up_at": tracker.follow_up_at.isoformat() if tracker.follow_up_at else None,
+    }
 
 
 @router.post("/{job_id}/notes", response_model=Dict[str, Any])

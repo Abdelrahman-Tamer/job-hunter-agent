@@ -191,6 +191,9 @@ export interface TrackedJobItem {
   match_score: number;
   status: ApplicationStatus;
   applied_at: string | null;
+  follow_up_at?: string | null;
+  follow_up_sent?: boolean;
+  follow_up_note?: string | null;
   updated_at: string | null;
   original_application_url: string;
 }

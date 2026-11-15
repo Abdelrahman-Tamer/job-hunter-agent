@@ -22,19 +22,19 @@ interface QuickChip {
   imports: [CommonModule, FormsModule, IconComponent, JobDrawerComponent],
   template: `
     <div class="jobs-view">
-      <!-- Search & Filters Command Center -->
-      <section class="panel filters-panel" aria-label="Search and filter jobs">
-        <!-- Main Search Bar -->
-        <div class="search-bar">
+      <!-- Search & Filters Command Bar -->
+      <section class="filters-workbench" aria-label="Search and filter workbench">
+        <!-- Unified Top Search Row -->
+        <div class="search-command-row">
           <div class="search-input-wrap">
-            <app-icon name="search" [size]="16" class="search-icon"></app-icon>
+            <app-icon name="search" [size]="14" class="search-icon"></app-icon>
             <input
               type="search"
               [(ngModel)]="searchKeyword"
               (keyup.enter)="applyFilters()"
-              placeholder="Search roles, tech stack (Angular, TypeScript, Node, RxJS)..."
+              placeholder="Search by role or keywords (Angular, TypeScript, RxJS, Node)..."
               class="form-input search-input"
-              aria-label="Search keywords"
+              aria-label="Search jobs"
             />
             <button
               *ngIf="searchKeyword"
@@ -42,177 +42,155 @@ interface QuickChip {
               class="clear-search-btn"
               aria-label="Clear search"
             >
-              <app-icon name="x" [size]="14"></app-icon>
+              <app-icon name="x" [size]="13"></app-icon>
             </button>
           </div>
 
-          <button (click)="applyFilters()" class="btn btn-primary search-btn">
-            <app-icon name="search" [size]="14"></app-icon>
-            <span>Search</span>
-          </button>
+          <div class="search-actions-group">
+            <button (click)="applyFilters()" class="btn btn-primary search-btn">
+              <span>Filter</span>
+            </button>
+
+            <!-- View Switcher -->
+            <div class="view-switcher" role="group" aria-label="View toggle">
+              <button
+                (click)="setViewMode('grid')"
+                [class.active]="viewMode() === 'grid'"
+                class="view-btn"
+                title="Grid view"
+                aria-label="Grid view"
+              >
+                <app-icon name="grid" [size]="13"></app-icon>
+              </button>
+              <button
+                (click)="setViewMode('list')"
+                [class.active]="viewMode() === 'list'"
+                class="view-btn"
+                title="Compact list view"
+                aria-label="List view"
+              >
+                <app-icon name="list" [size]="13"></app-icon>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <!-- Quick Filter Preset Chips + View Mode Toggle -->
-        <div class="toolbar-middle-row">
-          <div class="quick-chips-row" role="group" aria-label="Quick preset filters">
+        <!-- Filter Chips & Dropdowns Bar -->
+        <div class="filter-controls-row">
+          <!-- Quick Filter Segment -->
+          <div class="quick-chips-group" role="group" aria-label="Quick filters">
             <button
               *ngFor="let chip of quickChips"
               (click)="selectQuickChip(chip.id)"
               [class.active]="activeQuickChip() === chip.id"
-              class="quick-chip-btn"
+              class="chip-pill"
             >
-              <app-icon [name]="chip.icon" [size]="12"></app-icon>
+              <app-icon [name]="chip.icon" [size]="11"></app-icon>
               <span>{{ chip.label }}</span>
             </button>
           </div>
 
-          <!-- View Mode Toggle (Grid vs Dense Table) -->
-          <div class="view-mode-toggle" role="group" aria-label="View layout switcher">
-            <button
-              (click)="setViewMode('grid')"
-              [class.active]="viewMode() === 'grid'"
-              class="toggle-mode-btn"
-              title="Grid layout"
-              aria-label="Grid layout"
-            >
-              <app-icon name="grid" [size]="14"></app-icon>
-            </button>
-            <button
-              (click)="setViewMode('list')"
-              [class.active]="viewMode() === 'list'"
-              class="toggle-mode-btn"
-              title="Compact list layout"
-              aria-label="Compact list layout"
-            >
-              <app-icon name="list" [size]="14"></app-icon>
-            </button>
-          </div>
-        </div>
-
-        <!-- Advanced Filter Dropdowns -->
-        <div class="filters-grid" role="group" aria-label="Filter options">
-          <div class="filter-col">
-            <label class="filter-micro-label">Eligibility</label>
-            <select [(ngModel)]="selectedEligibility" (change)="applyFilters()" class="form-select" aria-label="Eligibility filter">
-              <option value="">All Geographies</option>
+          <!-- Dropdowns -->
+          <div class="dropdowns-group">
+            <select [(ngModel)]="selectedEligibility" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter geography">
+              <option value="">All Regions</option>
               <option value="EGYPT_ELIGIBLE">Egypt Eligible</option>
               <option value="REMOTE_WORLDWIDE">Remote Worldwide</option>
               <option value="REMOTE_REGION_POSSIBLE">Region Possible</option>
-              <option value="RELOCATION_REQUIRED">Relocation Required</option>
             </select>
-          </div>
 
-          <div class="filter-col">
-            <label class="filter-micro-label">Workplace</label>
-            <select [(ngModel)]="selectedWorkplace" (change)="applyFilters()" class="form-select" aria-label="Workplace filter">
-              <option value="">All Work Modes</option>
+            <select [(ngModel)]="selectedWorkplace" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter workplace">
+              <option value="">Work Mode</option>
               <option value="REMOTE">Remote</option>
               <option value="HYBRID">Hybrid</option>
               <option value="ON_SITE">On-site</option>
             </select>
-          </div>
 
-          <div class="filter-col">
-            <label class="filter-micro-label">Seniority</label>
-            <select [(ngModel)]="selectedSeniority" (change)="applyFilters()" class="form-select" aria-label="Seniority filter">
-              <option value="">All Seniorities</option>
-              <option value="GRADUATE">Graduate / Entry</option>
+            <select [(ngModel)]="selectedSeniority" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter seniority">
+              <option value="">Seniority</option>
+              <option value="GRADUATE">Graduate</option>
               <option value="JUNIOR">Junior</option>
               <option value="MID">Mid-level</option>
               <option value="SENIOR">Senior</option>
             </select>
-          </div>
 
-          <div class="filter-col">
-            <label class="filter-micro-label">Score Threshold</label>
-            <select [(ngModel)]="minScore" (change)="applyFilters()" class="form-select" aria-label="Minimum score threshold">
-              <option [ngValue]="0">Min Score: Any</option>
-              <option [ngValue]="60">Min Score: 60%+</option>
-              <option [ngValue]="70">Min Score: 70%+ (Strong)</option>
-              <option [ngValue]="80">Min Score: 80%+ (Top Match)</option>
+            <select [(ngModel)]="minScore" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter min score">
+              <option [ngValue]="0">Score: Any</option>
+              <option [ngValue]="60">60%+ Match</option>
+              <option [ngValue]="70">70%+ Strong</option>
+              <option [ngValue]="80">80%+ Top</option>
             </select>
           </div>
         </div>
       </section>
 
-      <!-- Active Results Stats Bar -->
-      <div class="results-stats-bar">
-        <span class="results-count">
-          Showing <strong>{{ jobs().length }}</strong> of <strong>{{ totalCount() }}</strong> verified opportunities
+      <!-- Results Count & Active Filter Indicator -->
+      <div class="results-meta-strip">
+        <span class="count-indicator">
+          <strong>{{ jobs().length }}</strong> verified opportunities shown (of {{ totalCount() }} total)
         </span>
-        <button *ngIf="hasActiveFilters()" (click)="resetFilters()" class="btn btn-ghost btn-sm clear-all-btn">
-          <app-icon name="x" [size]="12"></app-icon>
-          <span>Reset All Filters</span>
+        <button *ngIf="hasActiveFilters()" (click)="resetFilters()" class="btn btn-ghost btn-sm reset-btn">
+          <app-icon name="x" [size]="11"></app-icon>
+          <span>Reset Filters</span>
         </button>
       </div>
 
-      <!-- Jobs Display Container -->
-      <section class="jobs-display-section" aria-label="Job listings">
-        <!-- Skeleton Shimmer Loader (No layout jump) -->
+      <!-- Main Results Display -->
+      <section class="results-display-area" aria-label="Job listings">
+        <!-- Skeleton Loading State -->
         <div *ngIf="isLoading()" class="skeleton-grid">
-          <div *ngFor="let i of [1, 2, 3, 4, 5, 6]" class="skeleton-card">
-            <div class="skeleton-header">
-              <div class="skeleton skeleton-avatar"></div>
-              <div class="skeleton-col">
-                <div class="skeleton skeleton-line-sm"></div>
-                <div class="skeleton skeleton-line-xs"></div>
-              </div>
-            </div>
-            <div class="skeleton skeleton-title"></div>
-            <div class="skeleton-badges">
-              <div class="skeleton skeleton-badge"></div>
-              <div class="skeleton skeleton-badge"></div>
-              <div class="skeleton skeleton-badge"></div>
-            </div>
+          <div *ngFor="let i of [1, 2, 3, 4, 5, 6]" class="skeleton-box">
+            <div class="skeleton-line-top"></div>
+            <div class="skeleton-line-middle"></div>
+            <div class="skeleton-line-bottom"></div>
           </div>
         </div>
 
         <!-- Empty State -->
-        <div *ngIf="!isLoading() && jobs().length === 0" class="empty-state card">
-          <app-icon name="search" [size]="36" class="empty-icon"></app-icon>
+        <div *ngIf="!isLoading() && jobs().length === 0" class="empty-state-box">
+          <app-icon name="search" [size]="32" class="empty-icon"></app-icon>
           <h3>No matching opportunities found</h3>
-          <p>Try broadening your search keywords or switching preset filters to discover more roles.</p>
+          <p>Try clearing filters or switching search criteria to discover more roles.</p>
           <button (click)="resetFilters()" class="btn btn-secondary btn-sm">
             <span>Reset All Filters</span>
           </button>
         </div>
 
-        <!-- VIEW MODE 1: GRID VIEW -->
-        <div class="jobs-grid" *ngIf="!isLoading() && jobs().length > 0 && viewMode() === 'grid'">
+        <!-- GRID VIEW: Clean Architectural Cards -->
+        <div class="jobs-grid-layout" *ngIf="!isLoading() && jobs().length > 0 && viewMode() === 'grid'">
           <article
             *ngFor="let job of jobs()"
-            class="job-card"
-            [class.excellent]="job.match_score >= 80"
+            class="job-grid-card"
+            [class.card-excellent]="job.match_score >= 80"
             (click)="inspectJob(job)"
             tabindex="0"
             (keyup.enter)="inspectJob(job)"
             role="button"
             [attr.aria-label]="'Inspect ' + job.title + ' at ' + job.company"
           >
-            <!-- Card Header -->
-            <div class="job-card-header">
-              <div class="company-loc-row">
+            <!-- Header Line -->
+            <div class="card-head">
+              <div class="company-brand-meta">
                 <span class="company-avatar">{{ job.company.charAt(0) }}</span>
-                <div class="company-info-block">
-                  <span class="company-name-text">{{ job.company }}</span>
-                  <span class="location-chip">
-                    <app-icon name="map-pin" [size]="11"></app-icon>
+                <div class="company-name-wrap">
+                  <span class="company-title">{{ job.company }}</span>
+                  <span class="loc-subtext">
+                    <app-icon name="map-pin" [size]="10"></app-icon>
                     {{ job.raw_location || 'Remote Worldwide' }}
                   </span>
                 </div>
               </div>
 
-              <div class="score-pill" [class.score-top]="job.match_score >= 70">
-                <app-icon name="sparkles" [size]="11"></app-icon>
-                <span>{{ roundScore(job.match_score) }}% match</span>
-              </div>
+              <span class="match-score-badge" [class.high-match]="job.match_score >= 70">
+                {{ roundScore(job.match_score) }}%
+              </span>
             </div>
 
-            <!-- Job Title -->
-            <h3 class="job-title">{{ job.title }}</h3>
+            <!-- Role Title -->
+            <h3 class="card-job-title">{{ job.title }}</h3>
 
-            <!-- Tags -->
-            <div class="badges-row">
+            <!-- Tags Line -->
+            <div class="card-tags-line">
               <span
                 class="badge"
                 [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
@@ -222,28 +200,25 @@ interface QuickChip {
               </span>
               <span class="badge" *ngIf="formatWorkplace(job.workplace_type)">{{ formatWorkplace(job.workplace_type) }}</span>
               <span class="badge" *ngIf="formatSeniority(job.seniority)">{{ formatSeniority(job.seniority) }}</span>
-              <span class="badge badge-source">{{ formatSource(job.source_name) }}</span>
             </div>
 
-            <!-- Card Footer Actions -->
-            <div class="job-card-footer" (click)="$event.stopPropagation()">
+            <!-- Footer Line -->
+            <div class="card-footer-line" (click)="$event.stopPropagation()">
               <button
                 (click)="toggleSaveJob(job)"
-                class="btn-card-save"
-                [class.saved]="job.tracker_status === 'SAVED'"
-                [title]="job.tracker_status === 'SAVED' ? 'Remove from Saved' : 'Save Role'"
-                aria-label="Save role"
+                class="save-btn"
+                [class.active-saved]="job.tracker_status === 'SAVED'"
+                title="Save role"
               >
-                <app-icon [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'" [size]="14"></app-icon>
+                <app-icon [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'" [size]="13"></app-icon>
                 <span>{{ job.tracker_status === 'SAVED' ? 'Saved' : 'Save' }}</span>
               </button>
 
-              <div class="footer-right-buttons">
+              <div class="footer-actions">
                 <button (click)="inspectJob(job)" class="btn btn-secondary btn-sm inspect-btn">
-                  <app-icon name="eye" [size]="13"></app-icon>
+                  <app-icon name="eye" [size]="12"></app-icon>
                   <span>Inspect</span>
                 </button>
-
                 <a
                   [href]="job.original_application_url"
                   target="_blank"
@@ -252,112 +227,109 @@ interface QuickChip {
                   class="btn btn-primary btn-sm apply-btn"
                 >
                   <span>Apply</span>
-                  <app-icon name="external-link" [size]="12"></app-icon>
+                  <app-icon name="external-link" [size]="11"></app-icon>
                 </a>
               </div>
             </div>
           </article>
         </div>
 
-        <!-- VIEW MODE 2: DENSE TABLE / LIST VIEW -->
-        <div class="jobs-table-card card" *ngIf="!isLoading() && jobs().length > 0 && viewMode() === 'list'">
-          <div class="table-scroll">
-            <table class="jobs-table" aria-label="Job listings table">
-              <thead>
-                <tr>
-                  <th scope="col">Company & Role</th>
-                  <th scope="col">Match Fit</th>
-                  <th scope="col">Eligibility</th>
-                  <th scope="col">Workplace</th>
-                  <th scope="col">Seniority</th>
-                  <th scope="col" class="th-actions">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  *ngFor="let job of jobs()"
-                  class="table-row-item"
-                  (click)="inspectJob(job)"
-                  tabindex="0"
-                  (keyup.enter)="inspectJob(job)"
-                >
-                  <td class="td-role">
-                    <div class="role-cell-wrap">
-                      <span class="company-avatar">{{ job.company.charAt(0) }}</span>
-                      <div class="role-texts">
-                        <span class="table-job-title">{{ job.title }}</span>
-                        <span class="table-company-sub">
-                          {{ job.company }} ·
-                          <app-icon name="map-pin" [size]="10"></app-icon>
-                          {{ job.raw_location || 'Remote' }}
-                        </span>
-                      </div>
+        <!-- LIST / TABLE VIEW: Linear-Style High Density -->
+        <div class="jobs-table-container" *ngIf="!isLoading() && jobs().length > 0 && viewMode() === 'list'">
+          <table class="dense-table" aria-label="Jobs table">
+            <thead>
+              <tr>
+                <th scope="col">Role & Company</th>
+                <th scope="col">Match</th>
+                <th scope="col">Eligibility</th>
+                <th scope="col">Workplace</th>
+                <th scope="col">Seniority</th>
+                <th scope="col" class="th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let job of jobs()"
+                class="dense-table-row"
+                (click)="inspectJob(job)"
+                tabindex="0"
+                (keyup.enter)="inspectJob(job)"
+              >
+                <td class="td-role-info">
+                  <div class="role-brand-box">
+                    <span class="company-avatar">{{ job.company.charAt(0) }}</span>
+                    <div class="role-desc-wrap">
+                      <span class="table-role-title">{{ job.title }}</span>
+                      <span class="table-company-sub">
+                        {{ job.company }} ·
+                        <app-icon name="map-pin" [size]="10"></app-icon>
+                        {{ job.raw_location || 'Remote' }}
+                      </span>
                     </div>
-                  </td>
+                  </div>
+                </td>
 
-                  <td class="td-fit">
-                    <div class="score-pill" [class.score-top]="job.match_score >= 70">
-                      <span>{{ roundScore(job.match_score) }}%</span>
-                    </div>
-                  </td>
+                <td>
+                  <span class="match-score-badge" [class.high-match]="job.match_score >= 70">
+                    {{ roundScore(job.match_score) }}%
+                  </span>
+                </td>
 
-                  <td>
-                    <span
-                      class="badge"
-                      [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
-                      [class.badge-blue]="job.eligibility === 'REMOTE_REGION_POSSIBLE'"
-                    >
-                      {{ formatEligibility(job.eligibility) }}
-                    </span>
-                  </td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
+                    [class.badge-blue]="job.eligibility === 'REMOTE_REGION_POSSIBLE'"
+                  >
+                    {{ formatEligibility(job.eligibility) }}
+                  </span>
+                </td>
 
-                  <td>
-                    <span class="text-sm-table">{{ formatWorkplace(job.workplace_type) }}</span>
-                  </td>
+                <td>
+                  <span class="meta-text-table">{{ formatWorkplace(job.workplace_type) }}</span>
+                </td>
 
-                  <td>
-                    <span class="text-sm-table">{{ formatSeniority(job.seniority) }}</span>
-                  </td>
+                <td>
+                  <span class="meta-text-table">{{ formatSeniority(job.seniority) }}</span>
+                </td>
 
-                  <td class="td-actions" (click)="$event.stopPropagation()">
-                    <button
-                      (click)="toggleSaveJob(job)"
-                      class="btn-icon-cell"
-                      [class.saved]="job.tracker_status === 'SAVED'"
-                      title="Bookmark"
-                      aria-label="Save"
-                    >
-                      <app-icon [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'" [size]="13"></app-icon>
-                    </button>
-                    <button (click)="inspectJob(job)" class="btn btn-secondary btn-sm" title="Inspect details">
-                      <app-icon name="eye" [size]="12"></app-icon>
-                    </button>
-                    <a
-                      [href]="job.original_application_url"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      (click)="onOpenLink($event, job.original_application_url)"
-                      class="btn btn-primary btn-sm"
-                      title="Apply on company site"
-                    >
-                      <app-icon name="external-link" [size]="12"></app-icon>
-                    </a>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                <td class="td-actions" (click)="$event.stopPropagation()">
+                  <button
+                    (click)="toggleSaveJob(job)"
+                    class="icon-action-btn"
+                    [class.saved-icon]="job.tracker_status === 'SAVED'"
+                    title="Bookmark"
+                    aria-label="Save"
+                  >
+                    <app-icon [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'" [size]="12"></app-icon>
+                  </button>
+                  <button (click)="inspectJob(job)" class="btn btn-secondary btn-sm">
+                    <app-icon name="eye" [size]="12"></app-icon>
+                  </button>
+                  <a
+                    [href]="job.original_application_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    (click)="onOpenLink($event, job.original_application_url)"
+                    class="btn btn-primary btn-sm"
+                  >
+                    <app-icon name="external-link" [size]="11"></app-icon>
+                  </a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <!-- Pagination Controls -->
-        <footer class="pagination-bar" *ngIf="totalPages() > 1 && !isLoading()">
+        <footer class="pagination-strip" *ngIf="totalPages() > 1 && !isLoading()">
           <button
             [disabled]="currentPage() === 1"
             (click)="goToPage(currentPage() - 1)"
             class="btn btn-secondary btn-sm"
             aria-label="Previous page"
           >
-            <app-icon name="chevron-left" [size]="14"></app-icon>
+            <app-icon name="chevron-left" [size]="12"></app-icon>
             <span>Previous</span>
           </button>
 
@@ -372,7 +344,7 @@ interface QuickChip {
             aria-label="Next page"
           >
             <span>Next</span>
-            <app-icon name="chevron-right" [size]="14"></app-icon>
+            <app-icon name="chevron-right" [size]="12"></app-icon>
           </button>
         </footer>
       </section>
@@ -390,22 +362,28 @@ interface QuickChip {
     .jobs-view {
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
+      gap: var(--space-3);
       width: 100%;
     }
 
-    /* Filters Command Center Panel */
-    .filters-panel {
+    /* Filters Workbench */
+    .filters-workbench {
+      background: var(--color-bg-surface-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-3);
       display: flex;
       flex-direction: column;
-      gap: var(--space-3-5);
-      padding: var(--space-5);
+      gap: var(--space-2-5);
     }
 
-    /* Main Search Bar */
-    .search-bar {
+    /* Top Search Row */
+    .search-command-row {
       display: flex;
-      gap: var(--space-2-5);
+      align-items: center;
+      gap: var(--space-2);
       width: 100%;
     }
     .search-input-wrap {
@@ -416,417 +394,401 @@ interface QuickChip {
     }
     .search-icon {
       position: absolute;
-      left: 12px;
+      left: 10px;
       color: var(--color-text-muted);
       pointer-events: none;
     }
     .search-input {
-      padding-left: 38px;
-      padding-right: 36px;
-      height: 42px;
-      font-size: var(--text-sm);
-      border-radius: var(--radius-md);
+      padding-left: 32px;
+      padding-right: 28px;
+      height: 36px;
+      font-size: var(--text-xs);
+      border-radius: var(--radius-sm);
     }
     .clear-search-btn {
       position: absolute;
-      right: 10px;
+      right: 8px;
       background: transparent;
       border: none;
       color: var(--color-text-muted);
       cursor: pointer;
       display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 4px;
+      padding: 2px;
     }
-    .clear-search-btn:hover {
-      color: var(--color-text-primary);
-    }
-    .search-btn {
-      height: 42px;
-      padding: 0 20px;
+    .clear-search-btn:hover { color: var(--color-text-primary); }
+
+    .search-actions-group {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
       flex-shrink: 0;
     }
-
-    /* Toolbar Middle Row: Quick Chips & View Mode Toggle */
-    .toolbar-middle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      flex-wrap: wrap;
-    }
-    .quick-chips-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-1-5);
-    }
-    .quick-chip-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border-radius: var(--radius-pill);
-      font-size: var(--text-xs);
-      font-weight: 600;
-      background: var(--color-bg-surface-elevated-glass);
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .quick-chip-btn:hover {
-      border-color: var(--color-border-hover);
-      color: var(--color-text-primary);
-    }
-    .quick-chip-btn.active {
-      background: var(--color-brand-primary);
-      color: #ffffff;
-      border-color: var(--color-brand-primary);
-      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
+    .search-btn {
+      height: 36px;
+      padding: 0 14px;
     }
 
-    /* View Mode Switcher */
-    .view-mode-toggle {
+    /* View Switcher */
+    .view-switcher {
       display: flex;
       align-items: center;
       background: var(--color-bg-surface-elevated);
       border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
+      border-radius: var(--radius-sm);
       padding: 2px;
       gap: 2px;
     }
-    .toggle-mode-btn {
+    .view-btn {
       background: transparent;
       border: none;
-      padding: 5px 8px;
-      border-radius: var(--radius-sm);
+      padding: 5px 7px;
+      border-radius: var(--radius-xs);
       color: var(--color-text-muted);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all var(--motion-fast);
+      transition: background-color var(--motion-fast), color var(--motion-fast);
     }
-    .toggle-mode-btn:hover {
-      color: var(--color-text-primary);
-    }
-    .toggle-mode-btn.active {
+    .view-btn:hover { color: var(--color-text-primary); }
+    .view-btn.active {
       background: var(--color-bg-surface);
       color: var(--color-brand-accent);
       box-shadow: var(--shadow-xs);
     }
 
-    /* Advanced Filters Grid */
-    .filters-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: var(--space-3);
-    }
-    .filter-col {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .filter-micro-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      font-weight: 700;
-      color: var(--color-text-muted);
-      letter-spacing: 0.04em;
-    }
-
-    /* Results Stats Bar */
-    .results-stats-bar {
+    /* Bottom Filter Row */
+    .filter-controls-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 var(--space-1);
+      gap: var(--space-2);
+      flex-wrap: wrap;
     }
-    .results-count {
-      font-size: var(--text-xs);
+    .quick-chips-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .chip-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-subtle);
       color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
     }
-    .results-count strong {
+    .chip-pill:hover {
+      border-color: var(--color-border-hover);
       color: var(--color-text-primary);
     }
-    .clear-all-btn {
-      font-size: var(--text-xs);
-      color: var(--color-brand-accent);
-      padding: 3px 8px;
+    .chip-pill.active {
+      background: var(--color-brand-primary);
+      color: #ffffff;
+      border-color: var(--color-brand-primary);
     }
 
-    /* Skeleton Loading Grid */
-    .skeleton-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: var(--space-3-5);
-    }
-    .skeleton-card {
-      background: var(--color-bg-surface-glass);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-lg);
-      padding: var(--space-4);
+    .dropdowns-group {
       display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-    }
-    .skeleton-header {
-      display: flex;
-      gap: var(--space-3);
       align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
     }
-    .skeleton-avatar {
-      width: 32px;
-      height: 32px;
+    .select-compact {
+      width: auto;
+      min-width: 110px;
+      height: 30px;
+      padding: 4px 24px 4px 8px;
+      font-size: 11px;
       border-radius: var(--radius-sm);
     }
-    .skeleton-col {
+
+    /* Results Meta Strip */
+    .results-meta-strip {
       display: flex;
-      flex-direction: column;
-      gap: 5px;
-      flex: 1;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
     }
-    .skeleton-line-sm {
-      width: 50%;
-      height: 12px;
+    .count-indicator {
+      font-size: 11px;
+      color: var(--color-text-secondary);
     }
-    .skeleton-line-xs {
-      width: 30%;
-      height: 10px;
+    .count-indicator strong {
+      color: var(--color-text-primary);
     }
-    .skeleton-title {
-      width: 80%;
-      height: 16px;
-    }
-    .skeleton-badges {
-      display: flex;
-      gap: 6px;
-    }
-    .skeleton-badge {
-      width: 60px;
-      height: 18px;
-      border-radius: var(--radius-pill);
+    .reset-btn {
+      font-size: 11px;
+      padding: 2px 6px;
     }
 
-    /* Jobs Grid */
-    .jobs-grid {
+    /* Skeletons */
+    .skeleton-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: var(--space-3-5);
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--space-3);
     }
-
-    /* Job Card */
-    .job-card {
+    .skeleton-box {
       background: var(--color-bg-surface-glass);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid var(--color-border-default);
-      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
       padding: var(--space-4);
       display: flex;
       flex-direction: column;
-      gap: var(--space-3);
-      box-shadow: var(--shadow-sm);
-      transition: all var(--motion-fast);
-      cursor: pointer;
-      position: relative;
+      gap: var(--space-2-5);
     }
-    .job-card:hover {
-      border-color: var(--color-border-hover);
-      box-shadow: var(--shadow-md);
-      transform: translateY(-2px);
+    .skeleton-line-top {
+      width: 40%;
+      height: 12px;
+      background: var(--color-bg-surface-elevated);
+      border-radius: var(--radius-xs);
     }
-    .job-card.excellent {
-      border-color: rgba(16, 185, 129, 0.3);
+    .skeleton-line-middle {
+      width: 80%;
+      height: 14px;
+      background: var(--color-bg-surface-elevated);
+      border-radius: var(--radius-xs);
+    }
+    .skeleton-line-bottom {
+      width: 60%;
+      height: 10px;
+      background: var(--color-bg-surface-elevated);
+      border-radius: var(--radius-xs);
     }
 
-    .job-card-header {
+    /* Empty State */
+    .empty-state-box {
+      background: var(--color-bg-surface-glass);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-8) var(--space-4);
+      text-align: center;
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: center;
       gap: var(--space-2);
     }
-    .company-loc-row {
+    .empty-icon {
+      color: var(--color-text-muted);
+      opacity: 0.5;
+    }
+
+    /* Grid Layout */
+    .jobs-grid-layout {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--space-3);
+    }
+
+    .job-grid-card {
+      background: var(--color-bg-surface-glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-3-5);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2-5);
+      cursor: pointer;
+      /* Silky non-jumpy hover */
+      transition: background-color var(--motion-fast), border-color var(--motion-fast);
+    }
+    .job-grid-card:hover {
+      background-color: var(--color-bg-surface-hover);
+      border-color: var(--color-border-hover);
+    }
+    .job-grid-card.card-excellent {
+      border-color: rgba(16, 185, 129, 0.25);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+    .company-brand-meta {
       display: flex;
       align-items: center;
-      gap: var(--space-2-5);
+      gap: var(--space-2);
       min-width: 0;
       flex: 1;
     }
-    .company-info-block {
+    .company-name-wrap {
       display: flex;
       flex-direction: column;
       min-width: 0;
     }
-    .company-name-text {
-      font-size: var(--text-xs);
+    .company-title {
+      font-size: 11px;
       font-weight: 700;
       color: var(--color-text-primary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .location-chip {
+    .loc-subtext {
+      font-size: 10px;
+      color: var(--color-text-muted);
       display: inline-flex;
       align-items: center;
       gap: 3px;
-      font-size: var(--text-2xs);
-      color: var(--color-text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .score-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: var(--text-xs);
-      font-weight: 700;
+    .match-score-badge {
+      font-size: 11px;
       font-family: var(--font-mono);
-      padding: 3px 9px;
-      border-radius: var(--radius-pill);
-      background-color: var(--color-brand-subtle);
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: var(--radius-xs);
+      background: var(--color-brand-subtle);
       color: var(--color-brand-accent);
       border: 1px solid var(--color-brand-border);
       flex-shrink: 0;
     }
-    .score-top {
-      background-color: var(--color-success-bg);
-      color: var(--color-success-text);
-      border-color: var(--color-success-border);
-    }
-
-    .job-title {
-      font-size: var(--text-base);
-      font-weight: 700;
-      color: var(--color-text-primary);
-      margin: 0;
-      line-height: 1.35;
-      letter-spacing: -0.015em;
-    }
-
-    .badges-row {
-      display: flex;
-      gap: var(--space-1-5);
-      flex-wrap: wrap;
-    }
-
-    .job-card-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-2);
-      margin-top: var(--space-1);
-      padding-top: var(--space-2-5);
-      border-top: 1px solid var(--color-border-subtle);
-    }
-    .btn-card-save {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 10px;
-      font-size: var(--text-xs);
-      font-weight: 600;
-      border-radius: var(--radius-sm);
-      background: transparent;
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .btn-card-save:hover {
-      background: var(--color-bg-surface-elevated);
-      color: var(--color-text-primary);
-      border-color: var(--color-border-hover);
-    }
-    .btn-card-save.saved {
+    .match-score-badge.high-match {
       background: var(--color-success-bg);
       color: var(--color-success-text);
       border-color: var(--color-success-border);
     }
-    .footer-right-buttons {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
+
+    .card-job-title {
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin: 0;
+      line-height: 1.35;
     }
 
-    /* VIEW MODE 2: TABLE / LIST STYLING */
-    .jobs-table-card {
-      padding: 0;
-      overflow: hidden;
+    .card-tags-line {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
     }
-    .table-scroll {
-      width: 100%;
+
+    .card-footer-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--color-border-subtle);
+      margin-top: 2px;
+    }
+    .save-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: var(--radius-xs);
+      background: transparent;
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      transition: background-color var(--motion-fast), color var(--motion-fast);
+    }
+    .save-btn:hover {
+      color: var(--color-text-primary);
+      background: var(--color-bg-surface-elevated);
+    }
+    .save-btn.active-saved {
+      background: var(--color-success-bg);
+      color: var(--color-success-text);
+      border-color: var(--color-success-border);
+    }
+
+    .footer-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Dense Linear-Style Table */
+    .jobs-table-container {
+      background: var(--color-bg-surface-glass);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
       overflow-x: auto;
     }
-    .jobs-table {
+    .dense-table {
       width: 100%;
       border-collapse: collapse;
       text-align: left;
     }
-    .jobs-table th {
-      padding: var(--space-3) var(--space-4);
+    .dense-table th {
+      padding: 8px 12px;
       font-size: 10px;
       text-transform: uppercase;
       font-weight: 700;
       color: var(--color-text-muted);
       letter-spacing: 0.05em;
-      border-bottom: 1px solid var(--color-border-default);
+      border-bottom: 1px solid var(--color-border-subtle);
       background: var(--color-bg-surface-elevated);
     }
-    .jobs-table td {
-      padding: var(--space-3) var(--space-4);
+    .dense-table td {
+      padding: 8px 12px;
       border-bottom: 1px solid var(--color-border-subtle);
       vertical-align: middle;
-      font-size: var(--text-xs);
+      font-size: 11px;
     }
-    .table-row-item {
+    .dense-table-row {
       cursor: pointer;
       transition: background-color var(--motion-fast);
     }
-    .table-row-item:hover {
-      background-color: var(--color-bg-surface-elevated-glass);
+    .dense-table-row:hover {
+      background-color: var(--color-bg-surface-hover);
     }
-    .role-cell-wrap {
+
+    .role-brand-box {
       display: flex;
       align-items: center;
-      gap: var(--space-3);
+      gap: var(--space-2);
     }
-    .role-texts {
+    .role-desc-wrap {
       display: flex;
       flex-direction: column;
-      gap: 2px;
     }
-    .table-job-title {
+    .table-role-title {
       font-weight: 700;
       color: var(--color-text-primary);
-      font-size: var(--text-sm);
+      font-size: var(--text-xs);
     }
     .table-company-sub {
       color: var(--color-text-muted);
-      font-size: var(--text-2xs);
+      font-size: 10px;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
     }
-    .text-sm-table {
+    .meta-text-table {
       color: var(--color-text-secondary);
       font-weight: 500;
     }
     .td-actions {
       display: flex;
       align-items: center;
-      gap: var(--space-1-5);
+      gap: 4px;
       justify-content: flex-end;
     }
     .th-actions {
       text-align: right;
     }
-    .btn-icon-cell {
-      padding: 6px;
-      border-radius: var(--radius-sm);
+    .icon-action-btn {
+      padding: 4px;
+      border-radius: var(--radius-xs);
       background: transparent;
       border: 1px solid var(--color-border-subtle);
       color: var(--color-text-muted);
@@ -835,42 +797,44 @@ interface QuickChip {
       align-items: center;
       justify-content: center;
     }
-    .btn-icon-cell:hover {
-      color: var(--color-text-primary);
-      border-color: var(--color-border-hover);
-    }
-    .btn-icon-cell.saved {
+    .icon-action-btn:hover { color: var(--color-text-primary); }
+    .icon-action-btn.saved-icon {
       background: var(--color-success-bg);
       color: var(--color-success-text);
       border-color: var(--color-success-border);
     }
 
-    /* Pagination Bar */
-    .pagination-bar {
+    /* Pagination */
+    .pagination-strip {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: var(--space-4);
-      margin-top: var(--space-3);
+      gap: var(--space-3);
+      padding: var(--space-2) 0;
     }
     .page-indicator {
-      font-size: var(--text-xs);
+      font-size: 11px;
       color: var(--color-text-secondary);
     }
 
     @media (max-width: 768px) {
-      .filters-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: var(--space-2-5);
-      }
-      .toolbar-middle-row {
+      .search-command-row {
         flex-direction: column;
         align-items: stretch;
       }
-      .view-mode-toggle {
-        display: none;
+      .filter-controls-row {
+        flex-direction: column;
+        align-items: stretch;
       }
-      .jobs-grid {
+      .dropdowns-group {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        width: 100%;
+      }
+      .select-compact {
+        width: 100%;
+      }
+      .jobs-grid-layout {
         grid-template-columns: 1fr;
       }
     }
@@ -905,7 +869,7 @@ export class JobsComponent implements OnInit {
   readonly quickChips: QuickChip[] = [
     { id: 'ALL', label: 'All Listings', icon: 'layers' },
     { id: 'TOP_MATCH', label: 'Top Match (70%+)', icon: 'star', minScore: 70 },
-    { id: 'EGYPT_WORLDWIDE', label: 'Egypt & Worldwide', icon: 'globe', eligibility: 'EGYPT_ELIGIBLE' },
+    { id: 'EGYPT_WORLDWIDE', label: 'Egypt & Remote', icon: 'globe', eligibility: 'EGYPT_ELIGIBLE' },
     { id: 'REMOTE', label: 'Remote Only', icon: 'building' },
     { id: 'MID_SENIOR', label: 'Mid & Senior', icon: 'user' },
   ];
@@ -1007,7 +971,7 @@ export class JobsComponent implements OnInit {
     this.activeQuickChip.set('ALL');
     this.currentPage.set(1);
     this.loadJobs();
-    this.toast.show('Filters reset to default view', 'info', 1500);
+    this.toast.show('Filters reset', 'info', 1500);
   }
 
   goToPage(page: number): void {
@@ -1036,14 +1000,11 @@ export class JobsComponent implements OnInit {
       next: () => {
         job.tracker_status = newStatus;
         this.toast.show(
-          newStatus === 'SAVED' ? `Role saved: ${job.title}` : `Role removed from Saved`,
+          newStatus === 'SAVED' ? `Saved: ${job.title}` : `Removed from Saved`,
           newStatus === 'SAVED' ? 'success' : 'info'
         );
       },
-      error: (e) => {
-        console.error('Failed to update tracker status:', e);
-        this.toast.show('Failed to save status', 'error');
-      },
+      error: () => this.toast.show('Failed to save status', 'error'),
     });
   }
 
@@ -1094,9 +1055,5 @@ export class JobsComponent implements OnInit {
       case 'ENTRY': return 'Entry';
       default: return s || 'Engineer';
     }
-  }
-
-  formatSource(src: string): string {
-    return src.replace(/_/g, ' ');
   }
 }

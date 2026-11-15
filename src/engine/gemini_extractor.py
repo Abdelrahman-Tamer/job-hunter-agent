@@ -289,3 +289,101 @@ Output HTML-compatible Telegram formatted text (bold <b>, italic <i>, code <code
 3️⃣ <b>Responsive & Reusable Architecture:</b>
 • <i>Question:</i> How do you build maintainable, component-driven frontend applications?
 • <i>Recommended Answer:</i> Highlight presentational vs. container component separation, Tailwind CSS utility architecture, and TypeScript interfaces."""
+
+    async def generate_linkedin_outreach(
+        self,
+        candidate_name: str,
+        candidate_title: str,
+        skills: List[str],
+        company: str,
+        job_title: str,
+        job_description: str,
+    ) -> Dict[str, str]:
+        """
+        Generate high-conversion outreach messages for LinkedIn:
+        - connection_note: strictly under 280 chars (fits LinkedIn 300-char limit)
+        - inmail_dm: under 500 chars (crisp recruiter DM)
+        - follow_up_note: under 400 chars (for 5-day post-application follow-up)
+        """
+        top_skills = ", ".join(skills[:4]) if skills else "Angular & TypeScript"
+        client = self._get_client()
+
+        # Deterministic fallback templates
+        fallback_connection = f"Hi! Saw the {job_title} role at {company}. As a {candidate_title} experienced with {top_skills}, I'd love to connect and explore how my engineering skills fit your team. Best, {candidate_name}"
+        if len(fallback_connection) > 280:
+            fallback_connection = f"Hi! Saw the {job_title} opening at {company}. As an Angular/TS developer, I'd love to connect and share how my experience aligns with your team! Best, {candidate_name}"
+
+        fallback_inmail = (
+            f"Hi there,\n\n"
+            f"I recently reviewed the {job_title} opening at {company} and wanted to reach out directly. "
+            f"I'm a {candidate_title} with proven production experience delivering modern web applications with {top_skills}. "
+            f"Given your technical focus, I believe I can make an immediate impact on your product roadmap.\n\n"
+            f"Would you be open to a brief chat this week?\n\n"
+            f"Best regards,\n{candidate_name}"
+        )
+
+        fallback_followup = (
+            f"Hi! Following up on my application for {job_title} submitted 5 days ago. "
+            f"I remain very excited about {company}'s roadmap and would welcome the opportunity to discuss how my {top_skills} background can help the engineering team. "
+            f"Thanks for your time! - {candidate_name}"
+        )
+
+        if not client or not self.api_key:
+            return {
+                "connection_note": fallback_connection[:280],
+                "inmail_dm": fallback_inmail,
+                "follow_up_note": fallback_followup,
+            }
+
+        safe_desc = sanitize_text_for_llm(job_description, max_length=4000)
+        prompt = f"""You are an elite tech recruitment and career advisor.
+Generate 3 distinct, high-impact LinkedIn outreach messages for:
+Candidate: {candidate_name} ({candidate_title})
+Key Skills: {top_skills}
+Target Job: {job_title} at {company}
+
+Job snippet:
+<job>
+{safe_desc}
+</job>
+
+Return a valid JSON object with EXACTLY these three keys:
+1. "connection_note": A connection request note that is STRICTLY UNDER 280 characters. Mention the role and why you're connecting.
+2. "inmail_dm": A concise, executive recruiter direct message under 500 characters. Confident, direct, highlighting 1-2 relevant skills.
+3. "follow_up_note": A polite 5-day post-application follow-up message under 400 characters.
+
+Return pure JSON only, no markdown formatting or commentary."""
+
+        try:
+            def _call():
+                return client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config={"temperature": 0.3},
+                )
+
+            res = await asyncio.wait_for(asyncio.to_thread(_call), timeout=8.0)
+            raw = (res.text or "").strip()
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[1]
+                if raw.endswith("```"):
+                    raw = raw.rsplit("```", 1)[0]
+                raw = raw.strip()
+            data = json.loads(raw)
+
+            conn = str(data.get("connection_note") or fallback_connection).strip()
+            if len(conn) > 280:
+                conn = conn[:277] + "..."
+
+            return {
+                "connection_note": conn,
+                "inmail_dm": str(data.get("inmail_dm") or fallback_inmail).strip(),
+                "follow_up_note": str(data.get("follow_up_note") or fallback_followup).strip(),
+            }
+        except Exception as exc:
+            logger.warning(f"Gemini LinkedIn outreach generation failed: {exc}. Using fallback.")
+            return {
+                "connection_note": fallback_connection[:280],
+                "inmail_dm": fallback_inmail,
+                "follow_up_note": fallback_followup,
+            }

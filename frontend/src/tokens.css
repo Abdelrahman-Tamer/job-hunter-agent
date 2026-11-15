@@ -1,94 +1,97 @@
 /**
  * Design Tokens — BottaJobs
- * Precision-engineered developer design tokens.
- * Obsidian / Midnight Slate (Dark) + Crisp Titanium (Light).
+ * Precision-Engineered Architectural Design Tokens.
+ * High-agency developer workstation (Linear / Raycast / Vercel inspired).
+ * Disciplined geometry: crisp 6px/8px radii, zero bubbly pills, silky lighting transitions.
  */
 
 :root,
 [data-theme="dark"] {
   /* =========================================================================
-     Dark Mode: Obsidian / Midnight Slate Palette (Linear / Raycast Inspired)
+     Dark Mode: Deep Obsidian / Graphite Technical Canvas
      ========================================================================= */
-  --color-bg-canvas: #090c14;
-  --color-bg-surface: #0f1422;
-  --color-bg-surface-glass: rgba(15, 20, 34, 0.78);
-  --color-bg-surface-elevated: #151b2c;
-  --color-bg-surface-elevated-glass: rgba(21, 27, 44, 0.85);
-  --color-bg-surface-muted: #111625;
-  --color-bg-glass: rgba(15, 20, 34, 0.84);
+  --color-bg-canvas: #090b10;
+  --color-bg-surface: #0e121a;
+  --color-bg-surface-glass: rgba(14, 18, 26, 0.85);
+  --color-bg-surface-elevated: #131824;
+  --color-bg-surface-elevated-glass: rgba(19, 24, 36, 0.88);
+  --color-bg-surface-muted: #101520;
+  --color-bg-surface-hover: rgba(255, 255, 255, 0.04);
+  --color-bg-glass: rgba(14, 18, 26, 0.88);
 
-  /* Primary Brand Action (Cobalt / Sapphire Gradient) */
+  /* Primary Brand Action (Electric Sapphire / Precision Blue) */
   --color-brand-primary: #2563eb;
   --color-brand-primary-hover: #1d4ed8;
   --color-brand-primary-active: #1e40af;
-  --color-brand-gradient: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  --color-brand-accent: #60a5fa;
-  --color-brand-subtle: rgba(37, 99, 235, 0.12);
-  --color-brand-border: rgba(37, 99, 235, 0.32);
+  --color-brand-gradient: #2563eb;
+  --color-brand-accent: #3b82f6;
+  --color-brand-subtle: rgba(37, 99, 235, 0.1);
+  --color-brand-border: rgba(37, 99, 235, 0.3);
 
   /* Text & Optical Hierarchy */
-  --color-text-primary: #f8fafc;
+  --color-text-primary: #f1f5f9;
   --color-text-secondary: #94a3b8;
   --color-text-muted: #64748b;
-  --color-text-inverse: #090c14;
+  --color-text-inverse: #090b10;
 
-  /* Borders & Dividers */
-  --color-border-subtle: rgba(255, 255, 255, 0.08);
-  --color-border-default: rgba(255, 255, 255, 0.12);
-  --color-border-hover: rgba(255, 255, 255, 0.24);
+  /* Architectural Hairline Borders */
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-hover: rgba(255, 255, 255, 0.18);
   --color-border-focus: #3b82f6;
 
   /* Semantic Feedback */
   --color-success: #10b981;
-  --color-success-bg: rgba(16, 185, 129, 0.12);
+  --color-success-bg: rgba(16, 185, 129, 0.08);
   --color-success-text: #34d399;
-  --color-success-border: rgba(16, 185, 129, 0.3);
+  --color-success-border: rgba(16, 185, 129, 0.25);
 
   --color-warning: #f59e0b;
-  --color-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-warning-bg: rgba(245, 158, 11, 0.08);
   --color-warning-text: #fbbf24;
-  --color-warning-border: rgba(245, 158, 11, 0.3);
+  --color-warning-border: rgba(245, 158, 11, 0.25);
 
   --color-error: #ef4444;
-  --color-error-bg: rgba(239, 68, 68, 0.12);
+  --color-error-bg: rgba(239, 68, 68, 0.08);
   --color-error-text: #f87171;
-  --color-error-border: rgba(239, 68, 68, 0.3);
+  --color-error-border: rgba(239, 68, 68, 0.25);
 
   --color-info: #0ea5e9;
-  --color-info-bg: rgba(14, 165, 233, 0.12);
+  --color-info-bg: rgba(14, 165, 233, 0.08);
   --color-info-text: #38bdf8;
-  --color-info-border: rgba(14, 165, 233, 0.3);
+  --color-info-border: rgba(14, 165, 233, 0.25);
 
-  /* Premium Depth & Multi-Layered Shadows */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
-  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+  /* Precise Architectural Shadows (Subtle, never muddy) */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.07);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
 
-  --selection-bg: rgba(37, 99, 235, 0.45);
+  --selection-bg: rgba(37, 99, 235, 0.35);
   --selection-color: #ffffff;
 }
 
 [data-theme="light"] {
   /* =========================================================================
-     Light Mode: Clean Titanium / Crisp Zinc (Linear / Stripe Inspired)
+     Light Mode: Pure Crisp Slate / Titanium Canvas
      ========================================================================= */
-  --color-bg-canvas: #f8fafc;
+  --color-bg-canvas: #f6f8fa;
   --color-bg-surface: #ffffff;
-  --color-bg-surface-glass: rgba(255, 255, 255, 0.9);
-  --color-bg-surface-elevated: #f1f5f9;
-  --color-bg-surface-elevated-glass: rgba(241, 245, 249, 0.94);
-  --color-bg-surface-muted: #f8fafc;
-  --color-bg-glass: rgba(255, 255, 255, 0.88);
+  --color-bg-surface-glass: rgba(255, 255, 255, 0.92);
+  --color-bg-surface-elevated: #f1f4f8;
+  --color-bg-surface-elevated-glass: rgba(241, 244, 248, 0.94);
+  --color-bg-surface-muted: #f6f8fa;
+  --color-bg-surface-hover: rgba(0, 0, 0, 0.03);
+  --color-bg-glass: rgba(255, 255, 255, 0.9);
 
   /* Primary Brand Action */
-  --color-brand-primary: #2563eb;
-  --color-brand-primary-hover: #1d4ed8;
-  --color-brand-primary-active: #1e40af;
-  --color-brand-gradient: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  --color-brand-primary: #1d4ed8;
+  --color-brand-primary-hover: #1e40af;
+  --color-brand-primary-active: #172554;
+  --color-brand-gradient: #1d4ed8;
   --color-brand-accent: #2563eb;
-  --color-brand-subtle: rgba(37, 99, 235, 0.08);
-  --color-brand-border: rgba(37, 99, 235, 0.22);
+  --color-brand-subtle: rgba(29, 78, 216, 0.06);
+  --color-brand-border: rgba(29, 78, 216, 0.2);
 
   /* Text & Optical Hierarchy */
   --color-text-primary: #0f172a;
@@ -96,40 +99,40 @@
   --color-text-muted: #64748b;
   --color-text-inverse: #ffffff;
 
-  /* Borders & Dividers */
-  --color-border-subtle: rgba(0, 0, 0, 0.07);
-  --color-border-default: rgba(0, 0, 0, 0.11);
-  --color-border-hover: rgba(0, 0, 0, 0.22);
-  --color-border-focus: #2563eb;
+  /* Architectural Hairlines */
+  --color-border-subtle: rgba(0, 0, 0, 0.06);
+  --color-border-default: rgba(0, 0, 0, 0.1);
+  --color-border-hover: rgba(0, 0, 0, 0.2);
+  --color-border-focus: #1d4ed8;
 
   /* Semantic Feedback */
   --color-success: #059669;
-  --color-success-bg: rgba(5, 150, 105, 0.08);
+  --color-success-bg: rgba(5, 150, 105, 0.06);
   --color-success-text: #059669;
-  --color-success-border: rgba(5, 150, 105, 0.28);
+  --color-success-border: rgba(5, 150, 105, 0.22);
 
   --color-warning: #d97706;
-  --color-warning-bg: rgba(217, 119, 6, 0.08);
+  --color-warning-bg: rgba(217, 119, 6, 0.06);
   --color-warning-text: #b45309;
-  --color-warning-border: rgba(217, 119, 6, 0.28);
+  --color-warning-border: rgba(217, 119, 6, 0.22);
 
   --color-error: #dc2626;
-  --color-error-bg: rgba(220, 38, 38, 0.08);
+  --color-error-bg: rgba(220, 38, 38, 0.06);
   --color-error-text: #dc2626;
-  --color-error-border: rgba(220, 38, 38, 0.28);
+  --color-error-border: rgba(220, 38, 38, 0.22);
 
   --color-info: #0284c7;
-  --color-info-bg: rgba(2, 132, 199, 0.08);
+  --color-info-bg: rgba(2, 132, 199, 0.06);
   --color-info-text: #0284c7;
-  --color-info-border: rgba(2, 132, 199, 0.28);
+  --color-info-border: rgba(2, 132, 199, 0.22);
 
   /* Shadows */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
-  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 0 rgba(255, 255, 255, 1);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 1);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.09), inset 0 1px 0 0 rgba(255, 255, 255, 1);
 
-  --selection-bg: rgba(37, 99, 235, 0.2);
+  --selection-bg: rgba(29, 78, 216, 0.15);
   --selection-color: #0f172a;
 }
 
@@ -142,12 +145,12 @@
 
   --text-2xs: 0.6875rem; /* 11px */
   --text-xs: 0.75rem;    /* 12px */
-  --text-sm: 0.84375rem; /* 13.5px */
-  --text-base: 0.9375rem;/* 15px */
-  --text-lg: 1.0625rem;  /* 17px */
-  --text-xl: 1.25rem;    /* 20px */
-  --text-2xl: 1.5rem;    /* 24px */
-  --text-3xl: 1.875rem;  /* 30px */
+  --text-sm: 0.8125rem;  /* 13px */
+  --text-base: 0.875rem; /* 14px */
+  --text-lg: 1rem;       /* 16px */
+  --text-xl: 1.1875rem;  /* 19px */
+  --text-2xl: 1.375rem;  /* 22px */
+  --text-3xl: 1.75rem;   /* 28px */
 
   /* =========================================================================
      Spacing Scale
@@ -163,24 +166,24 @@
   --space-6: 24px;
   --space-8: 32px;
   --space-10: 40px;
-  --space-12: 48px;
 
   /* =========================================================================
-     Borders & Radii Scale
+     Architectural Borders & Radii Scale (Disciplined & Crisp)
+     No oversized bubbly pills!
      ========================================================================= */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
-  --radius-pill: 9999px;
-  --radius-full: 9999px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --radius-pill: 4px; /* Crisp micro-corner tag */
+  --radius-full: 9999px; /* Reserved strictly for round status dots & avatars */
 
   /* =========================================================================
-     Motion Tokens (Organic Smooth Easing)
+     Silky Premium Hover & Transitions (Never jumpy, never tacky)
      ========================================================================= */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --motion-fast: 0.16s var(--ease-out);
-  --motion-base: 0.24s var(--ease-out);
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-fast: 0.14s ease;
+  --motion-base: 0.2s var(--ease-premium);
 }

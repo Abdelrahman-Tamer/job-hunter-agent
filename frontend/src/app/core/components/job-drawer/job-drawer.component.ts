@@ -165,6 +165,118 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
             </div>
           </section>
 
+          <!-- Elite AI Application Toolkit -->
+          <section class="toolkit-section" aria-label="Application toolkit">
+            <div class="section-heading-row">
+              <div class="section-title-wrap">
+                <app-icon name="sparkles" [size]="14" class="text-blue"></app-icon>
+                <h3>Application Outreach & Toolkit</h3>
+              </div>
+              <span class="toolkit-badge">AI Powered</span>
+            </div>
+
+            <div class="toolkit-grid">
+              <button
+                (click)="toggleOutreachTool()"
+                [class.active]="activeTool() === 'outreach'"
+                class="toolkit-btn"
+                aria-label="Generate LinkedIn outreach note"
+              >
+                <app-icon name="message-square" [size]="14"></app-icon>
+                <span>LinkedIn DM</span>
+              </button>
+
+              <button
+                (click)="toggleCoverTool()"
+                [class.active]="activeTool() === 'cover'"
+                class="toolkit-btn"
+                aria-label="Generate AI cover letter"
+              >
+                <app-icon name="file-text" [size]="14"></app-icon>
+                <span>AI Cover Letter</span>
+              </button>
+
+              <a
+                *ngIf="job?.id"
+                [href]="api.getTailoredResumeUrl(job!.id)"
+                target="_blank"
+                download
+                class="toolkit-btn pdf-btn"
+                aria-label="Download tailored ATS PDF resume"
+              >
+                <app-icon name="download" [size]="14"></app-icon>
+                <span>Tailored PDF</span>
+              </a>
+            </div>
+
+            <!-- Tool Output: LinkedIn Pack -->
+            <div *ngIf="activeTool() === 'outreach'" class="tool-result-panel">
+              <div class="tool-panel-header">
+                <span class="tool-panel-title">LinkedIn Recruiter Pack</span>
+                <button (click)="closeTool()" class="tool-close-btn" aria-label="Close tool">
+                  <app-icon name="x" [size]="12"></app-icon>
+                </button>
+              </div>
+
+              <div *ngIf="isLoadingTool()" class="tool-loading">
+                <div class="tool-spinner"></div>
+                <span>Crafting high-conversion recruiter message...</span>
+              </div>
+
+              <div *ngIf="!isLoadingTool() && outreachData()" class="outreach-content">
+                <!-- 1. Connection Request Note -->
+                <div class="outreach-card">
+                  <div class="outreach-card-head">
+                    <span class="outreach-type">Connection Note (&lt; 300 chars)</span>
+                    <button (click)="copyText(outreachData()!.connection_note, 'conn')" class="btn-copy-micro">
+                      <app-icon [name]="copiedKey() === 'conn' ? 'check' : 'copy'" [size]="12"></app-icon>
+                      <span>{{ copiedKey() === 'conn' ? 'Copied' : 'Copy' }}</span>
+                    </button>
+                  </div>
+                  <pre class="outreach-pre">{{ outreachData()!.connection_note }}</pre>
+                  <span class="char-count-pill">{{ outreachData()!.connection_note.length }}/300 chars</span>
+                </div>
+
+                <!-- 2. Recruiter InMail / Direct Message -->
+                <div class="outreach-card">
+                  <div class="outreach-card-head">
+                    <span class="outreach-type">InMail / Direct Message</span>
+                    <button (click)="copyText(outreachData()!.inmail_dm, 'inmail')" class="btn-copy-micro">
+                      <app-icon [name]="copiedKey() === 'inmail' ? 'check' : 'copy'" [size]="12"></app-icon>
+                      <span>{{ copiedKey() === 'inmail' ? 'Copied' : 'Copy' }}</span>
+                    </button>
+                  </div>
+                  <pre class="outreach-pre">{{ outreachData()!.inmail_dm }}</pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tool Output: AI Cover Letter -->
+            <div *ngIf="activeTool() === 'cover'" class="tool-result-panel">
+              <div class="tool-panel-header">
+                <span class="tool-panel-title">Tailored AI Cover Letter</span>
+                <div class="tool-header-actions">
+                  <button *ngIf="coverLetterText()" (click)="copyText(coverLetterText()!, 'cover')" class="btn-copy-micro">
+                    <app-icon [name]="copiedKey() === 'cover' ? 'check' : 'copy'" [size]="12"></app-icon>
+                    <span>{{ copiedKey() === 'cover' ? 'Copied' : 'Copy' }}</span>
+                  </button>
+                  <button (click)="closeTool()" class="tool-close-btn" aria-label="Close tool">
+                    <app-icon name="x" [size]="12"></app-icon>
+                  </button>
+                </div>
+              </div>
+
+              <div *ngIf="isLoadingTool()" class="tool-loading">
+                <div class="tool-spinner"></div>
+                <span>Synthesizing custom cover letter...</span>
+              </div>
+
+              <div *ngIf="!isLoadingTool() && coverLetterText()" class="cover-content">
+                <pre class="outreach-pre">{{ coverLetterText() }}</pre>
+              </div>
+            </div>
+          </section>
+
           <!-- Job Description Body -->
           <section class="description-section" aria-label="Job description">
             <div class="section-heading-row">
@@ -204,7 +316,16 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
               [class.saved]="currentStatus() === 'SAVED'"
             >
               <app-icon [name]="currentStatus() === 'SAVED' ? 'check' : 'bookmark'" [size]="14"></app-icon>
-              <span>{{ currentStatus() === 'SAVED' ? 'Saved' : 'Save Role' }}</span>
+              <span>{{ currentStatus() === 'SAVED' ? 'Saved' : 'Save' }}</span>
+            </button>
+
+            <button
+              (click)="toggleApplied()"
+              class="btn btn-secondary btn-applied"
+              [class.applied]="currentStatus() === 'APPLIED'"
+            >
+              <app-icon [name]="currentStatus() === 'APPLIED' ? 'check' : 'send'" [size]="14"></app-icon>
+              <span>{{ currentStatus() === 'APPLIED' ? 'Applied (5d Alert)' : 'Mark Applied' }}</span>
             </button>
 
             <a
@@ -215,7 +336,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
               (click)="onApplyClick($event)"
               class="btn btn-primary btn-apply"
             >
-              <span>Apply on Company Site</span>
+              <span>Apply Direct</span>
               <app-icon name="external-link" [size]="14"></app-icon>
             </a>
           </div>
@@ -354,7 +475,7 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       width: 100%;
       height: 3px;
       background: var(--color-bg-surface-elevated);
-      border-radius: var(--radius-pill);
+      border-radius: var(--radius-xs);
       overflow: hidden;
     }
     .loading-bar {
@@ -397,11 +518,11 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
     }
 
     .score-circle {
-      width: 60px;
-      height: 60px;
-      border-radius: var(--radius-full);
+      width: 52px;
+      height: 52px;
+      border-radius: var(--radius-md);
       background: var(--color-bg-surface-muted);
-      border: 2px solid var(--color-border-hover);
+      border: 1px solid var(--color-border-hover);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -409,12 +530,12 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       flex-shrink: 0;
     }
     .excellent .score-circle {
-      border-color: var(--color-success);
-      box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+      border-color: var(--color-success-border);
+      background: var(--color-success-bg);
     }
     .strong .score-circle {
-      border-color: var(--color-brand-primary);
-      box-shadow: 0 0 12px rgba(37, 99, 235, 0.25);
+      border-color: var(--color-brand-border);
+      background: var(--color-brand-subtle);
     }
 
     .score-num {
@@ -428,11 +549,12 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
     .strong .score-num { color: var(--color-brand-accent); }
 
     .score-sub {
-      font-size: 9px;
+      font-size: 8px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--color-text-muted);
-      margin-top: 2px;
+      margin-top: 3px;
+      font-weight: 700;
     }
     .score-meta {
       display: flex;
@@ -525,11 +647,11 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       padding: var(--space-3-5);
     }
     .current-status-pill {
-      font-size: var(--text-2xs);
+      font-size: 10px;
       font-family: var(--font-mono);
       font-weight: 700;
-      padding: 2px 8px;
-      border-radius: var(--radius-pill);
+      padding: 2px 7px;
+      border-radius: var(--radius-sm);
       background: var(--color-brand-subtle);
       color: var(--color-brand-accent);
       border: 1px solid var(--color-brand-border);
@@ -540,25 +662,25 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       gap: var(--space-1-5);
     }
     .stage-select-btn {
-      padding: 5px 11px;
+      padding: 4px 10px;
       font-size: var(--text-xs);
       font-weight: 600;
-      border-radius: var(--radius-pill);
+      border-radius: var(--radius-sm);
       background: var(--color-bg-surface);
       border: 1px solid var(--color-border-subtle);
       color: var(--color-text-secondary);
       cursor: pointer;
-      transition: all var(--motion-fast);
+      transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
     }
     .stage-select-btn:hover {
       border-color: var(--color-border-hover);
       color: var(--color-text-primary);
+      background-color: var(--color-bg-surface-hover);
     }
     .stage-select-btn.selected {
       background: var(--color-brand-primary);
       color: #ffffff;
       border-color: var(--color-brand-primary);
-      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
     }
 
     /* Skills Alignment */
@@ -576,8 +698,8 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 3px 9px;
-      border-radius: var(--radius-pill);
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
       font-size: var(--text-xs);
       font-weight: 600;
     }
@@ -641,6 +763,176 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       border-color: var(--color-success-border);
       color: var(--color-success-text);
     }
+    .btn-applied.applied {
+      background: rgba(37, 99, 235, 0.18);
+      border-color: var(--color-brand-border);
+      color: var(--color-brand-accent);
+    }
+
+    /* AI Application Toolkit */
+    .toolkit-section {
+      background: var(--color-bg-surface-elevated-glass);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .toolkit-badge {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--color-brand-accent);
+      background: var(--color-brand-subtle);
+      padding: 2px 7px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-brand-border);
+    }
+    .toolkit-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-2);
+    }
+    .toolkit-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 8px;
+      border-radius: var(--radius-md);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-default);
+      color: var(--color-text-primary);
+      cursor: pointer;
+      text-decoration: none;
+      transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+      white-space: nowrap;
+    }
+    .toolkit-btn:hover {
+      border-color: var(--color-brand-accent);
+      background: var(--color-bg-surface-hover);
+    }
+    .toolkit-btn.active {
+      background: var(--color-brand-primary);
+      color: #ffffff;
+      border-color: var(--color-brand-primary);
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+    .pdf-btn {
+      color: var(--color-brand-accent);
+    }
+    .tool-result-panel {
+      background: var(--color-bg-canvas);
+      border: 1px solid var(--color-border-default);
+      border-radius: var(--radius-md);
+      padding: var(--space-3-5);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .tool-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding-bottom: var(--space-2);
+    }
+    .tool-panel-title {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
+    .tool-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tool-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tool-loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      padding: var(--space-3) 0;
+    }
+    .tool-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--color-border-default);
+      border-top-color: var(--color-brand-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .outreach-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .outreach-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .outreach-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .outreach-type {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-brand-accent);
+    }
+    .btn-copy-micro {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: all var(--motion-fast);
+    }
+    .btn-copy-micro:hover {
+      color: var(--color-text-primary);
+      border-color: var(--color-border-hover);
+    }
+    .outreach-pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: inherit;
+      font-size: var(--text-xs);
+      line-height: 1.45;
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      padding: var(--space-2-5) var(--space-3);
+      color: var(--color-text-primary);
+      margin: 0;
+    }
+    .char-count-pill {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      border-radius: var(--radius-sm);
+    }
 
     @media (max-width: 768px) {
       .drawer-container {
@@ -681,13 +973,19 @@ export class JobDrawerComponent implements OnInit {
   @Output() closeDrawer = new EventEmitter<void>();
   @Output() statusUpdated = new EventEmitter<{ jobId: number; status: ApplicationStatus }>();
 
-  private readonly api = inject(ApiService);
+  readonly api = inject(ApiService);
   private readonly telegram = inject(TelegramService);
 
   readonly isLoadingDetail = signal<boolean>(false);
   readonly jobDetail = signal<JobDetail | null>(null);
   readonly copied = signal<boolean>(false);
   readonly currentStatus = signal<ApplicationStatus>('DISCOVERED');
+
+  readonly activeTool = signal<'none' | 'outreach' | 'cover'>('none');
+  readonly isLoadingTool = signal<boolean>(false);
+  readonly outreachData = signal<{ connection_note: string; inmail_dm: string; follow_up_note: string } | null>(null);
+  readonly coverLetterText = signal<string | null>(null);
+  readonly copiedKey = signal<string | null>(null);
 
   readonly availableStages: { status: ApplicationStatus; label: string }[] = [
     { status: 'DISCOVERED', label: 'Discovered' },
@@ -764,6 +1062,60 @@ export class JobDrawerComponent implements OnInit {
   toggleSave(): void {
     const nextStatus = this.currentStatus() === 'SAVED' ? 'DISCOVERED' : 'SAVED';
     this.setJobStatus(nextStatus);
+  }
+
+  toggleApplied(): void {
+    const nextStatus = this.currentStatus() === 'APPLIED' ? 'DISCOVERED' : 'APPLIED';
+    this.setJobStatus(nextStatus);
+  }
+
+  toggleOutreachTool(): void {
+    if (this.activeTool() === 'outreach') {
+      this.activeTool.set('none');
+      return;
+    }
+    this.activeTool.set('outreach');
+    this.telegram.haptic('selection');
+    if (!this.outreachData() && this.job) {
+      this.isLoadingTool.set(true);
+      this.api.getOutreachMessages(this.job.id).subscribe({
+        next: (data) => {
+          this.outreachData.set(data);
+          this.isLoadingTool.set(false);
+        },
+        error: () => this.isLoadingTool.set(false),
+      });
+    }
+  }
+
+  toggleCoverTool(): void {
+    if (this.activeTool() === 'cover') {
+      this.activeTool.set('none');
+      return;
+    }
+    this.activeTool.set('cover');
+    this.telegram.haptic('selection');
+    if (!this.coverLetterText() && this.job) {
+      this.isLoadingTool.set(true);
+      this.api.getCoverLetter(this.job.id).subscribe({
+        next: (data) => {
+          this.coverLetterText.set(data.cover_letter);
+          this.isLoadingTool.set(false);
+        },
+        error: () => this.isLoadingTool.set(false),
+      });
+    }
+  }
+
+  closeTool(): void {
+    this.activeTool.set('none');
+  }
+
+  copyText(text: string, key: string): void {
+    navigator.clipboard.writeText(text);
+    this.telegram.haptic('selection');
+    this.copiedKey.set(key);
+    setTimeout(() => this.copiedKey.set(null), 2000);
   }
 
   copyJobLink(): void {

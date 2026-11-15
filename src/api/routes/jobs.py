@@ -1,12 +1,16 @@
 """Jobs discovery, search, filter, and detail endpoints."""
 
+import io
+import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select, and_, or_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db_session
+from src.engine.gemini_extractor import GeminiJobExtractor
 from src.models import (
     ApplicationStatus,
     GeographicEligibility,
@@ -17,7 +21,9 @@ from src.models import (
     SeniorityLevel,
     WorkplaceType,
 )
-from src.services.profile_service import apply_verified_cv_to_profile
+from src.services.expiry_detector import scan_and_mark_expired_jobs
+from src.services.profile_service import apply_verified_cv_to_profile, get_or_create_candidate_profile
+from src.services.resume_generator import generate_tailored_resume_pdf
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
 
@@ -174,6 +180,112 @@ async def get_job_detail(
         required_skills=j.required_skills or [],
         tracker_status=j.tracker.status if j.tracker else None,
     )
+
+
+@router.get("/{job_id}/tailored-resume")
+async def download_tailored_resume(
+    job_id: int,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """Download an ATS-optimized PDF resume tailored specifically to this job's tech stack."""
+    stmt = select(Job).where(Job.id == job_id)
+    res = await db.execute(stmt)
+    j = res.scalar_one_or_none()
+    if not j:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    profile = await get_or_create_candidate_profile(db)
+    pdf_bytes = generate_tailored_resume_pdf(profile, j)
+
+    clean_company = re.sub(r'[^a-zA-Z0-9_-]', '_', j.company)
+    filename = f"Resume_Abdelrahman_Emam_{clean_company}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+@router.post("/{job_id}/outreach", response_model=Dict[str, Any])
+async def generate_outreach_messages(
+    job_id: int,
+    db: AsyncSession = Depends(get_db_session),
+) -> Dict[str, Any]:
+    """Generate high-impact LinkedIn outreach note (<300 chars) and recruiter InMail/DM."""
+    stmt = select(Job).where(Job.id == job_id)
+    res = await db.execute(stmt)
+    j = res.scalar_one_or_none()
+    if not j:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    profile = await get_or_create_candidate_profile(db)
+    gemini = GeminiJobExtractor()
+    outreach = await gemini.generate_linkedin_outreach(
+        candidate_name=profile.full_name or "Abdelrahman Emam",
+        candidate_title=profile.priority_target or "Frontend Developer (Angular)",
+        skills=profile.confirmed_skills or [],
+        company=j.company,
+        job_title=j.title,
+        job_description=j.description_text or "",
+    )
+
+    return {
+        "status": "success",
+        "job_id": j.id,
+        "company": j.company,
+        "title": j.title,
+        "connection_note": outreach.get("connection_note", ""),
+        "inmail_dm": outreach.get("inmail_dm", ""),
+        "follow_up_note": outreach.get("follow_up_note", ""),
+    }
+
+
+@router.post("/{job_id}/cover-letter", response_model=Dict[str, Any])
+async def generate_cover_letter(
+    job_id: int,
+    db: AsyncSession = Depends(get_db_session),
+) -> Dict[str, Any]:
+    """Generate tailored AI cover letter for the specific job."""
+    stmt = select(Job).where(Job.id == job_id)
+    res = await db.execute(stmt)
+    j = res.scalar_one_or_none()
+    if not j:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    profile = await get_or_create_candidate_profile(db)
+    gemini = GeminiJobExtractor()
+    cover_letter = await gemini.generate_cover_letter(
+        candidate_name=profile.full_name or "Abdelrahman Emam",
+        candidate_title=profile.priority_target or "Frontend Developer (Angular)",
+        skills=profile.confirmed_skills or [],
+        projects=profile.projects or [],
+        company=j.company,
+        job_title=j.title,
+        job_description=j.description_text or "",
+    )
+
+    return {
+        "status": "success",
+        "job_id": j.id,
+        "cover_letter": cover_letter,
+    }
+
+
+@router.post("/verify-links", response_model=Dict[str, Any])
+async def verify_active_links(
+    limit: int = Query(30, ge=1, le=100),
+    db: AsyncSession = Depends(get_db_session),
+) -> Dict[str, Any]:
+    """Run the Expiry & Ghost Posting detector across active opportunities."""
+    metrics = await scan_and_mark_expired_jobs(db, limit=limit)
+    return {
+        "status": "success",
+        "metrics": metrics,
+    }
 
 
 @router.post("/wipe-and-reset", response_model=Dict[str, Any])

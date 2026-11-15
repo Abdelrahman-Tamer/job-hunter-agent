@@ -1,6 +1,7 @@
 """Typed asynchronous Telegram Bot API client."""
 
 import asyncio
+import json
 from typing import Any, Dict, List, Optional
 import httpx
 
@@ -138,6 +139,36 @@ class TelegramClient:
     async def set_my_commands(self, commands: List[Dict[str, str]]) -> Dict[str, Any]:
         """Register official command menu with Telegram Bot API."""
         return await self._request("POST", "setMyCommands", {"commands": commands})
+
+    async def send_document(
+        self,
+        chat_id: int,
+        document_bytes: bytes,
+        filename: str,
+        caption: Optional[str] = None,
+        parse_mode: str = "HTML",
+        reply_markup: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Send a document or binary file (e.g. Tailored PDF Resume) to a chat."""
+        if not self.is_configured:
+            logger.debug(f"Telegram client not configured; simulated sendDocument {filename}")
+            return {"ok": True, "result": {"message_id": 1}}
+
+        url = f"{self.base_url}/sendDocument"
+        data: Dict[str, Any] = {"chat_id": str(chat_id), "parse_mode": parse_mode}
+        if caption:
+            data["caption"] = caption
+        if reply_markup:
+            data["reply_markup"] = json.dumps(reply_markup)
+
+        files = {"document": (filename, document_bytes, "application/pdf")}
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            try:
+                resp = await client.post(url, data=data, files=files)
+                return resp.json()
+            except Exception as exc:
+                logger.error(f"Failed to send Telegram document {filename}: {exc}")
+                return {"ok": False, "description": str(exc)}
 
     async def get_me(self) -> Dict[str, Any]:
         """Fetch bot identity information from Telegram Bot API."""

@@ -1,8 +1,9 @@
 """Telegram Bot Dispatcher with crisp, executive English UX and zero-lag responsiveness."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import html
+import re
 from typing import Any, Dict, List, Optional
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -868,8 +869,14 @@ All previous listings have been purged.
         elif action == "applied":
             tracker.status = ApplicationStatus.APPLIED
             tracker.applied_at = datetime.now(timezone.utc)
+            tracker.follow_up_at = datetime.now(timezone.utc) + timedelta(days=5)
+            tracker.follow_up_sent = False
             await session.commit()
-            await self.client.answer_callback_query(query_id, text="🎉 Application logged successfully!")
+            followup_str = tracker.follow_up_at.strftime("%b %d")
+            await self.client.answer_callback_query(
+                query_id,
+                text=f"🎉 Application logged! ⏰ Follow-up reminder scheduled for {followup_str}.",
+            )
             if message_id:
                 markup = build_job_inline_keyboard(job, tracker_status="applied")
                 await self.client.edit_message_text(
@@ -878,6 +885,98 @@ All previous listings have been purged.
                     text=format_job_card(job),
                     reply_markup=markup,
                 )
+        elif action == "dm":
+            await self.client.answer_callback_query(query_id, text="💬 Generating LinkedIn recruiter messages...")
+            await self.client.send_chat_action(chat_id, "typing")
+
+            profile = await get_or_create_candidate_profile(session)
+            outreach = await self.gemini.generate_linkedin_outreach(
+                candidate_name=profile.full_name or "Abdelrahman Emam",
+                candidate_title=profile.priority_target or "Frontend Developer (Angular)",
+                skills=profile.confirmed_skills or [],
+                company=job.company,
+                job_title=job.title,
+                job_description=job.description_text or "",
+            )
+
+            conn_note = outreach.get("connection_note", "")
+            inmail_dm = outreach.get("inmail_dm", "")
+            char_count = len(conn_note)
+
+            msg = f"""💬 <b>LinkedIn Recruiter Outreach Pack</b>
+💼 <b>Role:</b> {escape(job.title)}
+🏢 <b>Company:</b> {escape(job.company)}
+─────────────────────────
+<b>1️⃣ Connection Request Note ({char_count}/300 chars):</b>
+<code>{escape(conn_note)}</code>
+<i>💡 Fits LinkedIn's 300-char invitation note limit!</i>
+
+<b>2️⃣ Recruiter InMail / Direct Message:</b>
+<code>{escape(inmail_dm)}</code>
+─────────────────────────
+💡 <i>Tap any code block above to copy instantly!</i>"""
+
+            dm_markup = {
+                "inline_keyboard": [
+                    [
+                        {"text": "🌐 Direct Job Link ↗", "url": job.original_application_url or job.source_url},
+                    ],
+                    [
+                        {"text": "✍️ AI Cover Letter", "callback_data": f"cover:{job.id}"},
+                        {"text": "📄 Tailored PDF", "callback_data": f"resume:{job.id}"},
+                    ],
+                    [
+                        {"text": "« Back to Main Menu", "callback_data": "menu:main"},
+                    ]
+                ]
+            }
+            await self.client.send_message(chat_id=chat_id, text=msg, reply_markup=dm_markup)
+        elif action == "resume":
+            await self.client.answer_callback_query(query_id, text="📄 Synthesizing tailored ATS PDF resume...")
+            await self.client.send_chat_action(chat_id, "upload_document")
+
+            profile = await get_or_create_candidate_profile(session)
+            from src.services.resume_generator import generate_tailored_resume_pdf
+            pdf_bytes = generate_tailored_resume_pdf(profile, job)
+
+            clean_company = re.sub(r'[^a-zA-Z0-9_-]', '_', job.company)
+            filename = f"Resume_Abdelrahman_Emam_{clean_company}.pdf"
+            caption = f"""📄 <b>Tailored ATS Resume</b>
+💼 <b>{escape(job.title)}</b> — <i>{escape(job.company)}</i>
+🎯 Core matching competencies highlighted for applicant tracking systems."""
+
+            await self.client.send_document(
+                chat_id=chat_id,
+                document_bytes=pdf_bytes,
+                filename=filename,
+                caption=caption,
+            )
+        elif action == "postpone":
+            tracker.follow_up_at = datetime.now(timezone.utc) + timedelta(days=3)
+            tracker.follow_up_sent = False
+            await session.commit()
+            new_date = tracker.follow_up_at.strftime("%b %d")
+            await self.client.answer_callback_query(
+                query_id,
+                text=f"⏰ Follow-up reminder postponed to {new_date}!",
+                show_alert=True,
+            )
+        elif action == "interview_status":
+            tracker.status = ApplicationStatus.INTERVIEW
+            await session.commit()
+            await self.client.answer_callback_query(
+                query_id,
+                text="🎉 Congratulations! Status updated to Interviewing.",
+                show_alert=True,
+            )
+        elif action == "rejected_status":
+            tracker.status = ApplicationStatus.REJECTED
+            await session.commit()
+            await self.client.answer_callback_query(
+                query_id,
+                text="Status updated to Rejected.",
+                show_alert=False,
+            )
         elif action == "undo_dismiss":
             tracker.status = ApplicationStatus.NEW
             await session.commit()

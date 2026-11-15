@@ -30,6 +30,8 @@ from src.models import (
     SourceSyncLog,
     WorkplaceType,
 )
+from src.services.expiry_detector import scan_and_mark_expired_jobs
+from src.services.followup_service import check_and_send_followup_reminders
 from src.services.profile_service import get_or_create_candidate_profile
 from src.sources.base import BaseSourceAdapter, NormalizedJobData, RawJobData
 from src.sources.registry import SourceRegistry, create_default_registry
@@ -356,6 +358,15 @@ class DailyPipelineRunner:
                 "duration_seconds": duration,
             }
 
+        # -------------------------------------------------------------
+        # Step 7.5: Cull expired and ghost postings across active feed
+        # -------------------------------------------------------------
+        try:
+            exp_metrics = await scan_and_mark_expired_jobs(session, limit=30)
+            metrics["expiry_scan"] = exp_metrics
+        except Exception as exp_exc:
+            logger.warning(f"Background link expiry scan skipped: {exp_exc}")
+
         if progress_callback:
             await progress_callback("🧠 Ranking matches and assembling digest...", 90)
 
@@ -364,12 +375,13 @@ class DailyPipelineRunner:
         # -------------------------------------------------------------
         notified_count = 0
         if recipient_chat_id and profile.digest_enabled:
-            # Query un-notified jobs
+            # Query un-notified jobs (active and not expired)
             stmt_unnotified = (
                 select(Job)
                 .outerjoin(NotificationLog, Job.id == NotificationLog.job_id)
                 .where(
                     Job.is_active == True,
+                    Job.is_expired == False,
                     Job.match_score >= profile.digest_threshold,
                     NotificationLog.id == None,
                 )
@@ -479,6 +491,20 @@ Discovered <b>{total_digest_jobs}</b> new verified opportunities tailored to you
                     )
 
                 notified_count = total_digest_jobs
+
+        # -------------------------------------------------------------
+        # Step 10.5: Dispatch 5-day post-application follow-up reminders
+        # -------------------------------------------------------------
+        try:
+            reminders_sent = await check_and_send_followup_reminders(
+                session=session,
+                telegram=self.telegram,
+                gemini=self.gemini,
+                target_chat_id=recipient_chat_id,
+            )
+            metrics["followup_reminders_sent"] = reminders_sent
+        except Exception as f_exc:
+            logger.warning(f"Follow-up reminder dispatch skipped: {f_exc}")
 
         # -------------------------------------------------------------
         # Step 11: Record run metrics, counts, and completion

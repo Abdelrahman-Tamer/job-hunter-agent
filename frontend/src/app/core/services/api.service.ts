@@ -94,10 +94,43 @@ export class ApiService {
     return this.http.get<TrackedJobItem[]>(`${this.baseUrl}/api/v1/tracker`, { params });
   }
 
-  updateJobStatus(jobId: number, newStatus: ApplicationStatus): Observable<{ status: string }> {
-    return this.http.put<{ status: string }>(`${this.baseUrl}/api/v1/tracker/${jobId}/status`, {
-      status: newStatus,
-    });
+  updateJobStatus(
+    jobId: number,
+    newStatus: ApplicationStatus,
+    followUpAt?: string
+  ): Observable<{ status: string }> {
+    const payload: any = { status: newStatus };
+    if (followUpAt) {
+      payload.follow_up_at = followUpAt;
+    }
+    return this.http.put<{ status: string }>(
+      `${this.baseUrl}/api/v1/tracker/${jobId}/status`,
+      payload
+    );
+  }
+
+  getTailoredResumeUrl(jobId: number): string {
+    return `${this.baseUrl}/api/v1/jobs/${jobId}/tailored-resume`;
+  }
+
+  getOutreachMessages(jobId: number): Observable<{
+    status: string;
+    job_id: number;
+    company: string;
+    title: string;
+    connection_note: string;
+    inmail_dm: string;
+    follow_up_note: string;
+  }> {
+    return this.http.post<any>(`${this.baseUrl}/api/v1/jobs/${jobId}/outreach`, {});
+  }
+
+  getCoverLetter(jobId: number): Observable<{ status: string; job_id: number; cover_letter: string }> {
+    return this.http.post<any>(`${this.baseUrl}/api/v1/jobs/${jobId}/cover-letter`, {});
+  }
+
+  verifyActiveLinks(): Observable<{ status: string; metrics: any }> {
+    return this.http.post<any>(`${this.baseUrl}/api/v1/jobs/verify-links`, {});
   }
 
   getSources(): Observable<SourceInfo[]> {

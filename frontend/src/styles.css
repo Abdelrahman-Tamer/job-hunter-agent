@@ -9,17 +9,24 @@
   padding: 0;
 }
 
-html, body {
-  width: 100%;
-  height: 100%;
-  height: 100dvh;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  overscroll-behavior: none;
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  min-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
 }
 
 body {
+  width: 100%;
+  min-height: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: visible;
+  overscroll-behavior-y: contain;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--color-bg-canvas);
@@ -27,6 +34,8 @@ body {
   font-family: var(--font-sans);
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-direction: column;
   transition: background-color var(--motion-base), color var(--motion-base);
 }
 
@@ -36,13 +45,13 @@ body {
   color: var(--selection-color);
 }
 
-/* Accessible Focus States */
+/* Accessible Architectural Focus States */
 :focus-visible {
   outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 
-/* Typography Helpers */
+/* Typography Hierarchy */
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-text-primary);
   font-weight: 700;
@@ -52,7 +61,7 @@ h1, h2, h3, h4, h5, h6 {
 
 p {
   color: var(--color-text-secondary);
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 a {
@@ -61,16 +70,16 @@ a {
 }
 
 /* =========================================================================
-   Component Primitives: Buttons
+   Component Primitives: Buttons (Subtle, tactile, non-jumpy)
    ========================================================================= */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding: 8px 16px;
+  padding: 7px 14px;
   font-family: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 600;
   line-height: 1;
   border-radius: var(--radius-md);
@@ -78,48 +87,43 @@ a {
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
-  transition: all var(--motion-fast);
+  transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast), box-shadow var(--motion-fast), opacity var(--motion-fast);
 }
 
 .btn:active {
-  transform: scale(0.97);
+  transform: scale(0.985);
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   pointer-events: none;
-  transform: none;
 }
 
 .btn-primary {
-  background: var(--color-brand-gradient);
+  background-color: var(--color-brand-primary);
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 .btn-primary:hover {
-  background: var(--color-brand-primary-hover);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
+  background-color: var(--color-brand-primary-hover);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 .btn-primary:active {
   background-color: var(--color-brand-primary-active);
-  transform: scale(0.98);
 }
 
 .btn-secondary {
-  background-color: var(--color-bg-surface-elevated-glass);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background-color: var(--color-bg-surface-elevated);
   color: var(--color-text-primary);
   border: 1px solid var(--color-border-default);
   box-shadow: var(--shadow-xs);
 }
 .btn-secondary:hover {
   border-color: var(--color-border-hover);
-  background-color: var(--color-bg-surface-muted);
-  transform: translateY(-1px);
+  background-color: var(--color-bg-surface-hover);
 }
 
 .btn-outline {
@@ -130,7 +134,7 @@ a {
 .btn-outline:hover {
   color: var(--color-text-primary);
   border-color: var(--color-border-hover);
-  background-color: var(--color-bg-surface-elevated-glass);
+  background-color: var(--color-bg-surface-hover);
 }
 
 .btn-ghost {
@@ -140,7 +144,7 @@ a {
 }
 .btn-ghost:hover {
   color: var(--color-text-primary);
-  background-color: var(--color-bg-surface-elevated-glass);
+  background-color: var(--color-bg-surface-hover);
 }
 
 .btn-danger {
@@ -149,51 +153,52 @@ a {
   border: 1px solid var(--color-error-border);
 }
 .btn-danger:hover {
-  background-color: rgba(239, 68, 68, 0.22);
+  background-color: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 .btn-sm {
-  padding: 6px 12px;
-  font-size: var(--text-xs);
+  padding: 5px 10px;
+  font-size: var(--text-2xs);
   border-radius: var(--radius-sm);
 }
 
 .btn-lg {
-  padding: 12px 22px;
-  font-size: var(--text-base);
+  padding: 10px 18px;
+  font-size: var(--text-sm);
 }
 
 .btn-icon {
-  padding: 8px;
+  padding: 6px;
   border-radius: var(--radius-md);
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .btn-icon-sm {
-  padding: 6px;
-  width: 30px;
-  height: 30px;
+  padding: 4px;
+  width: 26px;
+  height: 26px;
 }
 
 /* =========================================================================
-   Form Controls: Input & Select
+   Form Controls: Input & Select (Clean architectural geometry)
    ========================================================================= */
 .form-input,
 .form-select,
 .form-textarea {
   width: 100%;
-  padding: 8px 12px;
+  padding: 7px 11px;
   font-family: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--color-text-primary);
   background-color: var(--color-bg-surface-muted);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
-  transition: border-color var(--motion-fast), box-shadow var(--motion-fast), background-color var(--motion-base);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 
 .form-input:focus,
@@ -201,7 +206,7 @@ a {
 .form-textarea:focus {
   outline: none;
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25), inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 0 1px var(--color-border-focus);
 }
 
 .form-input::placeholder,
@@ -211,27 +216,27 @@ a {
 
 .form-select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 32px;
+  background-position: right 8px center;
+  padding-right: 28px;
   cursor: pointer;
 }
 
 /* =========================================================================
-   Badges, Chips & Tags
+   Badges, Chips & Tags (Architectural & Compact, No Giant Bubbly Pills)
    ========================================================================= */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 4.5px;
-  padding: 3px 9px;
+  gap: 4px;
+  padding: 2.5px 7px;
   font-size: var(--text-2xs);
   font-weight: 600;
-  line-height: 1.4;
-  border-radius: var(--radius-pill);
+  line-height: 1.35;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border-default);
-  background-color: var(--color-bg-surface-elevated-glass);
+  background-color: var(--color-bg-surface-elevated);
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
@@ -256,33 +261,33 @@ a {
 
 /* Company Initials Avatar */
 .company-avatar {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: var(--text-xs);
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.22) 0%, rgba(96, 165, 250, 0.12) 100%);
-  border: 1px solid var(--color-brand-border);
+  font-size: var(--text-2xs);
+  background-color: var(--color-bg-surface-elevated);
+  border: 1px solid var(--color-border-default);
   color: var(--color-brand-accent);
   flex-shrink: 0;
   text-transform: uppercase;
 }
 
 /* =========================================================================
-   Cards & Panels (Glassmorphic Depth for Antigravity Canvas)
+   Cards & Panels (Silky lighting hover, NO jumping transforms)
    ========================================================================= */
 .card, .panel {
   background-color: var(--color-bg-surface-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border-default);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  padding: var(--space-4);
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+  transition: border-color var(--motion-fast), background-color var(--motion-fast);
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
@@ -290,7 +295,7 @@ a {
 
 @media (max-width: 768px) {
   .card, .panel {
-    padding: var(--space-3-5, 14px);
+    padding: var(--space-3);
   }
 }
 
@@ -299,7 +304,7 @@ a {
 }
 
 /* =========================================================================
-   Skeleton Loading Animation (Zero Layout Shift)
+   Skeleton Loading Animation
    ========================================================================= */
 .skeleton {
   background: linear-gradient(
@@ -310,7 +315,7 @@ a {
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
 
 @keyframes shimmer {
@@ -320,15 +325,15 @@ a {
 
 /* Minimal Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border-default);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-hover);

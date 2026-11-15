@@ -72,6 +72,9 @@ class Job(Base):
     first_seen_at = Column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
     last_seen_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
+    is_expired = Column(Boolean, default=False, nullable=False, index=True)
+    last_verified_at = Column(DateTime(timezone=True), nullable=True)
+    expiry_reason = Column(String(255), nullable=True)
 
     # Classification & Deterministic Scoring
     eligibility = Column(
