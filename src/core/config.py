@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     SECRET_KEY: str = "insecure-default-key-for-dev-only-change-in-production"
+    FRONTEND_ORIGIN: str = "https://bottajobs.onrender.com"
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/job_hunter.db"
@@ -68,7 +69,9 @@ class Settings(BaseSettings):
     )
     RSS_JOB_FEEDS: List[str] = Field(
         default_factory=lambda: [
-            "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss"
+            "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",
+            "https://weworkremotely.com/categories/remote-customer-support-jobs.rss",
+            "https://weworkremotely.com/categories/remote-programming-jobs.rss",
         ]
     )
 

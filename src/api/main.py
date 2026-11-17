@@ -66,9 +66,18 @@ def create_app() -> FastAPI:
     )
 
     # CORS configuration for Angular frontend
+    allowed_origins = [
+        "http://localhost:4200",
+        "http://localhost:8000",
+        "http://127.0.0.1:4200",
+        "http://127.0.0.1:8000",
+    ]
+    if settings.FRONTEND_ORIGIN:
+        allowed_origins.append(settings.FRONTEND_ORIGIN.rstrip("/"))
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Adjust for production domains
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

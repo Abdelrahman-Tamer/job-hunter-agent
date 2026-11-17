@@ -56,6 +56,11 @@ class GeminiJobExtractor:
 
     _quota_exhausted: bool = False
 
+    @classmethod
+    def reset_quota_status(cls) -> None:
+        """Reset the quota exhaustion circuit breaker for a new run cycle."""
+        cls._quota_exhausted = False
+
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
         self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
         self.model_name = model_name or settings.GEMINI_MODEL
@@ -131,10 +136,12 @@ Title: {title}
 
         except Exception as exc:
             err_msg = str(exc).lower()
-            if isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg:
+            if "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg:
                 GeminiJobExtractor._quota_exhausted = True
                 self._quota_exhausted = True
-                logger.warning("Gemini API daily quota reached or timed out (429/timeout). Fast-switching extraction to local heuristics.")
+                logger.warning("Gemini API daily quota reached (429/resource_exhausted). Switching extraction to local heuristics.")
+            elif isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+                logger.warning(f"Gemini extraction timed out ({company} - {title}). Skipping AI for this job.")
             else:
                 logger.warning(f"Gemini extraction failed ({company} - {title}): {exc}. Falling back to heuristics.")
             return ExtractedJobAttributes(needs_review=True)

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from src.models.enums import (
     EmploymentType,
     GeographicEligibility,
+    JobTrack,
     MatchBand,
     SeniorityLevel,
     WorkplaceType,
@@ -61,6 +62,16 @@ def format_eligibility_badge(eligibility: GeographicEligibility) -> str:
     return badges.get(eligibility, "❓ Unknown")
 
 
+def format_track_badge(track: Optional[JobTrack]) -> str:
+    badges = {
+        JobTrack.WEB_ANGULAR: "🌐 Web & Angular Frontend",
+        JobTrack.NO_EXP_REMOTE: "💼 Remote Without Experience (Data Entry / Support)",
+        JobTrack.SOFTWARE_INTERN: "🎓 Software & AI Internship",
+        JobTrack.OTHER: "📌 General Opportunity",
+    }
+    return badges.get(track, "📌 Opportunity")
+
+
 def make_progress_bar(value: float, max_val: float = 100.0, length: int = 10) -> str:
     """Render a clean UTF-8 progress bar."""
     if max_val <= 0:
@@ -102,6 +113,9 @@ def format_job_card(job: Job) -> str:
 
     bar = make_progress_bar(score, 100.0, 10)
     lines.append(f"🎯 Match Score: <b>{score:.1f}%</b> <code>[{bar}]</code>\n    {tier_badge}")
+    track_val = getattr(job, "job_track", None)
+    if track_val:
+        lines.append(f"🏷️ Track: <b>{format_track_badge(track_val)}</b>")
     lines.append(f"📍 Eligibility: <b>{format_eligibility_badge(job.eligibility)}</b>")
 
     loc_display = escape(job.raw_location or job.remote_scope or "Remote")
@@ -234,6 +248,11 @@ def build_persistent_reply_keyboard() -> Dict[str, Any]:
                 {"text": "📋 Today's Jobs"},
             ],
             [
+                {"text": "🌐 Web & Angular"},
+                {"text": "💼 No-Exp Remote"},
+                {"text": "🎓 Software Interns"},
+            ],
+            [
                 {"text": "🔍 Smart Filters"},
                 {"text": "👤 My Profile / CV"},
             ],
@@ -252,11 +271,15 @@ def build_persistent_reply_keyboard() -> Dict[str, Any]:
 
 
 def build_quick_filters_keyboard() -> Dict[str, Any]:
-    """Interactive filter options for targeted discovery."""
+    """Interactive filter options for targeted discovery across tracks."""
     return {
         "inline_keyboard": [
             [
-                {"text": "🅰️ Angular & Frontend", "callback_data": "filter:angular"},
+                {"text": "🌐 Web & Angular", "callback_data": "filter:track_web"},
+                {"text": "💼 No-Exp Remote", "callback_data": "filter:track_remote"},
+            ],
+            [
+                {"text": "🎓 Software & AI Interns", "callback_data": "filter:track_intern"},
                 {"text": "⭐ Top Matches (≥ 75%)", "callback_data": "filter:top"},
             ],
             [
@@ -265,10 +288,9 @@ def build_quick_filters_keyboard() -> Dict[str, Any]:
             ],
             [
                 {"text": "⚡ Junior / Entry Level", "callback_data": "filter:junior"},
-                {"text": "🛠️ Core CV Skills (TS/RxJS)", "callback_data": "filter:cv_skills"},
+                {"text": "💵 Disclosed Salary", "callback_data": "filter:salary"},
             ],
             [
-                {"text": "💵 Disclosed Salary", "callback_data": "filter:salary"},
                 {"text": "« Back to Main Menu", "callback_data": "menu:main"},
             ],
         ]

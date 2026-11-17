@@ -1,7 +1,9 @@
 """Unit tests for Telegram bot formatting, authorization, and handlers."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
+import httpx
 import pytest
 from src.bot.formatters import (
     chunk_message,
@@ -232,3 +234,116 @@ async def test_persistent_keyboard_and_natural_search(db_session):
     }
     await dispatcher.handle_update(nl_update, db_session)
     mock_client.send_message.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_unsave_and_undo_dismiss_status(db_session):
+    """Verify toggling save off and undo dismiss set status to DISCOVERED without crash."""
+    mock_client = AsyncMock()
+    dispatcher = TelegramBotDispatcher(telegram_client=mock_client)
+    dispatcher.owner_id = 123456
+
+    source = Source(
+        name="test_src_toggle",
+        source_type="himalayas",
+        base_url="https://himalayas.app",
+        doc_url="https://himalayas.app",
+        is_enabled=True,
+        attribution_text="Himalayas",
+    )
+    db_session.add(source)
+    await db_session.commit()
+    await db_session.refresh(source)
+
+    job = Job(
+        source_id=source.id,
+        source_name="test_src_toggle",
+        source_job_id="test-toggle-1",
+        source_url="https://example.com/job/toggle-1",
+        canonical_url_hash="hash_toggle_1",
+        original_application_url="https://example.com/job/toggle-1",
+        company="ToggleTech",
+        title="Frontend Specialist",
+        description_text="Angular role",
+        match_score=80.0,
+    )
+    db_session.add(job)
+    await db_session.commit()
+    await db_session.refresh(job)
+
+    # 1. Save job
+    await dispatcher.handle_update({
+        "callback_query": {
+            "id": "cb_save",
+            "from": {"id": 123456},
+            "message": {"chat": {"id": 123456}},
+            "data": f"save:{job.id}",
+        }
+    }, db_session)
+    await db_session.refresh(job, ["tracker"])
+    assert job.tracker.status == ApplicationStatus.SAVED
+
+    # 2. Toggle save off -> must return to DISCOVERED (not crash with AttributeError)
+    await dispatcher.handle_update({
+        "callback_query": {
+            "id": "cb_unsave",
+            "from": {"id": 123456},
+            "message": {"chat": {"id": 123456}},
+            "data": f"save:{job.id}",
+        }
+    }, db_session)
+    await db_session.refresh(job, ["tracker"])
+    assert job.tracker.status == ApplicationStatus.DISCOVERED
+
+    # 3. Dismiss job
+    await dispatcher.handle_update({
+        "callback_query": {
+            "id": "cb_dismiss",
+            "from": {"id": 123456},
+            "message": {"chat": {"id": 123456}},
+            "data": f"dismiss:{job.id}",
+        }
+    }, db_session)
+    await db_session.refresh(job, ["tracker"])
+    assert job.tracker.status == ApplicationStatus.NOT_RELEVANT
+
+    # 4. Undo dismiss -> must return to DISCOVERED (not crash)
+    await dispatcher.handle_update({
+        "callback_query": {
+            "id": "cb_undo",
+            "from": {"id": 123456},
+            "message": {"chat": {"id": 123456}},
+            "data": f"undo_dismiss:{job.id}",
+        }
+    }, db_session)
+    await db_session.refresh(job, ["tracker"])
+    assert job.tracker.status == ApplicationStatus.DISCOVERED
+
+
+@pytest.mark.asyncio
+async def test_telegram_client_retry_retries_three_times(monkeypatch):
+    """Verify that TelegramClient._request retries on transient network errors."""
+    from src.bot.telegram_client import TelegramClient
+    client = TelegramClient(token="987654321:ABCDefghIJKlmnoPQRstuvWXyz_fake")
+    assert client.is_configured is True
+
+    # Speed up retry sleep for test
+    async def fast_sleep(_):
+        return None
+
+    monkeypatch.setattr("asyncio.sleep", fast_sleep)
+
+    attempts_made = 0
+
+    class FailingClient:
+        is_closed = False
+
+        async def post(self, url, json=None):
+            nonlocal attempts_made
+            attempts_made += 1
+            raise httpx.ConnectError("Simulated socket failure")
+
+    client._client = FailingClient()
+    res = await client._request("POST", "sendMessage", {"chat_id": 123, "text": "hi"})
+    assert res["ok"] is False
+    assert attempts_made == 3  # Successfully retried all 3 attempts!

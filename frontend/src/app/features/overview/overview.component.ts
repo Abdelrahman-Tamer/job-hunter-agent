@@ -59,6 +59,112 @@ import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../..
         </div>
       </section>
 
+      <!-- 3 Autonomous Job Tracks Focus Hub -->
+      <section class="tracks-hub-section" aria-label="Autonomous target job tracks">
+        <div class="tracks-hub-header">
+          <div class="tracks-hub-title-group">
+            <span class="hub-eyebrow">Categorized Opportunities</span>
+            <h2 class="tracks-hub-title">Job Search Tracks</h2>
+          </div>
+          <span class="tracks-hub-subtitle">3 dedicated pipelines active in daily Cairo 09:00 sweep</span>
+        </div>
+
+        <div class="tracks-hub-grid">
+          <!-- Track 1: Web & Angular -->
+          <a
+            routerLink="/jobs"
+            [queryParams]="{ track: 'WEB_ANGULAR' }"
+            (click)="onTrackCardClick()"
+            class="track-hub-card track-card-web"
+            tabindex="0"
+            role="article"
+            aria-label="Explore Web and Angular track"
+          >
+            <div class="track-card-top">
+              <div class="track-icon-badge web-badge">
+                <span class="track-emoji">🌐</span>
+              </div>
+              <span class="track-count-pill">{{ countWeb() }} Roles</span>
+            </div>
+            <div class="track-card-content">
+              <div class="track-title-row">
+                <h3 class="track-name">Web & Angular</h3>
+                <span class="track-tag-mini">Track 1</span>
+              </div>
+              <p class="track-desc">Angular 17-22+, TypeScript, RxJS, NgRx, Frontend Engineering & UI.</p>
+            </div>
+            <div class="track-card-footer">
+              <span class="track-action-link">
+                <span>Explore Track</span>
+                <app-icon name="arrow-right" [size]="12"></app-icon>
+              </span>
+            </div>
+          </a>
+
+          <!-- Track 2: No-Exp Remote -->
+          <a
+            routerLink="/jobs"
+            [queryParams]="{ track: 'NO_EXP_REMOTE' }"
+            (click)="onTrackCardClick()"
+            class="track-hub-card track-card-remote"
+            tabindex="0"
+            role="article"
+            aria-label="Explore No Experience Remote track"
+          >
+            <div class="track-card-top">
+              <div class="track-icon-badge remote-badge">
+                <span class="track-emoji">💼</span>
+              </div>
+              <span class="track-count-pill">{{ countRemote() }} Roles</span>
+            </div>
+            <div class="track-card-content">
+              <div class="track-title-row">
+                <h3 class="track-name">No-Exp Remote</h3>
+                <span class="track-tag-mini">Track 2</span>
+              </div>
+              <p class="track-desc">Entry remote work: Data Entry, Call Center, Virtual Assistant & Customer Support.</p>
+            </div>
+            <div class="track-card-footer">
+              <span class="track-action-link">
+                <span>Explore Track</span>
+                <app-icon name="arrow-right" [size]="12"></app-icon>
+              </span>
+            </div>
+          </a>
+
+          <!-- Track 3: Software Internships -->
+          <a
+            routerLink="/jobs"
+            [queryParams]="{ track: 'SOFTWARE_INTERN' }"
+            (click)="onTrackCardClick()"
+            class="track-hub-card track-card-intern"
+            tabindex="0"
+            role="article"
+            aria-label="Explore Software Internships track"
+          >
+            <div class="track-card-top">
+              <div class="track-icon-badge intern-badge">
+                <span class="track-emoji">🎓</span>
+              </div>
+              <span class="track-count-pill">{{ countIntern() }} Roles</span>
+            </div>
+            <div class="track-card-content">
+              <div class="track-title-row">
+                <h3 class="track-name">Software Interns</h3>
+                <span class="track-tag-mini">Track 3</span>
+              </div>
+              <p class="track-desc">Internships across the entire stack: Frontend, Backend, Fullstack, AI & Machine Learning.</p>
+            </div>
+            <div class="track-card-footer">
+              <span class="track-action-link">
+                <span>Explore Track</span>
+                <app-icon name="arrow-right" [size]="12"></app-icon>
+              </span>
+            </div>
+          </a>
+        </div>
+      </section>
+
       <!-- Main Content Grid -->
       <div class="overview-grid">
         <!-- Left: Top Curated Opportunities -->
@@ -105,6 +211,10 @@ import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../..
                   <div class="match-meta-line">
                     <span class="company-name-text">{{ job.company }}</span>
                     <span class="meta-dot">·</span>
+                    <span class="badge badge-purple" *ngIf="job.job_track === 'WEB_ANGULAR'">🌐 Web & Angular</span>
+                    <span class="badge badge-amber" *ngIf="job.job_track === 'NO_EXP_REMOTE'">💼 No-Exp Remote</span>
+                    <span class="badge badge-cyan" *ngIf="job.job_track === 'SOFTWARE_INTERN'">🎓 Software Intern</span>
+                    <span class="meta-dot" *ngIf="job.job_track">·</span>
                     <span class="meta-spec">
                       <app-icon name="map-pin" [size]="10"></app-icon>
                       {{ job.raw_location || 'Remote Worldwide' }}
@@ -171,19 +281,19 @@ import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../..
 
             <div class="ledger-bullets">
               <div class="bullet-row">
-                <span class="bullet-label">Focus:</span>
-                <span class="bullet-val">Frontend & Angular Specialist</span>
+                <span class="bullet-label">Track 1:</span>
+                <span class="bullet-val">Web & Angular Frontend</span>
               </div>
               <div class="bullet-row">
-                <span class="bullet-label">Geography:</span>
-                <span class="bullet-val">Egypt & Remote Worldwide</span>
+                <span class="bullet-label">Track 2:</span>
+                <span class="bullet-val">No-Exp Remote (Data, Support)</span>
               </div>
               <div class="bullet-row">
-                <span class="bullet-label">Min Score:</span>
-                <span class="bullet-val">70% Digest Threshold</span>
+                <span class="bullet-label">Track 3:</span>
+                <span class="bullet-val">Software Interns (Frontend-AI)</span>
               </div>
               <div class="bullet-row">
-                <span class="bullet-label">Automation:</span>
+                <span class="bullet-label">Cadence:</span>
                 <span class="bullet-val">Daily 09:00 Cairo Telegram</span>
               </div>
             </div>
@@ -221,6 +331,190 @@ import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../..
       justify-content: space-between;
       gap: var(--space-4);
       flex-wrap: wrap;
+    }
+
+    /* Tracks Focus Hub */
+    .tracks-hub-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      width: 100%;
+    }
+
+    .tracks-hub-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .tracks-hub-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .hub-eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-brand-accent);
+      font-family: var(--font-mono);
+    }
+
+    .tracks-hub-title {
+      font-size: var(--text-base);
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin: 0;
+    }
+
+    .tracks-hub-subtitle {
+      font-size: 11px;
+      color: var(--color-text-muted);
+    }
+
+    .tracks-hub-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-3);
+      width: 100%;
+    }
+
+    .track-hub-card {
+      background: var(--color-bg-surface-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: var(--space-3);
+      text-decoration: none;
+      color: inherit;
+      transition: all var(--motion-fast);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .track-hub-card:hover {
+      border-color: var(--color-border-hover);
+      background: var(--color-bg-surface-hover);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .track-hub-card:active {
+      transform: scale(0.99);
+    }
+
+    .track-card-web {
+      border-top: 3px solid #60a5fa;
+    }
+    .track-card-remote {
+      border-top: 3px solid #34d399;
+    }
+    .track-card-intern {
+      border-top: 3px solid #c084fc;
+    }
+
+    .track-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+
+    .track-icon-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-md);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .web-badge {
+      background: rgba(37, 99, 235, 0.12);
+      border: 1px solid rgba(37, 99, 235, 0.3);
+    }
+    .remote-badge {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .intern-badge {
+      background: rgba(168, 85, 247, 0.12);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    .track-count-pill {
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: var(--radius-xs);
+      background: var(--color-bg-surface-elevated);
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-primary);
+    }
+
+    .track-card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .track-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .track-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin: 0;
+    }
+
+    .track-tag-mini {
+      font-size: 9.5px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: var(--color-bg-surface-elevated);
+      color: var(--color-text-muted);
+    }
+
+    .track-desc {
+      font-size: 11.5px;
+      color: var(--color-text-secondary);
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .track-card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--color-border-subtle);
+    }
+
+    .track-action-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--color-brand-accent);
     }
 
     .strip-left {
@@ -286,7 +580,10 @@ import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../..
       flex-shrink: 0;
     }
     .sweep-trigger-btn {
-      font-size: 11px;
+      min-height: 36px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
     }
 
     /* Main Grid */
@@ -579,6 +876,55 @@ import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../..
       .strip-metrics {
         justify-content: space-between;
       }
+      .tracks-hub-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .strip-left {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .strip-divider {
+        display: none;
+      }
+      .strip-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        width: 100%;
+      }
+      .match-row-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .match-actions {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+      }
+      .match-actions .btn {
+        flex: 1;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .tracks-hub-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .telemetry-strip {
+        padding: 8px 10px;
+      }
+      .mini-metric-num {
+        font-size: 13px;
+      }
+      .strip-right .sweep-trigger-btn {
+        width: 100%;
+      }
     }
   `],
 })
@@ -590,6 +936,9 @@ export class OverviewComponent implements OnInit {
   readonly totalJobs = signal<number>(0);
   readonly savedCount = signal<number>(0);
   readonly appliedCount = signal<number>(0);
+  readonly countWeb = signal<number>(0);
+  readonly countRemote = signal<number>(0);
+  readonly countIntern = signal<number>(0);
   readonly topJobs = signal<JobSummary[]>([]);
   readonly sources = signal<SourceInfo[]>([]);
   readonly lastRun = signal<DailyRunRecord | null>(null);
@@ -603,6 +952,10 @@ export class OverviewComponent implements OnInit {
     this.loadOverviewData();
   }
 
+  onTrackCardClick(): void {
+    this.telegram.haptic('selection');
+  }
+
   loadOverviewData(): void {
     this.api.getJobs({ limit: 8, sort_by: 'match_score' }).subscribe({
       next: (res) => {
@@ -610,6 +963,21 @@ export class OverviewComponent implements OnInit {
         this.topJobs.set(res.items);
       },
       error: (e) => console.error('Failed to load top jobs', e),
+    });
+
+    this.api.getJobs({ track: 'WEB_ANGULAR', limit: 1 }).subscribe({
+      next: (res) => this.countWeb.set(res.total),
+      error: () => {},
+    });
+
+    this.api.getJobs({ track: 'NO_EXP_REMOTE', limit: 1 }).subscribe({
+      next: (res) => this.countRemote.set(res.total),
+      error: () => {},
+    });
+
+    this.api.getJobs({ track: 'SOFTWARE_INTERN', limit: 1 }).subscribe({
+      next: (res) => this.countIntern.set(res.total),
+      error: () => {},
     });
 
     this.api.getTrackedJobs().subscribe({

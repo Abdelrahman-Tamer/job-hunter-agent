@@ -42,9 +42,13 @@ class JobSchedulerService:
         cairo_tz = zoneinfo.ZoneInfo(self.timezone_name)
         now_cairo = datetime.now(cairo_tz)
 
-        # Check if current time is past 09:00
-        if now_cairo.hour >= 9:
-            logger.info("Current time is past 09:00 Africa/Cairo. Checking for missed morning run...")
+        parts = settings.DAILY_DIGEST_TIME.split(":")
+        digest_hour = int(parts[0]) if len(parts) > 0 else 9
+        digest_minute = int(parts[1]) if len(parts) > 1 else 0
+
+        # Check if current time is past the scheduled daily digest time
+        if (now_cairo.hour, now_cairo.minute) >= (digest_hour, digest_minute):
+            logger.info(f"Current time is past {digest_hour:02d}:{digest_minute:02d} Africa/Cairo. Checking for missed morning run...")
             await self.run_daily_job(force=False)
 
     def start(self) -> None:

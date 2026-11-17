@@ -14,7 +14,7 @@ services:
       - key: TELEGRAM_POLLING
         value: "true"
       - key: DATABASE_URL
-        value: postgresql://bottajobs_app.wtdqqvutxpjlxwixlpvp:BottaJobs2026Pass99!@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
+        sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_OWNER_ID

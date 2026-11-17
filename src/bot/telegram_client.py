@@ -17,6 +17,24 @@ class TelegramClient:
     def __init__(self, token: Optional[str] = None):
         self.token = token or settings.TELEGRAM_BOT_TOKEN
         self.base_url = f"{self.API_BASE}{self.token}" if self.token else ""
+        self._client: Optional[httpx.AsyncClient] = None
+
+    async def get_client(self) -> httpx.AsyncClient:
+        """Reuse persistent HTTP client session across requests."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=30.0)
+        return self._client
+
+    async def close(self) -> None:
+        """Close persistent HTTP client session."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+
+    async def __aenter__(self) -> "TelegramClient":
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        await self.close()
 
     @property
     def is_configured(self) -> bool:
@@ -34,29 +52,29 @@ class TelegramClient:
             return {"ok": True, "result": {"message_id": 1}}
 
         url = f"{self.base_url}/{endpoint}"
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for attempt in range(1, 4):
-                try:
-                    if method.upper() == "POST":
-                        resp = await client.post(url, json=payload)
-                    else:
-                        resp = await client.get(url, params=payload)
+        client = await self.get_client()
+        for attempt in range(1, 4):
+            try:
+                if method.upper() == "POST":
+                    resp = await client.post(url, json=payload)
+                else:
+                    resp = await client.get(url, params=payload)
 
-                    if resp.status_code == 429:
-                        retry_after = float(resp.json().get("parameters", {}).get("retry_after", 3.0))
-                        logger.warning(f"Telegram 429 rate limit. Waiting {retry_after}s...")
-                        await asyncio.sleep(retry_after)
-                        continue
+                if resp.status_code == 429:
+                    retry_after = float(resp.json().get("parameters", {}).get("retry_after", 3.0))
+                    logger.warning(f"Telegram 429 rate limit. Waiting {retry_after}s...")
+                    await asyncio.sleep(retry_after)
+                    continue
 
-                    data = resp.json()
-                    if not data.get("ok"):
-                        logger.error(f"Telegram API error ({endpoint}): {data.get('description')}")
-                    return data
-                except Exception as exc:
-                    logger.warning(f"Telegram request failed (attempt {attempt}/3): {exc}")
-                    await asyncio.sleep(1.0 * attempt)
+                data = resp.json()
+                if not data.get("ok"):
+                    logger.error(f"Telegram API error ({endpoint}): {data.get('description')}")
+                return data
+            except Exception as exc:
+                logger.warning(f"Telegram request failed (attempt {attempt}/3): {exc}")
+                await asyncio.sleep(1.0 * attempt)
 
-            return {"ok": False, "description": "Request failed after 3 attempts"}
+        return {"ok": False, "description": "Request failed after 3 attempts"}
 
     async def send_message(
         self,
@@ -162,13 +180,13 @@ class TelegramClient:
             data["reply_markup"] = json.dumps(reply_markup)
 
         files = {"document": (filename, document_bytes, "application/pdf")}
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            try:
-                resp = await client.post(url, data=data, files=files)
-                return resp.json()
-            except Exception as exc:
-                logger.error(f"Failed to send Telegram document {filename}: {exc}")
-                return {"ok": False, "description": str(exc)}
+        client = await self.get_client()
+        try:
+            resp = await client.post(url, data=data, files=files)
+            return resp.json()
+        except Exception as exc:
+            logger.error(f"Failed to send Telegram document {filename}: {exc}")
+            return {"ok": False, "description": str(exc)}
 
     async def get_me(self) -> Dict[str, Any]:
         """Fetch bot identity information from Telegram Bot API."""

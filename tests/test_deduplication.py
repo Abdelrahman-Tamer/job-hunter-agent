@@ -90,3 +90,58 @@ async def test_deduplication_exact_and_canonical(db_session):
     found_url, reason_url = await DeduplicationEngine.find_existing_job(db_session, incoming_url)
     assert found_url is not None
     assert reason_url == "CANONICAL_URL_MATCH"
+
+
+@pytest.mark.asyncio
+async def test_deduplication_multiple_matches_do_not_crash(db_session):
+    """Verify deduplication returns the first match without MultipleResultsFound exception."""
+    source = Source(
+        name="test_multi",
+        source_type="himalayas",
+        base_url="https://himalayas.app",
+        doc_url="https://himalayas.app/api",
+        is_enabled=True,
+        attribution_text="Test",
+    )
+    db_session.add(source)
+    await db_session.commit()
+    await db_session.refresh(source)
+
+    shared_hash = compute_url_hash("https://example.com/jobs/shared")
+    job1 = Job(
+        source_id=source.id,
+        source_name="test_multi",
+        source_job_id="id-1",
+        source_url="https://example.com/jobs/shared",
+        canonical_url_hash=shared_hash,
+        original_application_url="https://example.com/jobs/shared",
+        company="Co1",
+        title="Dev",
+        description_text="Desc",
+    )
+    job2 = Job(
+        source_id=source.id,
+        source_name="test_multi",
+        source_job_id="id-2",
+        source_url="https://example.com/jobs/shared",
+        canonical_url_hash=shared_hash,
+        original_application_url="https://example.com/jobs/shared",
+        company="Co2",
+        title="Dev",
+        description_text="Desc",
+    )
+    db_session.add_all([job1, job2])
+    await db_session.commit()
+
+    incoming = NormalizedJobData(
+        source_name="test_multi",
+        source_job_id="id-1",
+        source_url="https://example.com/jobs/shared",
+        canonical_url="https://example.com/jobs/shared",
+        original_application_url="https://example.com/jobs/shared",
+        company="Co1",
+        title="Dev",
+        description_text="Desc",
+    )
+    matched, reason = await DeduplicationEngine.find_existing_job(db_session, incoming)
+    assert matched is not None

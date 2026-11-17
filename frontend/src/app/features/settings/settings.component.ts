@@ -328,11 +328,6 @@ import { CandidateProfile } from '../../core/models/job.model';
       background: var(--color-bg-surface-elevated-glass);
       border: 1px solid var(--color-border-subtle);
       border-radius: var(--radius-md);
-      transition: background-color var(--motion-fast), border-color var(--motion-fast);
-    }
-    .guardrail-row:hover {
-      background-color: var(--color-bg-surface-hover);
-      border-color: var(--color-border-hover);
     }
     .guardrail-icon-box {
       margin-top: 2px;

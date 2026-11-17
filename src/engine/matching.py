@@ -17,11 +17,13 @@ from pydantic import BaseModel, Field
 from src.models.enums import (
     EmploymentType,
     GeographicEligibility,
+    JobTrack,
     MatchBand,
     SeniorityLevel,
     WorkplaceType,
 )
 from src.models.profile import CandidateProfile
+from src.engine.track_classifier import classify_job_track
 
 
 class ScoreBreakdown(BaseModel):
@@ -42,6 +44,7 @@ class MatchResult(BaseModel):
     skill_gaps: List[str] = Field(default_factory=list)
     confidence: float = 1.0
     is_student_conflict: bool = False
+    job_track: JobTrack = JobTrack.OTHER
 
 
 class MatchingEngine:
@@ -65,12 +68,23 @@ class MatchingEngine:
         published_at: Optional[datetime],
         required_experience_years: Optional[float],
         profile: CandidateProfile,
+        job_track: Optional[JobTrack] = None,
     ) -> MatchResult:
         reasons: List[str] = []
         gaps: List[str] = []
         confidence_factors: List[float] = []
         title_lower = job_title.lower()
         desc_lower = job_description[:3000].lower()
+
+        # Classify track if not provided
+        if job_track is None:
+            job_track = classify_job_track(
+                title=job_title,
+                description=job_description,
+                seniority=seniority,
+                employment_type=employment_type,
+                required_experience_years=required_experience_years,
+            )
 
         # Check if role is in software / web engineering domain
         is_software_or_tech = (
@@ -88,130 +102,201 @@ class MatchingEngine:
             )
         )
 
-        # -------------------------------------------------------------
-        # 1. Role-family relevance (max 20)
-        # Priority: Angular / Frontend > Web Dev / Fullstack > General SE
-        # -------------------------------------------------------------
         role_score = 0.0
-        if not is_software_or_tech:
-            role_score = 0.0
-            gaps.append("Role title: Non-software role outside the technical engineering domain (-20 pts)")
-        elif "angular" in title_lower:
-            role_score = 20.0
-            reasons.append("Exact target match: Title explicitly mentions Angular.")
-        elif any(f in title_lower for f in ["frontend", "front-end", "front end", "ui engineer", "web developer"]):
-            role_score = 18.0
-            reasons.append("Primary domain match: Frontend / Web Development role.")
-            gaps.append("Role title: General web/frontend focus, not exclusively Angular (-2 pts)")
-        elif any(f in title_lower for f in ["fullstack", "full stack", "full-stack"]):
-            role_score = 16.0
-            reasons.append("Web engineering: Full-stack role covering modern frontend.")
-            gaps.append("Role title: Full-stack role with backend scope alongside frontend (-4 pts)")
-        elif any(r.lower() in title_lower for r in profile.target_role_terms):
-            role_score = 15.0
-            reasons.append("Approved target role family match (Software Engineering).")
-            gaps.append(f"Role title: ({job_title}) targets general software engineering (-5 pts)")
-        elif "angular" in desc_lower:
-            role_score = 14.0
-            reasons.append("Angular mentioned prominently in role description.")
-            gaps.append("Role title: Angular is not in the job title (mentioned in description) (-6 pts)")
-        elif any(f in desc_lower for f in ["frontend", "javascript", "typescript"]):
-            role_score = 10.0
-            reasons.append("Frontend technologies required in job description.")
-            gaps.append("Role title: Technical role not dedicated to Angular frontend (-10 pts)")
-        else:
-            role_score = 5.0
-            gaps.append("Role title: Tangential to Frontend/Angular target (-15 pts)")
-
-        # -------------------------------------------------------------
-        # 2. Confirmed Skills / Tech overlap (max 25)
-        # CRITICAL RULE: Target skills MUST NOT earn confirmed-skill points!
-        # -------------------------------------------------------------
         skills_score = 0.0
-        confirmed_set = {s.lower().strip() for s in (profile.confirmed_skills or [])}
-
-        # Analyze job requirements
-        all_job_skills = {s.lower().strip() for s in job_skills}
-        # Check text if job_skills list is empty or minimal
-        if len(all_job_skills) < 2:
-            for tech in ["angular", "typescript", "javascript", "html", "css", "rxjs", "ngrx", "react", "vue", "node", "python", "docker", "git", "graphql"]:
-                if re.search(rf"\b{re.escape(tech)}\b", desc_lower) or re.search(rf"\b{re.escape(tech)}\b", title_lower):
-                    all_job_skills.add(tech)
-
-        if not confirmed_set:
-            # Candidate has zero confirmed skills verified yet
-            skills_score = 0.0
-            gaps.append("Profile has no confirmed skills verified from CV yet (0/25).")
-            confidence_factors.append(0.5)
-        else:
-            # Fuzzy match skills (e.g. "Bootstrap 5" matches "bootstrap", "HTML5" matches "html")
-            matched_confirmed = set()
-            for js in all_job_skills:
-                for cs in confirmed_set:
-                    if js == cs or (len(js) >= 3 and (js in cs or cs in js)):
-                        matched_confirmed.add(js)
-                        break
-
-            unmatched_job_skills = all_job_skills - matched_confirmed
-
-            if matched_confirmed:
-                ratio = len(matched_confirmed) / max(len(all_job_skills), 1)
-                skills_score = min(25.0, 25.0 * ratio + (5.0 if any("angular" in m for m in matched_confirmed) else 0.0))
-                skills_score = min(25.0, skills_score)
-                reasons.append(f"Confirmed skills matched: {', '.join(sorted(matched_confirmed))}.")
-            else:
-                skills_score = 3.0
-                gaps.append(f"Missing confirmed overlap with job skills: {', '.join(sorted(unmatched_job_skills)[:4])}.")
-
-            # Itemize missing skills explicitly so candidate knows what prevented 100%
-            if unmatched_job_skills:
-                missing_sorted = sorted(list(unmatched_job_skills))
-                missing_display = ", ".join(missing_sorted[:5])
-                deduction = 25.0 - skills_score
-                if deduction > 0.0:
-                    gaps.append(f"Missing required skills from CV: {missing_display}{' and others' if len(missing_sorted) > 5 else ''} (-{deduction:.1f} pts)")
-
-        # Note target skill alignment transparently without awarding confirmed skill points
-        target_set = {s.lower().strip() for s in (profile.target_skills or [])}
-        matched_targets = target_set.intersection(all_job_skills)
-        if matched_targets and not ("angular" in confirmed_set):
-            reasons.append(f"Matches candidate learning/target interest: {', '.join(sorted(matched_targets))} (does not inflate confirmed skill points).")
-
-        # -------------------------------------------------------------
-        # 3. Experience and Seniority Compatibility (max 20)
-        # -------------------------------------------------------------
-        exp_score = 10.0  # Base neutral for unknown
+        exp_score = 10.0
         is_student_conflict = False
 
-        is_student_only = "student" in title_lower or "current student" in desc_lower or "currently enrolled" in desc_lower
-        is_graduate_friendly = "graduate" in title_lower or "recent graduate" in desc_lower or "entry" in title_lower or "junior" in title_lower
+        # -------------------------------------------------------------
+        # Track 2: Remote No-Experience Track (Data Entry, Call Center, etc.)
+        # -------------------------------------------------------------
+        if job_track == JobTrack.NO_EXP_REMOTE:
+            # 1. Role Relevance (max 20)
+            role_score = 20.0
+            reasons.append("Exact track match: Remote entry-level role (Data Entry / Customer Support / Call Center).")
 
-        if is_student_only and not is_graduate_friendly:
-            is_student_conflict = True
-            exp_score = 4.0
-            gaps.append("Job appears restricted to currently-enrolled students; candidate is already a graduate (-16 pts)")
-        elif seniority in (SeniorityLevel.GRADUATE, SeniorityLevel.ENTRY, SeniorityLevel.JUNIOR, SeniorityLevel.INTERNSHIP):
-            exp_score = 18.0
-            reasons.append(f"Seniority ({seniority.value}) matches entry/graduate profile.")
-        elif seniority in (SeniorityLevel.ASSOCIATE, SeniorityLevel.MID):
-            exp_score = 14.0
-            reasons.append(f"Mid/Associate seniority ({seniority.value}); feasible with demonstrated project proficiency.")
-            gaps.append(f"Seniority requested is mid-level ({seniority.value}) vs. junior/entry candidate profile (-6 pts)")
-        elif seniority in (SeniorityLevel.SENIOR, SeniorityLevel.LEAD, SeniorityLevel.STAFF, SeniorityLevel.PRINCIPAL, SeniorityLevel.MANAGER):
-            exp_score = 6.0
-            gaps.append(f"Seniority requested ({seniority.value}) requires advanced production experience (-14 pts)")
+            # 2. Operational / Communication Skills (max 25)
+            skills_score = 20.0
+            profile_soft = {
+                s.lower().strip()
+                for s in (
+                    (getattr(profile, "soft_skills", []) or [])
+                    + (getattr(profile, "languages", []) or [])
+                    + (profile.confirmed_skills or [])
+                )
+            }
+            support_skills = {"english", "arabic", "communication", "customer service", "data entry", "excel", "typing"}
+            matched_soft = support_skills.intersection(profile_soft)
+            if matched_soft:
+                skills_score = min(25.0, skills_score + 5.0)
+                reasons.append(f"Confirmed operational/communication competencies: {', '.join(sorted(matched_soft))}.")
+            else:
+                reasons.append("Standard remote operational & customer communication requirements met.")
+
+            # 3. Experience and Seniority (max 20)
+            if required_experience_years is None or required_experience_years <= 1.0:
+                exp_score = 20.0
+                reasons.append("Entry-level / no prior experience required.")
+            else:
+                exp_score = 14.0
+                gaps.append(f"Experience requested ({required_experience_years:.0f}y) exceeds entry-level expectation (-6 pts)")
+
+        # -------------------------------------------------------------
+        # Track 3: Software & AI Internships Track
+        # -------------------------------------------------------------
+        elif job_track == JobTrack.SOFTWARE_INTERN:
+            # 1. Role Relevance (max 20)
+            role_score = 20.0
+            if any(term in title_lower for term in ["ai", "machine learning", "data science", "deep learning"]):
+                reasons.append("AI & Machine Learning Internship opportunity.")
+            elif any(term in title_lower for term in ["frontend", "front-end", "web", "angular", "react"]):
+                reasons.append("Frontend & Web Engineering Internship opportunity.")
+            elif any(term in title_lower for term in ["backend", "back-end", "python", "node", "java", "golang"]):
+                reasons.append("Backend Software Engineering Internship opportunity.")
+            else:
+                reasons.append("Software Engineering Internship across technology stack.")
+
+            # 2. Foundational Tech Skills (max 25)
+            confirmed_set = {s.lower().strip() for s in (profile.confirmed_skills or [])}
+            target_set = {s.lower().strip() for s in (profile.target_skills or [])}
+            all_job_skills = {s.lower().strip() for s in job_skills}
+            matched_confirmed = confirmed_set.intersection(all_job_skills)
+            matched_targets = target_set.intersection(all_job_skills)
+
+            if matched_confirmed:
+                skills_score = min(25.0, 18.0 + len(matched_confirmed) * 3.0)
+                reasons.append(f"Confirmed skills matched: {', '.join(sorted(matched_confirmed))}.")
+            elif matched_targets:
+                skills_score = min(22.0, 15.0 + len(matched_targets) * 2.0)
+                reasons.append(f"Technical learning interest matched: {', '.join(sorted(matched_targets))}.")
+            else:
+                skills_score = 15.0
+                reasons.append("Internship baseline: Foundational software engineering capability.")
+
+            # 3. Experience & Seniority (max 20)
+            is_student_only = "student" in title_lower or "current student" in desc_lower or "currently enrolled" in desc_lower
+            is_graduate_friendly = "graduate" in title_lower or "recent graduate" in desc_lower or "entry" in title_lower or "junior" in title_lower
+
+            if is_student_only and not is_graduate_friendly:
+                is_student_conflict = True
+                exp_score = 4.0
+                gaps.append("Job appears restricted to currently-enrolled students; candidate is already a graduate (-16 pts)")
+            else:
+                exp_score = 20.0
+                reasons.append("Seniority target: Software Engineering Internship / Trainee role.")
+
+        # -------------------------------------------------------------
+        # Track 1: Web & Angular Frontend (and default OTHER)
+        # -------------------------------------------------------------
         else:
-            # Seniority UNKNOWN
-            exp_score = 12.0
-            confidence_factors.append(0.7)
+            # 1. Role-family relevance (max 20)
+            if not is_software_or_tech:
+                role_score = 0.0
+                gaps.append("Role title: Non-software role outside the technical engineering domain (-20 pts)")
+            elif "angular" in title_lower:
+                role_score = 20.0
+                reasons.append("Exact target match: Title explicitly mentions Angular.")
+            elif any(f in title_lower for f in ["frontend", "front-end", "front end", "ui engineer", "web developer"]):
+                role_score = 18.0
+                reasons.append("Primary domain match: Frontend / Web Development role.")
+                gaps.append("Role title: General web/frontend focus, not exclusively Angular (-2 pts)")
+            elif any(f in title_lower for f in ["fullstack", "full stack", "full-stack"]):
+                role_score = 16.0
+                reasons.append("Web engineering: Full-stack role covering modern frontend.")
+                gaps.append("Role title: Full-stack role with backend scope alongside frontend (-4 pts)")
+            elif any(r.lower() in title_lower for r in profile.target_role_terms):
+                role_score = 15.0
+                reasons.append("Approved target role family match (Software Engineering).")
+                gaps.append(f"Role title: ({job_title}) targets general software engineering (-5 pts)")
+            elif "angular" in desc_lower:
+                role_score = 14.0
+                reasons.append("Angular mentioned prominently in role description.")
+                gaps.append("Role title: Angular is not in the job title (mentioned in description) (-6 pts)")
+            elif any(f in desc_lower for f in ["frontend", "javascript", "typescript"]):
+                role_score = 10.0
+                reasons.append("Frontend technologies required in job description.")
+                gaps.append("Role title: Technical role not dedicated to Angular frontend (-10 pts)")
+            else:
+                role_score = 5.0
+                gaps.append("Role title: Tangential to Frontend/Angular target (-15 pts)")
 
-        if required_experience_years is not None:
-            if required_experience_years <= 2.0:
-                exp_score = max(exp_score, 18.0)
-                reasons.append(f"Experience requirement ({required_experience_years:.0f}y) is accessible.")
-            elif required_experience_years > 2.0:
-                exp_score = min(exp_score, 8.0)
-                gaps.append(f"Experience required ({required_experience_years:.0f}+ years) exceeds 1-2 years (-12 pts)")
+            # 2. Confirmed Skills / Tech overlap (max 25)
+            confirmed_set = {s.lower().strip() for s in (profile.confirmed_skills or [])}
+            all_job_skills = {s.lower().strip() for s in job_skills}
+            if len(all_job_skills) < 2:
+                for tech in ["angular", "typescript", "javascript", "html", "css", "rxjs", "ngrx", "react", "vue", "node", "python", "docker", "git", "graphql"]:
+                    if re.search(rf"\b{re.escape(tech)}\b", desc_lower) or re.search(rf"\b{re.escape(tech)}\b", title_lower):
+                        all_job_skills.add(tech)
+
+            if not confirmed_set:
+                skills_score = 0.0
+                gaps.append("Profile has no confirmed skills verified from CV yet (0/25).")
+                confidence_factors.append(0.5)
+            else:
+                matched_confirmed = set()
+                for js in all_job_skills:
+                    for cs in confirmed_set:
+                        if js == cs:
+                            matched_confirmed.add(js)
+                            break
+                        if len(js) >= 3 and (js in cs or cs in js):
+                            if (js == "java" and "javascript" in cs) or (cs == "java" and "javascript" in js):
+                                continue
+                            matched_confirmed.add(js)
+                            break
+
+                unmatched_job_skills = all_job_skills - matched_confirmed
+
+                if matched_confirmed:
+                    ratio = len(matched_confirmed) / max(len(all_job_skills), 1)
+                    skills_score = min(25.0, 25.0 * ratio + (5.0 if any("angular" in m for m in matched_confirmed) else 0.0))
+                    skills_score = min(25.0, skills_score)
+                    reasons.append(f"Confirmed skills matched: {', '.join(sorted(matched_confirmed))}.")
+                else:
+                    skills_score = 3.0
+                    gaps.append(f"Missing confirmed overlap with job skills: {', '.join(sorted(unmatched_job_skills)[:4])}.")
+
+                if unmatched_job_skills:
+                    missing_sorted = sorted(list(unmatched_job_skills))
+                    missing_display = ", ".join(missing_sorted[:5])
+                    deduction = 25.0 - skills_score
+                    if deduction > 0.0:
+                        gaps.append(f"Missing required skills from CV: {missing_display}{' and others' if len(missing_sorted) > 5 else ''} (-{deduction:.1f} pts)")
+
+            target_set = {s.lower().strip() for s in (profile.target_skills or [])}
+            matched_targets = target_set.intersection(all_job_skills)
+            if matched_targets and not ("angular" in confirmed_set):
+                reasons.append(f"Matches candidate learning/target interest: {', '.join(sorted(matched_targets))} (does not inflate confirmed skill points).")
+
+            # 3. Experience and Seniority Compatibility (max 20)
+            is_student_only = "student" in title_lower or "current student" in desc_lower or "currently enrolled" in desc_lower
+            is_graduate_friendly = "graduate" in title_lower or "recent graduate" in desc_lower or "entry" in title_lower or "junior" in title_lower
+
+            if is_student_only and not is_graduate_friendly:
+                is_student_conflict = True
+                exp_score = 4.0
+                gaps.append("Job appears restricted to currently-enrolled students; candidate is already a graduate (-16 pts)")
+            elif seniority in (SeniorityLevel.GRADUATE, SeniorityLevel.ENTRY, SeniorityLevel.JUNIOR, SeniorityLevel.INTERNSHIP):
+                exp_score = 18.0
+                reasons.append(f"Seniority ({seniority.value}) matches entry/graduate profile.")
+            elif seniority in (SeniorityLevel.ASSOCIATE, SeniorityLevel.MID):
+                exp_score = 14.0
+                reasons.append(f"Mid/Associate seniority ({seniority.value}); feasible with demonstrated project proficiency.")
+                gaps.append(f"Seniority requested is mid-level ({seniority.value}) vs. junior/entry candidate profile (-6 pts)")
+            elif seniority in (SeniorityLevel.SENIOR, SeniorityLevel.LEAD, SeniorityLevel.STAFF, SeniorityLevel.PRINCIPAL, SeniorityLevel.MANAGER):
+                exp_score = 6.0
+                gaps.append(f"Seniority requested ({seniority.value}) requires advanced production experience (-14 pts)")
+            else:
+                exp_score = 12.0
+                confidence_factors.append(0.7)
+
+            if required_experience_years is not None:
+                if required_experience_years <= 2.0:
+                    exp_score = max(exp_score, 18.0)
+                    reasons.append(f"Experience requirement ({required_experience_years:.0f}y) is accessible.")
+                elif required_experience_years > 2.0:
+                    exp_score = min(exp_score, 8.0)
+                    gaps.append(f"Experience required ({required_experience_years:.0f}+ years) exceeds 1-2 years (-12 pts)")
 
         # -------------------------------------------------------------
         # 4. Work Eligibility & Location (max 20)
@@ -291,8 +376,8 @@ class MatchingEngine:
         if eligibility == GeographicEligibility.NOT_ELIGIBLE:
             total = min(total, 40.0)
 
-        # Hard Cap for Non-Software/Non-Tech jobs
-        if not is_software_or_tech:
+        # Hard Cap for Unclassified Non-Software/Non-Tech jobs outside target tracks
+        if not is_software_or_tech and job_track != JobTrack.NO_EXP_REMOTE:
             total = min(total, 25.0)
 
         # Hard Cap if role is tangential with zero confirmed skills overlap
@@ -334,4 +419,5 @@ class MatchingEngine:
             skill_gaps=gaps,
             confidence=overall_confidence,
             is_student_conflict=is_student_conflict,
+            job_track=job_track,
         )

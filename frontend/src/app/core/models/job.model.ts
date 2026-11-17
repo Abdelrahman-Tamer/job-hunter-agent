@@ -6,6 +6,12 @@ export type GeographicEligibility =
   | 'NOT_ELIGIBLE'
   | 'UNKNOWN';
 
+export type JobTrack =
+  | 'WEB_ANGULAR'
+  | 'NO_EXP_REMOTE'
+  | 'SOFTWARE_INTERN'
+  | 'OTHER';
+
 export type WorkplaceType = 'ON_SITE' | 'HYBRID' | 'REMOTE' | 'UNKNOWN';
 
 export type SeniorityLevel =
@@ -42,6 +48,7 @@ export interface JobSummary {
   title: string;
   raw_location: string | null;
   workplace_type: WorkplaceType;
+  job_track?: JobTrack;
   eligibility: GeographicEligibility;
   seniority: SeniorityLevel;
   match_score: number;

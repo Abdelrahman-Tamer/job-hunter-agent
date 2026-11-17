@@ -15,6 +15,20 @@ class GeographicEligibility(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class JobTrack(str, Enum):
+    """
+    Explicit search and classification tracks for opportunities:
+    1. WEB_ANGULAR: Web & Frontend Development with primary Angular focus.
+    2. NO_EXP_REMOTE: Remote entry-level roles (Data Entry, Call Center, Virtual Assistant, Support).
+    3. SOFTWARE_INTERN: Software engineering internships across all disciplines (Frontend, Backend, AI/ML, Fullstack).
+    4. OTHER: Unclassified or outside target scope.
+    """
+    WEB_ANGULAR = "WEB_ANGULAR"
+    NO_EXP_REMOTE = "NO_EXP_REMOTE"
+    SOFTWARE_INTERN = "SOFTWARE_INTERN"
+    OTHER = "OTHER"
+
+
 class WorkplaceType(str, Enum):
     """Workplace setting."""
     ON_SITE = "ON_SITE"

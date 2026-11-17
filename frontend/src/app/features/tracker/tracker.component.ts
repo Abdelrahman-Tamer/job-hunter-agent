@@ -382,14 +382,14 @@ interface StatusTab {
     .switch-btn {
       background: transparent;
       border: none;
-      padding: 5px 10px;
-      border-radius: var(--radius-xs);
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
       color: var(--color-text-muted);
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 5px;
-      font-size: 11px;
+      gap: 6px;
+      font-size: 13px;
       font-weight: 600;
       transition: background-color var(--motion-fast), color var(--motion-fast);
     }
@@ -583,42 +583,43 @@ interface StatusTab {
       margin-top: 2px;
     }
     .btn-advance {
-      background: transparent;
+      background: var(--color-bg-surface-elevated);
       border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-xs);
-      padding: 2px 6px;
-      font-size: 10px;
+      border-radius: var(--radius-sm);
+      padding: 4px 10px;
+      font-size: 11px;
       font-weight: 600;
       color: var(--color-text-secondary);
       cursor: pointer;
-      transition: all var(--motion-fast);
+      transition: background-color var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
     }
     .btn-advance:hover {
       color: var(--color-text-primary);
       border-color: var(--color-border-hover);
+      background: var(--color-bg-surface-hover);
     }
 
     /* Tabs Stage View */
     .stage-segmented-nav {
       display: flex;
-      gap: 3px;
+      gap: 4px;
       background: var(--color-bg-surface-elevated);
       border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-sm);
-      padding: 2px;
+      border-radius: var(--radius-md);
+      padding: 3px;
       overflow-x: auto;
     }
     .tab-item-btn {
       background: transparent;
       border: none;
-      padding: 5px 12px;
-      border-radius: var(--radius-xs);
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
       color: var(--color-text-muted);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 600;
       white-space: nowrap;
       transition: color var(--motion-fast), background-color var(--motion-fast);

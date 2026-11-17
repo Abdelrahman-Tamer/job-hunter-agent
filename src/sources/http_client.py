@@ -27,6 +27,18 @@ class ResilientHttpClient:
             "User-Agent": "JobHunterAgent/1.0 (+https://github.com/abd-el-rahman-emam/job-hunter-agent)",
             "Accept": "application/json, application/xml, text/xml, */*",
         }
+        self._client: Optional[httpx.AsyncClient] = None
+
+    async def get_client(self) -> httpx.AsyncClient:
+        """Reuse persistent HTTP client session across requests."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self.timeout, follow_redirects=True)
+        return self._client
+
+    async def close(self) -> None:
+        """Close persistent HTTP client session."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
 
     async def get(
         self,
@@ -42,32 +54,32 @@ class ResilientHttpClient:
 
         async with self.semaphore:
             last_exception: Optional[Exception] = None
+            client = await self.get_client()
             for attempt in range(1, self.max_retries + 1):
                 try:
-                    async with httpx.AsyncClient(timeout=self.timeout) as client:
-                        response = await client.get(url, params=params, headers=merged_headers)
+                    response = await client.get(url, params=params, headers=merged_headers)
 
-                        # Handle 429 Too Many Requests
-                        if response.status_code == 429:
-                            retry_after = response.headers.get("Retry-After")
-                            wait_time = 2.0 ** attempt
-                            if retry_after:
-                                try:
-                                    wait_time = max(wait_time, float(retry_after))
-                                except ValueError:
-                                    # Could be HTTP date
-                                    pass
-                            logger.warning(
-                                f"Rate limited on {url} (HTTP 429). Waiting {wait_time:.1f}s before attempt {attempt}/{self.max_retries}"
-                            )
-                            await asyncio.sleep(wait_time)
-                            continue
+                    # Handle 429 Too Many Requests
+                    if response.status_code == 429:
+                        retry_after = response.headers.get("Retry-After")
+                        wait_time = 2.0 ** attempt
+                        if retry_after:
+                            try:
+                                wait_time = max(wait_time, float(retry_after))
+                            except ValueError:
+                                # Could be HTTP date
+                                pass
+                        logger.warning(
+                            f"Rate limited on {url} (HTTP 429). Waiting {wait_time:.1f}s before attempt {attempt}/{self.max_retries}"
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue
 
-                        # Raise for 5xx server errors to trigger retry
-                        if response.status_code >= 500:
-                            response.raise_for_status()
+                    # Raise for 5xx server errors to trigger retry
+                    if response.status_code >= 500:
+                        response.raise_for_status()
 
-                        return response
+                    return response
 
                 except (httpx.RequestError, httpx.HTTPStatusError) as exc:
                     last_exception = exc

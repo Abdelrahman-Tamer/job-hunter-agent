@@ -108,23 +108,25 @@ async def scan_and_mark_expired_jobs(session: AsyncSession, limit: int = 40) -> 
     expired_count = 0
     active_count = 0
 
-    async with httpx.AsyncClient(verify=False) as client:
-        async def _verify_single(job: Job):
-            nonlocal expired_count, active_count
+    async with httpx.AsyncClient() as client:
+        async def _check_single(job: Job) -> Tuple[Job, bool, str]:
             async with semaphore:
                 url = job.original_application_url or job.source_url
                 is_expired, reason = await check_job_url(url, client)
-                job.last_verified_at = now
-                if is_expired:
-                    job.is_expired = True
-                    job.is_active = False
-                    job.expiry_reason = reason
-                    expired_count += 1
-                    logger.info(f"Marked Job #{job.id} ({job.title} at {job.company}) as EXPIRED: {reason}")
-                else:
-                    active_count += 1
+                return job, is_expired, reason
 
-        await asyncio.gather(*[_verify_single(j) for j in jobs], return_exceptions=True)
+        results = await asyncio.gather(*[_check_single(j) for j in jobs], return_exceptions=False)
+
+    for job, is_expired, reason in results:
+        job.last_verified_at = now
+        if is_expired:
+            job.is_expired = True
+            job.is_active = False
+            job.expiry_reason = reason
+            expired_count += 1
+            logger.info(f"Marked Job #{job.id} ({job.title} at {job.company}) as EXPIRED: {reason}")
+        else:
+            active_count += 1
 
     await session.commit()
     logger.info(f"Expiry scan completed: checked={len(jobs)}, expired={expired_count}, active={active_count}")

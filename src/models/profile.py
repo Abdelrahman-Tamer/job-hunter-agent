@@ -11,15 +11,30 @@ def now_utc() -> datetime:
 
 
 DEFAULT_TARGET_ROLES: List[str] = [
+    # Track 1: Web & Angular Frontend
     "Angular Developer",
     "Frontend Developer",
-    "Software Engineer",
-    "Software Developer",
     "Web Developer",
     "Full Stack Developer",
-    "Backend Developer",
+    "Software Engineer",
+    "Software Developer",
     "Graduate Software Engineer",
+    # Track 2: Remote No-Experience
+    "Data Entry Specialist",
+    "Data Entry Clerk",
+    "Customer Support Specialist",
+    "Customer Service Representative",
+    "Call Center Agent",
+    "Virtual Assistant",
+    "Remote Chat Support",
+    # Track 3: Software & AI Internships
     "Software Engineering Intern",
+    "Frontend Intern",
+    "Backend Intern",
+    "AI Intern",
+    "Machine Learning Intern",
+    "Data Science Intern",
+    "Software Developer Trainee",
 ]
 
 DEFAULT_TARGET_TECH: List[str] = [

@@ -3,19 +3,22 @@
 import io
 import re
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import select, and_, or_, delete
+from sqlalchemy import select, and_, or_, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.database import get_db_session
 from src.engine.gemini_extractor import GeminiJobExtractor
 from src.models import (
+    ApplicationNote,
     ApplicationStatus,
     GeographicEligibility,
     Job,
     JobStatusTracker,
+    JobTrack,
     MatchBand,
     NotificationLog,
     SeniorityLevel,
@@ -35,6 +38,7 @@ class JobSummaryDTO(BaseModel):
     title: str
     raw_location: Optional[str]
     workplace_type: WorkplaceType
+    job_track: JobTrack = JobTrack.OTHER
     eligibility: GeographicEligibility
     seniority: SeniorityLevel
     match_score: float
@@ -65,6 +69,7 @@ async def list_jobs(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     keyword: Optional[str] = None,
+    track: Optional[JobTrack] = None,
     workplace_type: Optional[WorkplaceType] = None,
     eligibility: Optional[GeographicEligibility] = None,
     seniority: Optional[SeniorityLevel] = None,
@@ -74,6 +79,8 @@ async def list_jobs(
     """Search and filter discovered opportunities."""
     filters = [Job.is_active == True]
 
+    if track:
+        filters.append(Job.job_track == track)
     if keyword:
         filters.append(
             or_(
@@ -95,10 +102,9 @@ async def list_jobs(
 
     offset = (page - 1) * limit
 
-    # Count total
-    count_stmt = select(Job).where(and_(*filters))
-    total_res = await db.execute(count_stmt)
-    total_count = len(total_res.scalars().all())
+    # Count total via SQL aggregation instead of loading all rows into memory
+    count_stmt = select(func.count(Job.id)).where(and_(*filters))
+    total_count = (await db.execute(count_stmt)).scalar_one()
 
     # Fetch page
     stmt = (
@@ -121,6 +127,7 @@ async def list_jobs(
                 title=j.title,
                 raw_location=j.raw_location,
                 workplace_type=j.workplace_type,
+                job_track=j.job_track or JobTrack.OTHER,
                 eligibility=j.eligibility,
                 seniority=j.seniority,
                 match_score=j.match_score,
@@ -162,6 +169,7 @@ async def get_job_detail(
         description_html=j.description_html,
         raw_location=j.raw_location,
         workplace_type=j.workplace_type,
+        job_track=j.job_track or JobTrack.OTHER,
         eligibility=j.eligibility,
         eligibility_reason=j.eligibility_reason,
         seniority=j.seniority,
@@ -289,13 +297,22 @@ async def verify_active_links(
 
 
 @router.post("/wipe-and-reset", response_model=Dict[str, Any])
-async def wipe_all_jobs(db: AsyncSession = Depends(get_db_session)) -> Dict[str, Any]:
+async def wipe_all_jobs(
+    x_admin_key: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db_session),
+) -> Dict[str, Any]:
     """
     Wipe all existing jobs, application trackers, and notification records.
-    Applies the verified CV profile to ensure all future crawls search by Abdelrahman Emam's actual skills.
+    Requires X-Admin-Key matching settings.SECRET_KEY.
     """
+    if not x_admin_key or x_admin_key != settings.SECRET_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin authorization required to reset database.",
+        )
     await db.execute(delete(JobStatusTracker))
     await db.execute(delete(NotificationLog))
+    await db.execute(delete(ApplicationNote))
     await db.execute(delete(Job))
     profile = await apply_verified_cv_to_profile(db)
     await db.commit()

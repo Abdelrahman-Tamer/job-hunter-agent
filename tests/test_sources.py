@@ -220,4 +220,5 @@ async def test_rss_adapter_fetch_and_normalize():
     norm = adapter.normalize(raw_jobs[0])
     assert norm.company == "FrontEnd Inc"
     assert norm.title == "Senior Angular Specialist"
+    assert norm.remote_scope is None
     assert "Angular and TypeScript" in norm.description_text

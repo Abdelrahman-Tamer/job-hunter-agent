@@ -26,12 +26,13 @@ from src.engine.gemini_extractor import GeminiJobExtractor
 from src.models.enums import (
     ApplicationStatus,
     GeographicEligibility,
+    JobTrack,
     SeniorityLevel,
     WorkplaceType,
 )
 from src.models.job import Job
 from src.models.notification import NotificationLog
-from src.models.tracker import JobStatusTracker
+from src.models.tracker import ApplicationNote, JobStatusTracker
 from src.services.profile_service import (
     apply_verified_cv_to_profile,
     get_or_create_candidate_profile,
@@ -47,10 +48,8 @@ class TelegramBotDispatcher:
         self.gemini = GeminiJobExtractor()
 
     def is_authorized(self, user_id: Optional[int]) -> bool:
-        """Enforce strict allowlist check if TELEGRAM_OWNER_ID is configured."""
-        if not self.owner_id or self.owner_id == 0:
-            return True
-        return user_id == self.owner_id
+        """Enforce strict allowlist check: authorized only if TELEGRAM_OWNER_ID matches."""
+        return bool(self.owner_id and user_id and user_id == self.owner_id)
 
     async def handle_update(self, update: Dict[str, Any], session: AsyncSession) -> None:
         """Route incoming message or callback query."""
@@ -100,6 +99,15 @@ I am your AI agent specialized in high-fit <b>Angular & Frontend Engineering</b>
         elif clean_text in ("📋 Today's Jobs", "Today Jobs", "today"):
             await self._cmd_today(chat_id, session)
             return
+        elif clean_text in ("🌐 Web & Angular", "web & angular", "web angular"):
+            await self._handle_filter_query(chat_id, "track_web", session)
+            return
+        elif clean_text in ("💼 No-Exp Remote", "no-exp remote", "no exp remote", "data entry", "call center"):
+            await self._handle_filter_query(chat_id, "track_remote", session)
+            return
+        elif clean_text in ("🎓 Software Interns", "software interns", "software intern", "interns", "intern"):
+            await self._handle_filter_query(chat_id, "track_intern", session)
+            return
         elif clean_text in ("👤 My Profile / CV", "My Profile", "Profile", "profile"):
             await self._cmd_profile(chat_id, session)
             return
@@ -129,6 +137,12 @@ I am your AI agent specialized in high-fit <b>Angular & Frontend Engineering</b>
             await self._cmd_menu(chat_id, session)
         elif command == "/today":
             await self._cmd_today(chat_id, session)
+        elif command in ("/web", "/angular", "/track_web", "/track1"):
+            await self._handle_filter_query(chat_id, "track_web", session)
+        elif command in ("/remote", "/noexp", "/track_remote", "/track2"):
+            await self._handle_filter_query(chat_id, "track_remote", session)
+        elif command in ("/intern", "/interns", "/track_intern", "/track3"):
+            await self._handle_filter_query(chat_id, "track_intern", session)
         elif command == "/search":
             await self._cmd_search(chat_id, args, session)
         elif command == "/filters":
@@ -567,6 +581,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
         """Wipe all legacy jobs to start fresh with verified CV."""
         await session.execute(delete(JobStatusTracker))
         await session.execute(delete(NotificationLog))
+        await session.execute(delete(ApplicationNote))
         await session.execute(delete(Job))
         await session.commit()
 
@@ -843,7 +858,7 @@ All previous listings have been purged.
         if action == "save":
             is_already_saved = (tracker.status == ApplicationStatus.SAVED)
             if is_already_saved:
-                tracker.status = ApplicationStatus.NEW
+                tracker.status = ApplicationStatus.DISCOVERED
                 await session.commit()
                 await self.client.answer_callback_query(query_id, text="⭐ Removed from saved jobs.")
                 if message_id:
@@ -978,7 +993,7 @@ All previous listings have been purged.
                 show_alert=False,
             )
         elif action == "undo_dismiss":
-            tracker.status = ApplicationStatus.NEW
+            tracker.status = ApplicationStatus.DISCOVERED
             await session.commit()
             await self.client.answer_callback_query(query_id, text="↩️ Dismiss undone. Job restored to feed!")
             if message_id:
@@ -1086,6 +1101,9 @@ All previous listings have been purged.
         )
 
         filter_titles = {
+            "track_web": "🌐 Track 1: Web & Angular Frontend",
+            "track_remote": "💼 Track 2: Remote Without Experience (Data Entry & Call Center)",
+            "track_intern": "🎓 Track 3: Software & AI Internships",
             "angular": "🅰️ Angular & Frontend Engineering Roles",
             "top": "⭐ Top Matches (Score ≥ 75%)",
             "egypt": "🇪🇬 Egypt & Gulf Opportunities",
@@ -1096,7 +1114,13 @@ All previous listings have been purged.
         }
         title = filter_titles.get(key, "Filtered Results")
 
-        if key == "angular":
+        if key == "track_web":
+            stmt = stmt.where(Job.job_track == JobTrack.WEB_ANGULAR)
+        elif key == "track_remote":
+            stmt = stmt.where(Job.job_track == JobTrack.NO_EXP_REMOTE)
+        elif key == "track_intern":
+            stmt = stmt.where(Job.job_track == JobTrack.SOFTWARE_INTERN)
+        elif key == "angular":
             stmt = stmt.where(
                 or_(
                     Job.title.ilike("%angular%"),

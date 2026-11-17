@@ -51,7 +51,9 @@ class RemotiveAdapter(BaseSourceAdapter):
         since: Optional[datetime] = None,
         query_config: Optional[Dict[str, Any]] = None,
     ) -> List[RawJobData]:
-        params: Dict[str, Any] = {"category": "software-dev"}
+        params: Dict[str, Any] = {}
+        if query_config and "category" in query_config:
+            params["category"] = query_config["category"]
         if query_config and "limit" in query_config:
             params["limit"] = query_config["limit"]
 

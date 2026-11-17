@@ -19,6 +19,7 @@ from src.core.database import Base
 from src.models.enums import (
     EmploymentType,
     GeographicEligibility,
+    JobTrack,
     MatchBand,
     SeniorityLevel,
     WorkplaceType,
@@ -77,6 +78,12 @@ class Job(Base):
     expiry_reason = Column(String(255), nullable=True)
 
     # Classification & Deterministic Scoring
+    job_track = Column(
+        SQLEnum(JobTrack, native_enum=False),
+        default=JobTrack.OTHER,
+        nullable=False,
+        index=True,
+    )
     eligibility = Column(
         SQLEnum(GeographicEligibility),
         default=GeographicEligibility.UNKNOWN,

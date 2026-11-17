@@ -75,6 +75,18 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
 
             <!-- Key Tags Grid -->
             <div class="key-tags-grid">
+              <div class="tag-card" *ngIf="job?.job_track">
+                <span class="tag-label">Specialization Track</span>
+                <span class="tag-value text-blue" *ngIf="job?.job_track === 'WEB_ANGULAR'">
+                  🌐 Web & Angular
+                </span>
+                <span class="tag-value text-green" *ngIf="job?.job_track === 'NO_EXP_REMOTE'">
+                  💼 No-Exp Remote
+                </span>
+                <span class="tag-value text-purple" *ngIf="job?.job_track === 'SOFTWARE_INTERN'">
+                  🎓 Software Intern
+                </span>
+              </div>
               <div class="tag-card">
                 <span class="tag-label">Eligibility</span>
                 <span class="tag-value text-green">
@@ -662,8 +674,9 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       gap: var(--space-1-5);
     }
     .stage-select-btn {
-      padding: 4px 10px;
-      font-size: var(--text-xs);
+      padding: 5px 12px;
+      min-height: 32px;
+      font-size: 12px;
       font-weight: 600;
       border-radius: var(--radius-sm);
       background: var(--color-bg-surface);
@@ -755,8 +768,20 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       gap: var(--space-2-5);
     }
     .btn-apply {
-      padding: 9px 18px;
+      min-height: 40px;
+      padding: 10px 20px;
+      font-size: var(--text-sm);
       font-weight: 600;
+    }
+    .btn-save {
+      min-height: 40px;
+      padding: 9px 16px;
+      font-size: 13px;
+    }
+    .btn-applied {
+      min-height: 40px;
+      padding: 9px 16px;
+      font-size: 13px;
     }
     .btn-save.saved {
       background: var(--color-success-bg);
@@ -799,9 +824,10 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
       align-items: center;
       justify-content: center;
       gap: 6px;
-      padding: 8px 8px;
+      min-height: 38px;
+      padding: 8px 12px;
       border-radius: var(--radius-md);
-      font-size: var(--text-xs);
+      font-size: 13px;
       font-weight: 600;
       background: var(--color-bg-surface);
       border: 1px solid var(--color-border-default);

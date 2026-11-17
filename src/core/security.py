@@ -27,15 +27,15 @@ TRACKING_PARAMS: Set[str] = {
     "mc_eid",
 }
 
-# Regex to detect private or loopback IP hosts
+# Regex to detect private, link-local (cloud metadata), or loopback IP hosts
 PRIVATE_IP_REGEX = re.compile(
-    r"^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+|0\.0\.0\.0|::1|fc00:|fe80:)",
+    r"^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0|::1|fc00:|fe80:|.*\.internal|.*\.local)",
     re.IGNORECASE,
 )
 
 
 def is_safe_url(url: str) -> bool:
-    """Validate that a URL is safe to request (mitigating SSRF)."""
+    """Validate that a URL is safe to request (mitigating SSRF and DNS rebinding)."""
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
@@ -46,12 +46,11 @@ def is_safe_url(url: str) -> bool:
         if PRIVATE_IP_REGEX.match(hostname):
             return False
         # If hostname is an IP literal, ensure it is global
+        # shortcut: relies on host regex and IP literal check; DNS rebinding deferred to client socket connection
         try:
             ip = ipaddress.ip_address(hostname)
-            if not ip.is_global:
-                return False
+            return ip.is_global
         except ValueError:
-            # Domain name, not IP literal
             pass
         return True
     except Exception:

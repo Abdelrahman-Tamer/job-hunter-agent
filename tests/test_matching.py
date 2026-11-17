@@ -114,3 +114,65 @@ def test_ineligible_jobs_capped_below_digest_threshold(base_profile):
     assert result.breakdown.work_eligibility == 0.0
     assert result.score <= 40.0
     assert result.band == MatchBand.LOW
+
+
+def test_java_and_javascript_are_not_conflated(base_profile):
+    """Candidate with JavaScript must not match Java backend skills."""
+    base_profile.confirmed_skills = ["JavaScript", "HTML5", "CSS3"]
+    engine = MatchingEngine()
+    result = engine.evaluate(
+        job_title="Core Java Backend Engineer",
+        job_description="Seeking experienced Java Spring Boot developer.",
+        job_skills=["Java", "Spring Boot"],
+        seniority=SeniorityLevel.MID,
+        employment_type=EmploymentType.FULL_TIME,
+        eligibility=GeographicEligibility.EGYPT_ELIGIBLE,
+        published_at=datetime.now(timezone.utc),
+        required_experience_years=2.0,
+        profile=base_profile,
+    )
+    assert not any("Java" in r for r in result.reasons if "Confirmed skills matched" in r)
+    assert result.breakdown.confirmed_skills == 3.0  # fallback minimal when no skills match
+
+
+def test_no_exp_remote_track_scoring(base_profile):
+    """Remote entry-level jobs (Data Entry / Call Center) achieve high score without code skills."""
+    engine = MatchingEngine()
+    result = engine.evaluate(
+        job_title="Remote Data Entry Clerk",
+        job_description="Enter customer records, verify data, communicate with team online.",
+        job_skills=["Data Entry", "Excel", "English"],
+        seniority=SeniorityLevel.ENTRY,
+        employment_type=EmploymentType.FULL_TIME,
+        eligibility=GeographicEligibility.REMOTE_WORLDWIDE,
+        published_at=datetime.now(timezone.utc),
+        required_experience_years=0.0,
+        profile=base_profile,
+    )
+
+    assert result.breakdown.role_relevance == 20.0
+    assert result.breakdown.experience_seniority == 20.0
+    assert result.breakdown.confirmed_skills >= 20.0
+    assert result.score >= 80.0
+    assert result.band in (MatchBand.EXCELLENT, MatchBand.STRONG)
+
+
+def test_software_and_ai_internship_scoring(base_profile):
+    """Software & AI internships achieve high match score across the tech stack."""
+    engine = MatchingEngine()
+    result = engine.evaluate(
+        job_title="AI & Machine Learning Research Intern",
+        job_description="Python, PyTorch, and NLP models exploration.",
+        job_skills=["Python", "Machine Learning"],
+        seniority=SeniorityLevel.INTERNSHIP,
+        employment_type=EmploymentType.INTERNSHIP,
+        eligibility=GeographicEligibility.EGYPT_ELIGIBLE,
+        published_at=datetime.now(timezone.utc),
+        required_experience_years=0.0,
+        profile=base_profile,
+    )
+
+    assert result.breakdown.role_relevance == 20.0
+    assert result.breakdown.experience_seniority == 20.0
+    assert result.score >= 75.0
+    assert result.band in (MatchBand.EXCELLENT, MatchBand.STRONG)

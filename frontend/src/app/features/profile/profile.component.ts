@@ -504,6 +504,9 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
+      position: sticky;
+      top: 68px;
+      align-self: start;
     }
 
     /* Panels */
@@ -661,10 +664,11 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     .suggest-tag {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      font-size: 11px;
+      gap: 5px;
+      font-size: 12px;
       font-weight: 500;
-      padding: 3px 7px;
+      min-height: 28px;
+      padding: 4px 10px;
       border-radius: var(--radius-sm);
       background: var(--color-bg-surface-elevated);
       border: 1px solid var(--color-border-subtle);
@@ -685,10 +689,12 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     .add-skill-row {
       display: flex;
       gap: var(--space-2);
+      align-items: center;
     }
     .add-skill-input {
-      font-size: var(--text-xs);
-      padding: 6px 10px;
+      font-size: var(--text-sm);
+      min-height: 38px;
+      padding: 7px 12px;
       flex: 1;
     }
 
@@ -863,6 +869,9 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
     @media (max-width: 860px) {
       .profile-layout {
         grid-template-columns: 1fr;
+      }
+      .parser-column {
+        position: static;
       }
       .calibration-strip {
         flex-direction: column;

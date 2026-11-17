@@ -15,12 +15,17 @@ declare global {
         showConfirm: (message: string, callback?: (confirmed: boolean) => void) => void;
         enableClosingConfirmation: () => void;
         disableClosingConfirmation: () => void;
+        disableVerticalSwipes?: () => void;
+        enableVerticalSwipes?: () => void;
+        onEvent?: (eventType: string, eventHandler: () => void) => void;
+        offEvent?: (eventType: string, eventHandler: () => void) => void;
         isExpanded: boolean;
         viewportHeight: number;
         viewportStableHeight: number;
         headerColor: string;
         backgroundColor: string;
         colorScheme: 'light' | 'dark';
+        platform?: string;
         themeParams: Record<string, string>;
         initData: string;
         initDataUnsafe: {
@@ -58,17 +63,49 @@ export class TelegramService {
     if (typeof window === 'undefined') return;
 
     const tg = window.Telegram?.WebApp;
-    if (tg && typeof tg.ready === 'function') {
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+
+    // Accurate Telegram environment discrimination:
+    // A regular browser loading telegram-web-app.js reports platform="unknown" and empty initData.
+    // In actual Telegram (Mobile WKWebView/Android, Desktop CEF/Qt, Web) platform is known or initData is present.
+    const isActuallyTelegram = Boolean(
+      tg &&
+        (
+          (tg.platform && tg.platform !== 'unknown') ||
+          (tg.initData && tg.initData.length > 0) ||
+          search.includes('tgWebAppData') ||
+          hash.includes('tgWebAppData') ||
+          search.includes('tg=1') ||
+          Boolean((window as any).TelegramWebviewProxy)
+        )
+    );
+
+    if (isActuallyTelegram && tg) {
       this.isTelegram.set(true);
+      document.documentElement.classList.add('in-telegram');
+      document.body.classList.add('in-telegram');
+
       try {
         tg.ready();
         tg.expand();
         tg.setHeaderColor('#111520');
         tg.setBackgroundColor('#090c13');
 
-        // Disable vertical swipes so Telegram Desktop/Mobile does not intercept wheel & touch gestures
-        if (typeof (tg as any).disableVerticalSwipes === 'function') {
-          (tg as any).disableVerticalSwipes();
+        // Disable vertical swipes so Telegram Mobile modal sheet does not intercept swipes
+        if (typeof tg.disableVerticalSwipes === 'function') {
+          tg.disableVerticalSwipes();
+        }
+
+        // Keep viewport height in CSS variable
+        const updateViewport = () => {
+          const vh = tg.viewportHeight || window.innerHeight;
+          document.documentElement.style.setProperty('--tg-viewport-height', `${vh}px`);
+        };
+        updateViewport();
+
+        if (typeof tg.onEvent === 'function') {
+          tg.onEvent('viewportChanged', updateViewport);
         }
 
         // Ensure window has focus for desktop mouse wheel events
@@ -80,6 +117,11 @@ export class TelegramService {
       } catch (e) {
         console.warn('Telegram WebApp initialization error:', e);
       }
+    } else {
+      // In normal browser outside Telegram
+      this.isTelegram.set(false);
+      document.documentElement.classList.remove('in-telegram');
+      document.body.classList.remove('in-telegram');
     }
   }
 

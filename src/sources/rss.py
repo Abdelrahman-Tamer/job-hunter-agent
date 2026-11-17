@@ -120,7 +120,7 @@ class RSSAdapter(BaseSourceAdapter):
             raw_location="Remote",
             country_codes=[],
             workplace_type=WorkplaceType.REMOTE,
-            remote_scope="Worldwide",
+            remote_scope=None,
             eligible_countries=[],
             excluded_countries=[],
             seniority=SeniorityLevel.UNKNOWN,

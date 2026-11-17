@@ -102,6 +102,11 @@ async def add_note(
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, Any]:
     """Attach candidate note to job."""
+    stmt = select(Job.id).where(Job.id == job_id)
+    res = await db.execute(stmt)
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Job not found")
+
     note = ApplicationNote(job_id=job_id, note_text=dto.note_text)
     db.add(note)
     await db.commit()

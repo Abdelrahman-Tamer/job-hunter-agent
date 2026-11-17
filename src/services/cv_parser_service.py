@@ -533,7 +533,6 @@ class CVParserService:
             )
 
         return projects
-        return projects
 
     @staticmethod
     def _extract_certifications(cert_text: str) -> List[ParsedCertification]:

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db_session
+from src.core.logging import logger
 from src.core.security import sanitize_pii
 from src.services.cv_parser_service import (
     CVParserService,

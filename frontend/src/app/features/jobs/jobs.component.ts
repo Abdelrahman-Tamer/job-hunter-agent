@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -12,6 +13,7 @@ interface QuickChip {
   id: string;
   label: string;
   icon: IconName;
+  track?: string;
   eligibility?: string;
   minScore?: number;
 }
@@ -22,6 +24,69 @@ interface QuickChip {
   imports: [CommonModule, FormsModule, IconComponent, JobDrawerComponent],
   template: `
     <div class="jobs-view">
+      <!-- 3-Track Architectural Segmented Navigation Bar -->
+      <nav class="track-segmented-bar" role="tablist" aria-label="Job track specialization">
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="selectedTrack === ''"
+          class="track-segment-btn"
+          [class.active]="selectedTrack === ''"
+          (click)="setTrackFilter('')"
+        >
+          <span class="segment-icon">⚡</span>
+          <div class="segment-meta">
+            <span class="segment-title">All Tracks</span>
+            <span class="segment-sub">All Opportunities</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="selectedTrack === 'WEB_ANGULAR'"
+          class="track-segment-btn track-web"
+          [class.active]="selectedTrack === 'WEB_ANGULAR'"
+          (click)="setTrackFilter('WEB_ANGULAR')"
+        >
+          <span class="segment-icon">🌐</span>
+          <div class="segment-meta">
+            <span class="segment-title">Web & Angular</span>
+            <span class="segment-sub">Frontend Specialist</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="selectedTrack === 'NO_EXP_REMOTE'"
+          class="track-segment-btn track-remote"
+          [class.active]="selectedTrack === 'NO_EXP_REMOTE'"
+          (click)="setTrackFilter('NO_EXP_REMOTE')"
+        >
+          <span class="segment-icon">💼</span>
+          <div class="segment-meta">
+            <span class="segment-title">No-Exp Remote</span>
+            <span class="segment-sub">Data, Support & VA</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="selectedTrack === 'SOFTWARE_INTERN'"
+          class="track-segment-btn track-intern"
+          [class.active]="selectedTrack === 'SOFTWARE_INTERN'"
+          (click)="setTrackFilter('SOFTWARE_INTERN')"
+        >
+          <span class="segment-icon">🎓</span>
+          <div class="segment-meta">
+            <span class="segment-title">Software Interns</span>
+            <span class="segment-sub">Frontend, Backend, AI</span>
+          </div>
+        </button>
+      </nav>
+
       <!-- Search & Filters Command Bar -->
       <section class="filters-workbench" aria-label="Search and filter workbench">
         <!-- Unified Top Search Row -->
@@ -92,6 +157,13 @@ interface QuickChip {
 
           <!-- Dropdowns -->
           <div class="dropdowns-group">
+            <select [(ngModel)]="selectedTrack" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter track">
+              <option value="">All Tracks</option>
+              <option value="WEB_ANGULAR">🌐 Web & Angular</option>
+              <option value="NO_EXP_REMOTE">💼 No-Exp Remote</option>
+              <option value="SOFTWARE_INTERN">🎓 Software Interns</option>
+            </select>
+
             <select [(ngModel)]="selectedEligibility" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter geography">
               <option value="">All Regions</option>
               <option value="EGYPT_ELIGIBLE">Egypt Eligible</option>
@@ -191,6 +263,9 @@ interface QuickChip {
 
             <!-- Tags Line -->
             <div class="card-tags-line">
+              <span class="badge badge-purple" *ngIf="job.job_track === 'WEB_ANGULAR'">🌐 Web & Angular</span>
+              <span class="badge badge-amber" *ngIf="job.job_track === 'NO_EXP_REMOTE'">💼 No-Exp Remote</span>
+              <span class="badge badge-cyan" *ngIf="job.job_track === 'SOFTWARE_INTERN'">🎓 Software Intern</span>
               <span
                 class="badge"
                 [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
@@ -262,6 +337,10 @@ interface QuickChip {
                       <span class="table-role-title">{{ job.title }}</span>
                       <span class="table-company-sub">
                         {{ job.company }} ·
+                        <span class="badge badge-purple" *ngIf="job.job_track === 'WEB_ANGULAR'">🌐 Web & Angular</span>
+                        <span class="badge badge-amber" *ngIf="job.job_track === 'NO_EXP_REMOTE'">💼 No-Exp Remote</span>
+                        <span class="badge badge-cyan" *ngIf="job.job_track === 'SOFTWARE_INTERN'">🎓 Software Intern</span>
+                        <span *ngIf="job.job_track">·</span>
                         <app-icon name="map-pin" [size]="10"></app-icon>
                         {{ job.raw_location || 'Remote' }}
                       </span>
@@ -366,6 +445,94 @@ interface QuickChip {
       width: 100%;
     }
 
+    /* Segmented Track Navigation Hub */
+    .track-segmented-bar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-2);
+      width: 100%;
+    }
+
+    .track-segment-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      background: var(--color-bg-surface-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      text-align: left;
+      transition: all var(--motion-fast);
+      position: relative;
+      user-select: none;
+    }
+
+    .track-segment-btn:hover {
+      border-color: var(--color-border-hover);
+      color: var(--color-text-primary);
+      background: var(--color-bg-surface-hover);
+    }
+
+    .track-segment-btn:active {
+      transform: scale(0.985);
+    }
+
+    .track-segment-btn.active {
+      background: var(--color-bg-surface);
+      border-color: var(--color-brand-primary);
+      color: var(--color-text-primary);
+      box-shadow: 0 0 0 1px var(--color-brand-border), var(--shadow-xs);
+    }
+
+    .track-segment-btn.track-web.active {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.4), var(--shadow-xs);
+    }
+
+    .track-segment-btn.track-remote.active {
+      border-color: #34d399;
+      box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.4), var(--shadow-xs);
+    }
+
+    .track-segment-btn.track-intern.active {
+      border-color: #c084fc;
+      box-shadow: 0 0 0 1px rgba(192, 132, 252, 0.4), var(--shadow-xs);
+    }
+
+    .segment-icon {
+      font-size: 18px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .segment-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
+    }
+
+    .segment-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .segment-sub {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* Filters Workbench */
     .filters-workbench {
       background: var(--color-bg-surface-glass);
@@ -399,22 +566,23 @@ interface QuickChip {
       pointer-events: none;
     }
     .search-input {
-      padding-left: 32px;
-      padding-right: 28px;
-      height: 36px;
-      font-size: var(--text-xs);
-      border-radius: var(--radius-sm);
+      padding-left: 36px;
+      padding-right: 32px;
+      height: 40px;
+      min-height: 40px;
+      font-size: var(--text-sm);
+      border-radius: var(--radius-md);
     }
     .clear-search-btn {
       position: absolute;
-      right: 8px;
+      right: 10px;
       background: transparent;
       border: none;
       color: var(--color-text-muted);
       cursor: pointer;
       display: flex;
       align-items: center;
-      padding: 2px;
+      padding: 4px;
     }
     .clear-search-btn:hover { color: var(--color-text-primary); }
 
@@ -425,8 +593,10 @@ interface QuickChip {
       flex-shrink: 0;
     }
     .search-btn {
-      height: 36px;
-      padding: 0 14px;
+      height: 40px;
+      min-height: 40px;
+      padding: 0 16px;
+      font-size: var(--text-sm);
     }
 
     /* View Switcher */
@@ -435,15 +605,18 @@ interface QuickChip {
       align-items: center;
       background: var(--color-bg-surface-elevated);
       border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-sm);
+      border-radius: var(--radius-md);
       padding: 2px;
       gap: 2px;
     }
     .view-btn {
       background: transparent;
       border: none;
-      padding: 5px 7px;
-      border-radius: var(--radius-xs);
+      width: 36px;
+      height: 36px;
+      min-height: 36px;
+      padding: 0;
+      border-radius: var(--radius-sm);
       color: var(--color-text-muted);
       cursor: pointer;
       display: flex;
@@ -469,16 +642,17 @@ interface QuickChip {
     .quick-chips-group {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
       flex-wrap: wrap;
     }
     .chip-pill {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 4px 9px;
+      gap: 6px;
+      min-height: 34px;
+      padding: 6px 13px;
       border-radius: var(--radius-sm);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
       background: var(--color-bg-surface-elevated);
       border: 1px solid var(--color-border-subtle);
@@ -499,15 +673,16 @@ interface QuickChip {
     .dropdowns-group {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       flex-wrap: wrap;
     }
     .select-compact {
       width: auto;
-      min-width: 110px;
-      height: 30px;
-      padding: 4px 24px 4px 8px;
-      font-size: 11px;
+      min-width: 120px;
+      height: 34px;
+      min-height: 34px;
+      padding: 6px 26px 6px 10px;
+      font-size: 12px;
       border-radius: var(--radius-sm);
     }
 
@@ -689,11 +864,12 @@ interface QuickChip {
     .save-btn {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 4px 8px;
-      font-size: 11px;
+      gap: 5px;
+      min-height: 32px;
+      padding: 5px 12px;
+      font-size: 12px;
       font-weight: 600;
-      border-radius: var(--radius-xs);
+      border-radius: var(--radius-sm);
       background: transparent;
       border: 1px solid var(--color-border-subtle);
       color: var(--color-text-muted);
@@ -818,6 +994,22 @@ interface QuickChip {
     }
 
     @media (max-width: 768px) {
+      .track-segmented-bar {
+        display: flex;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+        gap: 6px;
+      }
+      .track-segmented-bar::-webkit-scrollbar {
+        display: none;
+      }
+      .track-segment-btn {
+        flex: 0 0 auto;
+        min-width: 140px;
+        padding: 8px 10px;
+      }
       .search-command-row {
         flex-direction: column;
         align-items: stretch;
@@ -838,12 +1030,40 @@ interface QuickChip {
         grid-template-columns: 1fr;
       }
     }
+
+    @media (max-width: 480px) {
+      .track-segment-btn {
+        min-width: 130px;
+        padding: 6px 8px;
+        gap: 6px;
+      }
+      .segment-icon {
+        font-size: 15px;
+      }
+      .segment-title {
+        font-size: 11.5px;
+      }
+      .segment-sub {
+        font-size: 9px;
+      }
+      .dropdowns-group {
+        grid-template-columns: 1fr;
+      }
+      .search-actions-group {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .search-btn {
+        flex: 1;
+      }
+    }
   `],
 })
 export class JobsComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly telegram = inject(TelegramService);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
 
   readonly jobs = signal<JobSummary[]>([]);
   readonly totalCount = signal<number>(0);
@@ -855,6 +1075,7 @@ export class JobsComponent implements OnInit {
   readonly viewMode = signal<'grid' | 'list'>('grid');
 
   searchKeyword: string = '';
+  selectedTrack: string = '';
   selectedEligibility: string = '';
   selectedWorkplace: string = '';
   selectedSeniority: string = '';
@@ -867,14 +1088,33 @@ export class JobsComponent implements OnInit {
   readonly selectedJob = signal<JobSummary | null>(null);
 
   readonly quickChips: QuickChip[] = [
-    { id: 'ALL', label: 'All Listings', icon: 'layers' },
+    { id: 'ALL', label: 'All Tracks', icon: 'layers' },
+    { id: 'TRACK_WEB', label: '🌐 Web & Angular', icon: 'zap', track: 'WEB_ANGULAR' },
+    { id: 'TRACK_REMOTE', label: '💼 No-Exp Remote', icon: 'globe', track: 'NO_EXP_REMOTE' },
+    { id: 'TRACK_INTERN', label: '🎓 Software Interns', icon: 'star', track: 'SOFTWARE_INTERN' },
     { id: 'TOP_MATCH', label: 'Top Match (70%+)', icon: 'star', minScore: 70 },
-    { id: 'EGYPT_WORLDWIDE', label: 'Egypt & Remote', icon: 'globe', eligibility: 'EGYPT_ELIGIBLE' },
-    { id: 'REMOTE', label: 'Remote Only', icon: 'building' },
-    { id: 'MID_SENIOR', label: 'Mid & Senior', icon: 'user' },
   ];
 
   ngOnInit(): void {
+    this.route.queryParams.subscribe((params) => {
+      if (params['track']) {
+        this.selectedTrack = params['track'];
+        if (params['track'] === 'WEB_ANGULAR') this.activeQuickChip.set('TRACK_WEB');
+        else if (params['track'] === 'NO_EXP_REMOTE') this.activeQuickChip.set('TRACK_REMOTE');
+        else if (params['track'] === 'SOFTWARE_INTERN') this.activeQuickChip.set('TRACK_INTERN');
+      }
+      this.loadJobs();
+    });
+  }
+
+  setTrackFilter(track: string): void {
+    this.telegram.haptic('selection');
+    this.selectedTrack = track;
+    if (track === 'WEB_ANGULAR') this.activeQuickChip.set('TRACK_WEB');
+    else if (track === 'NO_EXP_REMOTE') this.activeQuickChip.set('TRACK_REMOTE');
+    else if (track === 'SOFTWARE_INTERN') this.activeQuickChip.set('TRACK_INTERN');
+    else this.activeQuickChip.set('ALL');
+    this.currentPage.set(1);
     this.loadJobs();
   }
 
@@ -885,6 +1125,9 @@ export class JobsComponent implements OnInit {
       limit: this.limit,
     };
 
+    if (this.selectedTrack) {
+      params['track'] = this.selectedTrack;
+    }
     if (this.searchKeyword.trim()) {
       params['search'] = this.searchKeyword.trim();
     }
@@ -930,10 +1173,17 @@ export class JobsComponent implements OnInit {
     this.telegram.haptic('selection');
 
     if (chipId === 'ALL') {
+      this.selectedTrack = '';
       this.selectedEligibility = '';
       this.selectedWorkplace = '';
       this.selectedSeniority = '';
       this.minScore = 0;
+    } else if (chipId === 'TRACK_WEB') {
+      this.selectedTrack = 'WEB_ANGULAR';
+    } else if (chipId === 'TRACK_REMOTE') {
+      this.selectedTrack = 'NO_EXP_REMOTE';
+    } else if (chipId === 'TRACK_INTERN') {
+      this.selectedTrack = 'SOFTWARE_INTERN';
     } else if (chipId === 'TOP_MATCH') {
       this.minScore = 70;
     } else if (chipId === 'EGYPT_WORLDWIDE') {
@@ -955,6 +1205,7 @@ export class JobsComponent implements OnInit {
   hasActiveFilters(): boolean {
     return (
       !!this.searchKeyword ||
+      !!this.selectedTrack ||
       !!this.selectedEligibility ||
       !!this.selectedWorkplace ||
       !!this.selectedSeniority ||
@@ -964,6 +1215,7 @@ export class JobsComponent implements OnInit {
 
   resetFilters(): void {
     this.searchKeyword = '';
+    this.selectedTrack = '';
     this.selectedEligibility = '';
     this.selectedWorkplace = '';
     this.selectedSeniority = '';

@@ -1,7 +1,15 @@
 """Pytest fixtures and configuration."""
 
 import asyncio
+from pathlib import Path
+import sys
 from typing import AsyncGenerator
+
+# Ensure repository root is on sys.path for direct pytest invocation
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

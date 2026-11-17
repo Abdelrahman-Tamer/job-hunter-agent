@@ -44,16 +44,17 @@ async def readiness_check(
 async def bot_health_check() -> Dict[str, Any]:
     """Inspect Telegram bot status and configuration."""
     from src.bot.telegram_client import TelegramClient
-    client = TelegramClient()
     bot_info = {}
-    webhook_info = {}
-    if client.is_configured:
-        try:
-            bot_info = await client.get_me()
-        except Exception as e:
-            bot_info = {"error": str(e)}
+    async with TelegramClient() as client:
+        is_configured = client.is_configured
+        if is_configured:
+            try:
+                bot_info = await client.get_me()
+            except Exception as e:
+                bot_info = {"error": str(e)}
+
     return {
-        "is_configured": client.is_configured,
+        "is_configured": is_configured,
         "polling_enabled": settings.TELEGRAM_POLLING,
         "owner_id_configured": bool(settings.TELEGRAM_OWNER_ID),
         "bot_info": bot_info,
