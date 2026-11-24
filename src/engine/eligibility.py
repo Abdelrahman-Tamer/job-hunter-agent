@@ -6,17 +6,72 @@ against the candidate's base country (Egypt) deterministically.
 
 import re
 from typing import List, Optional, Set, Tuple
-from src.models.enums import GeographicEligibility, WorkplaceType
+from src.models.enums import GeographicEligibility, OpportunitySegment, WorkplaceType
 
 
-# Standard country references for Egypt
+# Standard country references for Egypt, governorates, and major tech districts
 EGYPT_IDENTIFIERS: Set[str] = {
     "egypt",
     "eg",
     "cairo",
     "giza",
     "alexandria",
+    "alex",
     "egy",
+    "smart village",
+    "new cairo",
+    "nasr city",
+    "maadi",
+    "dokki",
+    "mohandessin",
+    "mohandeseen",
+    "heliopolis",
+    "6th of october",
+    "october",
+    "sheikh zayed",
+    "zayed",
+    "sheraton",
+    "tagamoa",
+    "new capital",
+    "mansoura",
+    "tanta",
+    "assiut",
+    "aswan",
+    "ismailia",
+    "suez",
+    "port said",
+    "hurghada",
+    "banha",
+    "zagazig",
+    "damietta",
+}
+
+# Arabic country and city references for Egypt
+EGYPT_ARABIC_IDENTIFIERS: Set[str] = {
+    "مصر",
+    "القاهرة",
+    "الجيزة",
+    "الاسكندرية",
+    "الإسكندرية",
+    "المنصورة",
+    "المعادي",
+    "مدينة نصر",
+    "المهندسين",
+    "الدقي",
+    "القرية الذكية",
+    "التجمع",
+    "التجمع الخامس",
+    "أكتوبر",
+    "زايد",
+    "مصر الجديدة",
+    "الشروق",
+    "العبور",
+    "العاصمة الإدارية",
+    "طنطا",
+    "أسيوط",
+    "الإسماعيلية",
+    "السويس",
+    "بورسعيد",
 }
 
 # Gulf and Arab countries / regional terms where remote from Egypt is readily accessible
@@ -39,6 +94,7 @@ GULF_AND_ARAB_IDENTIFIERS: Set[str] = {
     "dubai",
     "abu dhabi",
     "sharjah",
+    "ajman",
     "qatar",
     "doha",
     "kuwait",
@@ -46,6 +102,40 @@ GULF_AND_ARAB_IDENTIFIERS: Set[str] = {
     "manama",
     "oman",
     "muscat",
+    "neom",
+}
+
+# Arabic identifiers for Gulf / GCC and Arab countries / major cities
+GULF_AND_ARAB_ARABIC_IDENTIFIERS: Set[str] = {
+    "السعودية",
+    "المملكة العربية السعودية",
+    "الرياض",
+    "جدة",
+    "الدمام",
+    "الخبر",
+    "مكة",
+    "المدينة",
+    "نيوم",
+    "الامارات",
+    "الإمارات",
+    "دبي",
+    "أبوظبي",
+    "ابوظبي",
+    "الشارقة",
+    "عجمان",
+    "قطر",
+    "الدوحة",
+    "الكويت",
+    "البحرين",
+    "المنامة",
+    "عمان",
+    "سلطنة عمان",
+    "مسقط",
+    "الخليج",
+    "دول الخليج",
+    "الشرق الأوسط",
+    "شمال أفريقيا",
+    "شمال افريقيا",
 }
 
 # Regional groupings that may include Egypt geographically
@@ -118,8 +208,20 @@ class GeographicEligibilityEngine:
                 )
 
         # 2. Check explicit inclusion of Egypt
-        has_egypt_in_eligible = any(e in eligible_set for e in EGYPT_IDENTIFIERS)
-        has_egypt_in_location = any(re.search(rf"\b{re.escape(ident)}\b", full_text) for ident in EGYPT_IDENTIFIERS)
+        has_egypt_in_eligible = (
+            any(e in eligible_set for e in EGYPT_IDENTIFIERS)
+            or any(e in eligible_set for e in EGYPT_ARABIC_IDENTIFIERS)
+        )
+        has_egypt_in_location = (
+            any(re.search(rf"\b{re.escape(ident)}\b", full_text) for ident in EGYPT_IDENTIFIERS)
+            or any(ident in full_text for ident in EGYPT_ARABIC_IDENTIFIERS)
+            or any(ident in desc_sample for ident in EGYPT_ARABIC_IDENTIFIERS)
+        )
+
+        # Safeguard: "Alexandria, VA" or "Alexandria, Virginia, US" is NOT Egypt
+        if "alexandria" in full_text and any(us_ind in full_text for us_ind in [" va", ", va", "virginia", "usa", "united states", "u.s."]):
+            if not any(eg_ind in full_text for eg_ind in ["egypt", "cairo", "مصر", "الاسكندرية", "الإسكندرية"]):
+                has_egypt_in_location = False
 
         if has_egypt_in_eligible or has_egypt_in_location:
             if workplace_type in (WorkplaceType.ON_SITE, WorkplaceType.HYBRID):
@@ -134,8 +236,11 @@ class GeographicEligibilityEngine:
         # 4. Check for Gulf / Arab / MENA Remote (Directly open and desirable for Egyptian candidates)
         is_gulf_arab = (
             any(re.search(rf"\b{re.escape(kw)}\b", full_text) for kw in GULF_AND_ARAB_IDENTIFIERS)
+            or any(kw in full_text for kw in GULF_AND_ARAB_ARABIC_IDENTIFIERS)
             or any(re.search(rf"\b{re.escape(kw)}\b", desc_sample) for kw in GULF_AND_ARAB_IDENTIFIERS)
+            or any(kw in desc_sample for kw in GULF_AND_ARAB_ARABIC_IDENTIFIERS)
             or any(kw in eligible_set for kw in GULF_AND_ARAB_IDENTIFIERS)
+            or any(kw in eligible_set for kw in GULF_AND_ARAB_ARABIC_IDENTIFIERS)
         )
         if workplace_type == WorkplaceType.REMOTE and is_gulf_arab:
             return (
@@ -173,3 +278,81 @@ class GeographicEligibilityEngine:
 
         # 7. Default fallback: UNKNOWN
         return GeographicEligibility.UNKNOWN, "Insufficient location information provided."
+
+    def classify_segment(
+        self,
+        raw_location: Optional[str],
+        workplace_type: WorkplaceType,
+        remote_scope: Optional[str] = None,
+        eligibility: Optional[GeographicEligibility] = None,
+        description_text: Optional[str] = None,
+    ) -> OpportunitySegment:
+        """
+        Classify an opportunity into one of the two top-level Frontend Radar segments:
+        1. EGYPT: Cairo, Giza, Alexandria, and Egypt-wide remote (On-site, Hybrid, Remote).
+        2. REMOTE_GCC_ABROAD: Arab Gulf / GCC (KSA, UAE, Qatar, Kuwait, Bahrain, Oman) and
+           international remote roles open to Egyptian talent (strictly Remote ONLY).
+        3. OTHER: Non-remote roles outside Egypt, or ambiguous/ineligible roles.
+        """
+        loc_text = (raw_location or "").lower()
+        scope_text = (remote_scope or "").lower()
+        full_text = f"{loc_text} {scope_text}".strip()
+        desc_sample = (description_text or "")[:1500].lower()
+
+        # If eligibility is not pre-computed, evaluate it now
+        if eligibility is None:
+            eligibility, _ = self.classify(
+                raw_location=raw_location,
+                workplace_type=workplace_type,
+                remote_scope=remote_scope,
+                description_text=description_text,
+            )
+
+        # Ineligible roles or on-site/hybrid outside Egypt are never placed in either bucket
+        if eligibility == GeographicEligibility.NOT_ELIGIBLE:
+            return OpportunitySegment.OTHER
+
+        # 1. Inspect location for Egypt vs Gulf / Abroad indicators
+        has_egypt_loc = (
+            any(re.search(rf"\b{re.escape(ident)}\b", loc_text) for ident in EGYPT_IDENTIFIERS)
+            or any(ident in loc_text for ident in EGYPT_ARABIC_IDENTIFIERS)
+        )
+        if "alexandria" in loc_text and any(us in loc_text for us in [" va", ", va", "virginia", "usa"]):
+            if not any(eg in loc_text for eg in ["egypt", "cairo", "مصر"]):
+                has_egypt_loc = False
+
+        is_gulf_loc = (
+            any(re.search(rf"\b{re.escape(kw)}\b", loc_text) for kw in GULF_AND_ARAB_IDENTIFIERS)
+            or any(kw in loc_text for kw in GULF_AND_ARAB_ARABIC_IDENTIFIERS)
+        )
+
+        # 1. Egypt Bucket:
+        # If the primary location is inside Egypt (and not a foreign headquarters hiring abroad)
+        if has_egypt_loc and not is_gulf_loc:
+            return OpportunitySegment.EGYPT
+
+        # 2. Remote Abroad / GCC Bucket:
+        # Strictly Remote ONLY! Non-remote roles outside Egypt are rejected.
+        if workplace_type == WorkplaceType.REMOTE:
+            is_gulf_arab = (
+                is_gulf_loc
+                or any(re.search(rf"\b{re.escape(kw)}\b", full_text) for kw in GULF_AND_ARAB_IDENTIFIERS)
+                or any(kw in full_text for kw in GULF_AND_ARAB_ARABIC_IDENTIFIERS)
+                or any(re.search(rf"\b{re.escape(kw)}\b", desc_sample) for kw in GULF_AND_ARAB_IDENTIFIERS)
+                or any(kw in desc_sample for kw in GULF_AND_ARAB_ARABIC_IDENTIFIERS)
+            )
+            is_worldwide = (
+                any(kw in full_text for kw in WORLDWIDE_KEYWORDS)
+                or any(kw in desc_sample for kw in WORLDWIDE_KEYWORDS)
+                or eligibility in (GeographicEligibility.REMOTE_WORLDWIDE, GeographicEligibility.REMOTE_REGION_POSSIBLE)
+            )
+            if is_gulf_arab or is_worldwide or (eligibility == GeographicEligibility.EGYPT_ELIGIBLE and not has_egypt_loc):
+                return OpportunitySegment.REMOTE_GCC_ABROAD
+
+        # Fallback for Egypt: scope/text confirmed Egypt and not in remote GCC
+        if has_egypt_loc or any(re.search(rf"\b{re.escape(ident)}\b", full_text) for ident in EGYPT_IDENTIFIERS):
+            return OpportunitySegment.EGYPT
+
+        # Ambiguous locations or unconfirmed remote scope are never silently classified as Remote Abroad
+        return OpportunitySegment.OTHER
+

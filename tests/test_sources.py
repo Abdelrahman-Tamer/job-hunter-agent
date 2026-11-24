@@ -1,18 +1,16 @@
 """Unit and integration tests for source adapters."""
 
+import httpx
 import pytest
 import respx
-import httpx
-from src.core.security import is_safe_url
-from src.sources.himalayas import HimalayasAdapter
-from src.sources.remotive import RemotiveAdapter
-from src.sources.greenhouse import GreenhouseAdapter
-from src.sources.lever import LeverAdapter
-from src.sources.rss import RSSAdapter
-from src.sources.base import RawJobData
-from src.sources.http_client import ResilientHttpClient
-from src.models.enums import EmploymentType, SeniorityLevel, WorkplaceType
 
+from src.core.security import is_safe_url
+from src.models.enums import EmploymentType, SeniorityLevel, WorkplaceType
+from src.sources.greenhouse import GreenhouseAdapter
+from src.sources.himalayas import HimalayasAdapter
+from src.sources.lever import LeverAdapter
+from src.sources.remotive import RemotiveAdapter
+from src.sources.rss import RSSAdapter
 
 # Sample fixtures simulating actual provider schemas
 HIMALAYAS_FIXTURE = {
@@ -222,3 +220,111 @@ async def test_rss_adapter_fetch_and_normalize():
     assert norm.title == "Senior Angular Specialist"
     assert norm.remote_scope is None
     assert "Angular and TypeScript" in norm.description_text
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_egypt_community_adapter_parse_and_normalize():
+    """Verify Egypt community adapter parses markdown tables and sets Egypt eligibility."""
+    from src.sources.egypt_community import EgyptCommunityAdapter
+
+    sample_md = """
+# Guide
+## Internships 2026
+| Company | Internship Title | Link | Location |
+|---|---|---|---|
+| Paymob | Tech Internship 2026 | [Link](https://app.recruitera.ai/paymob/job1) | Cairo, Egypt |
+| Siemens | SSP - R&D AI/ML Development Intern | [Link](https://jobs.siemens.com/504471) | Cairo, Egypt |
+"""
+    respx.get("https://raw.githubusercontent.com/dinaashraf20003/Software-Internship-Guide/main/README.md").mock(
+        return_value=httpx.Response(200, text=sample_md)
+    )
+
+    adapter = EgyptCommunityAdapter()
+    raw_jobs = await adapter.fetch_jobs()
+    assert len(raw_jobs) == 2
+
+    norm = adapter.normalize(raw_jobs[0])
+    assert norm.company == "Paymob"
+    assert norm.title == "Tech Internship 2026"
+    assert "EG" in norm.country_codes
+    assert norm.seniority == SeniorityLevel.INTERNSHIP
+    assert norm.employment_type == EmploymentType.INTERNSHIP
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_jobicy_adapter_fetch_and_normalize():
+    """Verify Jobicy adapter parses remote job payload."""
+    from src.sources.jobicy import JobicyAdapter
+
+    jobicy_sample = {
+        "jobs": [
+            {
+                "id": "12345",
+                "url": "https://jobicy.com/jobs/12345-frontend-developer",
+                "jobTitle": "Frontend Engineer (Angular)",
+                "companyName": "TechCo",
+                "jobGeo": "EMEA",
+                "jobType": "full-time",
+                "jobDescription": "<p>Angular and TypeScript experience required.</p>",
+            }
+        ]
+    }
+    respx.get("https://jobicy.com/api/v2/remote-jobs").mock(
+        return_value=httpx.Response(200, json=jobicy_sample)
+    )
+
+    adapter = JobicyAdapter()
+    raw_jobs = await adapter.fetch_jobs()
+    assert len(raw_jobs) >= 1
+
+    norm = adapter.normalize(raw_jobs[0])
+    assert norm.company == "TechCo"
+    assert norm.workplace_type == WorkplaceType.REMOTE
+    assert "Angular" in norm.required_skills
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_linkedin_social_adapter_serper_and_normalize():
+    """Verify LinkedIn social post adapter fetches via search API and normalizes properly."""
+    from src.core.config import settings
+    from src.sources.linkedin_posts import LinkedInSocialAdapter
+
+    serper_mock = {
+        "organic": [
+            {
+                "title": "Kareem Recruiter on LinkedIn: 'We are hiring a Frontend Engineer at Swvl...'",
+                "link": "https://www.linkedin.com/posts/kareem-recruiter_hiring-frontend-engineer-activity-72418001920?utm_source=share",
+                "snippet": "We are hiring a Frontend Engineer at Swvl in Cairo, Egypt! Strong experience with Angular and TypeScript needed.",
+            }
+        ]
+    }
+
+    respx.post("https://google.serper.dev/search").mock(
+        return_value=httpx.Response(200, json=serper_mock)
+    )
+
+    orig_key = getattr(settings, "SOCIAL_SEARCH_API_KEY", "")
+    orig_prov = getattr(settings, "SOCIAL_SEARCH_PROVIDER", "auto")
+    try:
+        settings.SOCIAL_SEARCH_API_KEY = "test-serper-key"
+        settings.SOCIAL_SEARCH_PROVIDER = "serper"
+
+        adapter = LinkedInSocialAdapter()
+        raw_jobs = await adapter.fetch_jobs()
+        assert len(raw_jobs) >= 1
+
+        norm = adapter.normalize(raw_jobs[0])
+        assert norm.source_name == "linkedin_social"
+        assert norm.is_social_post is True
+        assert "Frontend" in norm.title or "Angular" in norm.title
+        assert "Cairo" in norm.raw_location
+        assert "Swvl" in norm.company or "Kareem" in norm.company
+        assert "Angular" in norm.required_skills
+    finally:
+        settings.SOCIAL_SEARCH_API_KEY = orig_key
+        settings.SOCIAL_SEARCH_PROVIDER = orig_prov
+
+

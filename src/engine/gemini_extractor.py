@@ -136,10 +136,10 @@ Title: {title}
 
         except Exception as exc:
             err_msg = str(exc).lower()
-            if "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg:
+            if any(k in err_msg for k in ["429", "resource_exhausted", "quota", "503", "unavailable", "high demand"]):
                 GeminiJobExtractor._quota_exhausted = True
                 self._quota_exhausted = True
-                logger.warning("Gemini API daily quota reached (429/resource_exhausted). Switching extraction to local heuristics.")
+                logger.warning("Gemini API unavailable or quota reached. Switching extraction to local heuristics.")
             elif isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
                 logger.warning(f"Gemini extraction timed out ({company} - {title}). Skipping AI for this job.")
             else:

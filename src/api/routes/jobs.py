@@ -48,6 +48,9 @@ class JobSummaryDTO(BaseModel):
     original_application_url: str
     required_skills: List[str]
     tracker_status: Optional[ApplicationStatus] = None
+    opportunity_segment: Optional[str] = None
+    is_social_post: bool = False
+    source_category_label: str = "Job Board"
 
 
 class JobDetailDTO(JobSummaryDTO):
@@ -137,6 +140,9 @@ async def list_jobs(
                 original_application_url=j.original_application_url,
                 required_skills=j.required_skills or [],
                 tracker_status=j.tracker.status if j.tracker else None,
+                opportunity_segment=j.opportunity_segment,
+                is_social_post=j.is_social_post,
+                source_category_label=j.source_category_label,
             )
         )
 
@@ -187,6 +193,9 @@ async def get_job_detail(
         original_application_url=j.original_application_url,
         required_skills=j.required_skills or [],
         tracker_status=j.tracker.status if j.tracker else None,
+        opportunity_segment=j.opportunity_segment,
+        is_social_post=j.is_social_post,
+        source_category_label=j.source_category_label,
     )
 
 

@@ -40,7 +40,9 @@ def format_date_label(published_at: Optional[datetime], first_seen_at: datetime)
         else:
             return f"🗓️ Published {diff_days}d ago ({date_str})"
     else:
-        if first_seen_at.tzinfo is None:
+        if not first_seen_at:
+            first_seen_at = now
+        elif first_seen_at.tzinfo is None:
             first_seen_at = first_seen_at.replace(tzinfo=timezone.utc)
         diff_days = (now - first_seen_at).days
         date_str = first_seen_at.strftime("%Y-%m-%d")
@@ -52,7 +54,7 @@ def format_date_label(published_at: Optional[datetime], first_seen_at: datetime)
 
 def format_eligibility_badge(eligibility: GeographicEligibility) -> str:
     badges = {
-        GeographicEligibility.EGYPT_ELIGIBLE: "🇪🇬 Egypt Eligible (On-site / Remote)",
+        GeographicEligibility.EGYPT_ELIGIBLE: "🇪🇬 Egypt Eligible (فرصة داخل مصر)",
         GeographicEligibility.REMOTE_WORLDWIDE: "🌐 Remote Worldwide",
         GeographicEligibility.REMOTE_REGION_POSSIBLE: "⚠️ Regional Remote (Confirm EG)",
         GeographicEligibility.RELOCATION_REQUIRED: "✈️ Relocation Required",
@@ -64,8 +66,11 @@ def format_eligibility_badge(eligibility: GeographicEligibility) -> str:
 
 def format_track_badge(track: Optional[JobTrack]) -> str:
     badges = {
+        JobTrack.FRONTEND_EGYPT: "🇪🇬 Egypt Frontend (فرص مصر)",
+        JobTrack.FRONTEND_REMOTE_GCC: "🌐 Remote Abroad / GCC (ريموت خارج مصر)",
+        JobTrack.FRONTEND_INTERN: "🎓 Frontend Internship (تدريب واجهات)",
         JobTrack.WEB_ANGULAR: "🌐 Web & Angular Frontend",
-        JobTrack.NO_EXP_REMOTE: "💼 Remote Without Experience (Data Entry / Support)",
+        JobTrack.NO_EXP_REMOTE: "💼 Remote Without Experience",
         JobTrack.SOFTWARE_INTERN: "🎓 Software & AI Internship",
         JobTrack.OTHER: "📌 General Opportunity",
     }
@@ -107,8 +112,22 @@ def format_job_card(job: Job) -> str:
     else:
         tier_badge = "⚪ <b>Potential Match</b>"
 
+    is_social = getattr(job, "is_social_post", False)
+    seg = getattr(job, "opportunity_segment", "")
+
+    if seg == "EGYPT" or (
+        job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE
+        and any(e in (job.raw_location or "").lower() for e in ["egypt", "cairo", "giza", "alexandria", "smart village", "مصر", "القاهرة", "الجيزة"])
+    ):
+        lines.append("🇪🇬 <b>[فرصة داخل مصر • Egypt Frontend]</b>")
+    elif seg == "REMOTE_GCC_ABROAD" or job.job_track == JobTrack.FRONTEND_REMOTE_GCC:
+        lines.append("🌐 <b>[ريموت خارج مصر • Remote Abroad / GCC]</b>")
+    else:
+        lines.append("📌 <b>[فرصة متوافقة • Verified Frontend]</b>")
+
     lines.append(f"💼 <b>{escape(job.title)}</b>")
-    lines.append(f"🏢 <b>{escape(job.company)}</b>")
+    company_prefix = "👤 Poster:" if is_social else "🏢 Company:"
+    lines.append(f"{company_prefix} <b>{escape(job.company)}</b>")
     lines.append("─────────────────────────")
 
     bar = make_progress_bar(score, 100.0, 10)
@@ -125,11 +144,14 @@ def format_job_card(job: Job) -> str:
         WorkplaceType.HYBRID: "Hybrid",
         WorkplaceType.UNKNOWN: "Remote",
     }.get(job.workplace_type, "Remote")
-    lines.append(f"🌍 Location: <code>{loc_display}</code> ({workplace_text})")
+    lines.append(f"🌍 Region & Work Mode: <code>{loc_display}</code> (<b>{workplace_text}</b>)")
 
     sen_display = job.seniority.value if job.seniority != SeniorityLevel.UNKNOWN else "Junior / Entry"
     emp_display = job.employment_type.value if job.employment_type != EmploymentType.UNKNOWN else "Full-time"
     lines.append(f"📊 Level: <b>{sen_display}</b> | Type: <b>{emp_display}</b>")
+
+    source_type_label = "Social Post (LinkedIn)" if is_social else f"Job Board ({escape(job.source_name)})"
+    lines.append(f"📡 Source: <b>{source_type_label}</b>")
 
     if job.salary_min or job.salary_max:
         curr = escape(job.salary_currency or "$")
@@ -143,7 +165,8 @@ def format_job_card(job: Job) -> str:
         lines.append(f"💵 Salary: <b>{sal_str}{period}</b>")
 
     date_label = format_date_label(job.published_at, job.first_seen_at)
-    lines.append(f"{date_label} • <i>{escape(job.source_name)}</i>")
+    app_url = job.original_application_url or job.source_url
+    lines.append(f"{date_label} • <a href=\"{app_url}\">Direct Link ↗</a>")
 
     skills = (job.required_skills or [])[:6]
     if skills:
@@ -210,6 +233,8 @@ def format_match_breakdown(job: Job) -> str:
 def build_job_inline_keyboard(job: Job, tracker_status: Optional[str] = None) -> Dict[str, Any]:
     """Generate clean, intuitive inline keyboard for a job card."""
     app_url = job.original_application_url or job.source_url
+    is_social = getattr(job, "is_social_post", False)
+    apply_btn_label = "💬 View LinkedIn Post ↗" if is_social else "🌐 Apply Direct ↗"
 
     save_text = "⭐ Saved to Favorites ✅" if tracker_status == "saved" else "⭐ Save Job"
     applied_text = "🎉 Applied ✅" if tracker_status == "applied" else "✅ Mark as Applied"
@@ -217,7 +242,7 @@ def build_job_inline_keyboard(job: Job, tracker_status: Optional[str] = None) ->
     return {
         "inline_keyboard": [
             [
-                {"text": "🌐 Apply Direct ↗", "url": app_url},
+                {"text": apply_btn_label, "url": app_url},
             ],
             [
                 {"text": save_text, "callback_data": f"save:{job.id}"},
@@ -248,20 +273,19 @@ def build_persistent_reply_keyboard() -> Dict[str, Any]:
                 {"text": "📋 Today's Jobs"},
             ],
             [
-                {"text": "🌐 Web & Angular"},
-                {"text": "💼 No-Exp Remote"},
-                {"text": "🎓 Software Interns"},
+                {"text": "🇪🇬 Egypt (فرص مصر)"},
+                {"text": "🌐 Remote Abroad / GCC"},
             ],
             [
+                {"text": "🎓 Frontend Interns"},
                 {"text": "🔍 Smart Filters"},
+            ],
+            [
                 {"text": "👤 My Profile / CV"},
-            ],
-            [
                 {"text": "⭐ Saved Jobs"},
-                {"text": "📝 Applied Pipeline"},
             ],
             [
-                {"text": "🌐 Web Dashboard"},
+                {"text": "📝 Applied Pipeline"},
                 {"text": "📖 Help & Guide"},
             ],
         ],
@@ -271,26 +295,27 @@ def build_persistent_reply_keyboard() -> Dict[str, Any]:
 
 
 def build_quick_filters_keyboard() -> Dict[str, Any]:
-    """Interactive filter options for targeted discovery across tracks."""
+    """Interactive filter options for targeted discovery across Frontend radar."""
     return {
         "inline_keyboard": [
             [
-                {"text": "🌐 Web & Angular", "callback_data": "filter:track_web"},
-                {"text": "💼 No-Exp Remote", "callback_data": "filter:track_remote"},
+                {"text": "🇪🇬 Egypt (Cairo/Giza/Remote)", "callback_data": "filter:egypt"},
+                {"text": "🌐 Remote Abroad / GCC", "callback_data": "filter:remote_gcc"},
             ],
             [
-                {"text": "🎓 Software & AI Interns", "callback_data": "filter:track_intern"},
-                {"text": "⭐ Top Matches (≥ 75%)", "callback_data": "filter:top"},
+                {"text": "🎓 Frontend Internships", "callback_data": "filter:track_intern"},
+                {"text": "🅰️ Angular & TypeScript", "callback_data": "filter:angular"},
             ],
             [
-                {"text": "🌍 Remote Worldwide", "callback_data": "filter:remote"},
-                {"text": "🇪🇬 Egypt & Gulf", "callback_data": "filter:egypt"},
+                {"text": "📡 Social Hiring Posts", "callback_data": "filter:social"},
+                {"text": "💼 Traditional Job Boards", "callback_data": "filter:boards"},
             ],
             [
                 {"text": "⚡ Junior / Entry Level", "callback_data": "filter:junior"},
-                {"text": "💵 Disclosed Salary", "callback_data": "filter:salary"},
+                {"text": "⭐ Top Matches (≥ 75%)", "callback_data": "filter:top"},
             ],
             [
+                {"text": "💵 Disclosed Salary", "callback_data": "filter:salary"},
                 {"text": "« Back to Main Menu", "callback_data": "menu:main"},
             ],
         ]

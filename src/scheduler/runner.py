@@ -4,25 +4,29 @@ import asyncio
 from datetime import datetime, timezone
 import zoneinfo
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.bot.formatters import build_job_inline_keyboard, chunk_message, escape, format_job_card
+from src.bot.formatters import build_job_inline_keyboard, format_job_card
 from src.bot.telegram_client import TelegramClient
 from src.core.config import settings
 from src.core.logging import logger
 from src.engine.deduplication import DeduplicationEngine, compute_url_hash
 from src.engine.eligibility import GeographicEligibilityEngine
 from src.engine.gemini_extractor import GeminiJobExtractor
+from src.engine.frontend_filter import (
+    is_frontend_opportunity,
+    is_hiring_intent_social_post,
+)
 from src.engine.matching import MatchingEngine
 from src.engine.track_classifier import classify_job_track
 from src.models import (
-    CandidateProfile,
     DailyRun,
     GeographicEligibility,
     Job,
     JobStatusTracker,
     JobTrack,
+    OpportunitySegment,
     NotificationLog,
     NotificationStatus,
     NotificationType,
@@ -35,7 +39,7 @@ from src.models import (
 from src.services.expiry_detector import scan_and_mark_expired_jobs
 from src.services.followup_service import check_and_send_followup_reminders
 from src.services.profile_service import get_or_create_candidate_profile
-from src.sources.base import BaseSourceAdapter, NormalizedJobData, RawJobData
+from src.sources.base import BaseSourceAdapter, NormalizedJobData
 from src.sources.registry import SourceRegistry, create_default_registry
 
 
@@ -201,7 +205,28 @@ class DailyPipelineRunner:
                             )
                             continue
 
-                    # Classify job into target tracks (Web & Angular, Remote No-Exp, Software Intern)
+                    # Social Hiring Intent Filter: Disqualify job-seeker posts (#OpenToWork, portfolio promo)
+                    if getattr(normalized, "is_social_post", False) or "social" in source_name.lower():
+                        is_hiring, hiring_reason = is_hiring_intent_social_post(normalized.description_text)
+                        if not is_hiring:
+                            logger.debug(
+                                f"Skipping social post without hiring intent: '{normalized.title}' ({hiring_reason})"
+                            )
+                            continue
+
+                    # Strict Frontend-Only Domain Filter
+                    is_fe, fe_reason = is_frontend_opportunity(
+                        title=normalized.title,
+                        description=normalized.description_text,
+                        skills=normalized.required_skills,
+                    )
+                    if not is_fe:
+                        logger.debug(
+                            f"Skipping non-frontend role: '{normalized.title}' at {normalized.company} ({fe_reason})"
+                        )
+                        continue
+
+                    # Classify job into target tracks (Frontend Egypt, Remote GCC, Frontend Intern, Web Angular)
                     job_track = classify_job_track(
                         title=normalized.title,
                         description=normalized.description_text,
@@ -211,9 +236,10 @@ class DailyPipelineRunner:
                         raw_location=normalized.raw_location,
                         remote_scope=normalized.remote_scope,
                         required_experience_years=normalized.required_experience_years,
+                        skills=normalized.required_skills,
                     )
                     if job_track == JobTrack.OTHER:
-                        logger.debug(f"Skipping job outside 3 target tracks: '{normalized.title}' at {normalized.company}")
+                        logger.debug(f"Skipping job classified outside frontend tracks: '{normalized.title}' at {normalized.company}")
                         continue
 
                     # Deduplication check
@@ -252,13 +278,20 @@ class DailyPipelineRunner:
                         except Exception as ai_exc:
                             logger.warning(f"Gemini extraction skipped for {normalized.title}: {ai_exc}")
 
-                    # Step 6: Geographic Eligibility Classification
+                    # Step 6: Geographic Eligibility Classification & Regional Segmentation
                     eligibility, elig_reason = self.eligibility_engine.classify(
                         raw_location=normalized.raw_location,
                         workplace_type=normalized.workplace_type,
                         remote_scope=normalized.remote_scope,
                         eligible_countries=normalized.eligible_countries,
                         excluded_countries=normalized.excluded_countries,
+                        description_text=normalized.description_text,
+                    )
+                    opportunity_segment = self.eligibility_engine.classify_segment(
+                        raw_location=normalized.raw_location,
+                        workplace_type=normalized.workplace_type,
+                        remote_scope=normalized.remote_scope,
+                        eligibility=eligibility,
                         description_text=normalized.description_text,
                     )
 
@@ -278,6 +311,12 @@ class DailyPipelineRunner:
 
                     # Create and persist new Job record
                     url_hash = compute_url_hash(normalized.original_application_url or normalized.source_url)
+                    payload_audit = {
+                        **normalized.raw_payload,
+                        "opportunity_segment": opportunity_segment.value,
+                        "is_social_post": getattr(normalized, "is_social_post", False),
+                        "source_category": "SOCIAL_POST" if getattr(normalized, "is_social_post", False) else "JOB_BOARD",
+                    }
                     job_record = Job(
                         source_id=source_rec.id,
                         source_name=source_name,
@@ -320,7 +359,7 @@ class DailyPipelineRunner:
                         match_reasons=match_result.reasons,
                         skill_gaps=match_result.skill_gaps,
                         match_confidence=match_result.confidence,
-                        raw_payload=normalized.raw_payload,
+                        raw_payload=payload_audit,
                     )
                     session.add(job_record)
                     await session.flush()
@@ -385,36 +424,38 @@ class DailyPipelineRunner:
                     Job.match_score >= profile.digest_threshold,
                     NotificationLog.id == None,
                 )
-                .order_by(Job.match_score.desc())
+                .order_by(
+                    (Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE).desc(),
+                    Job.match_score.desc(),
+                )
             )
             res_unnotified = await session.execute(stmt_unnotified)
             eligible_for_digest = res_unnotified.scalars().all()
 
-            # Separate into 3 explicit candidate tracks:
-            # 1. Web & Angular Frontend
-            # 2. Remote Without Experience (Data Entry, Call Center, Virtual Assistant)
-            # 3. Software Engineering Internships (Frontend, Backend, AI)
-            sec_web_angular: List[Job] = []
-            sec_no_exp_remote: List[Job] = []
-            sec_software_intern: List[Job] = []
-            sec_other: List[Job] = []
+            # Cleanly segment opportunities into the two top-level buckets:
+            # 1. Egypt: Cairo, Giza, Alexandria, Egypt Remote (On-site, Hybrid, Remote + Internships)
+            # 2. Remote Abroad / GCC: Saudi, UAE, Qatar, Kuwait, Bahrain, Oman & International (Remote ONLY)
+            sec_egypt: List[Job] = []
+            sec_remote_gcc: List[Job] = []
 
             for j in eligible_for_digest:
-                if j.job_track == JobTrack.WEB_ANGULAR:
-                    sec_web_angular.append(j)
-                elif j.job_track == JobTrack.NO_EXP_REMOTE:
-                    sec_no_exp_remote.append(j)
-                elif j.job_track == JobTrack.SOFTWARE_INTERN:
-                    sec_software_intern.append(j)
+                seg = getattr(j, "opportunity_segment", "")
+                if seg == OpportunitySegment.EGYPT.value:
+                    sec_egypt.append(j)
+                elif seg == OpportunitySegment.REMOTE_GCC_ABROAD.value:
+                    sec_remote_gcc.append(j)
                 else:
-                    sec_other.append(j)
+                    logger.warning(
+                        f"Skipping ambiguous or unclassified opportunity from daily digest: '{j.title}' at {j.company} (segment={seg}, id={j.id})"
+                    )
 
-            total_digest_jobs = (
-                len(sec_web_angular)
-                + len(sec_no_exp_remote)
-                + len(sec_software_intern)
-                + len(sec_other)
-            )
+            # Sort opportunities by match score descending
+            sec_egypt.sort(key=lambda j: j.match_score, reverse=True)
+            sec_remote_gcc.sort(key=lambda j: j.match_score, reverse=True)
+
+            total_digest_jobs = len(sec_egypt) + len(sec_remote_gcc)
+            social_count = sum(1 for j in (sec_egypt + sec_remote_gcc) if getattr(j, "is_social_post", False))
+            boards_count = total_digest_jobs - social_count
 
             # Step 9: Send daily Telegram digest
             if total_digest_jobs == 0:
@@ -442,13 +483,13 @@ Time: 09:00 AM (Africa/Cairo)
                 await session.commit()
             else:
                 # Send introduction header
-                intro_text = f"""🌅 <b>Daily Job Digest — New Opportunities</b>
+                intro_text = f"""🌅 <b>Daily Frontend Opportunity Radar</b>
 📅 Date: <b>{date_str}</b> | Time: <b>09:00 AM (Cairo)</b>
 
-Discovered <b>{total_digest_jobs}</b> new verified opportunities across your 3 tracks:
-• 🌐 <b>Web & Angular Frontend:</b> {len(sec_web_angular)}
-• 💼 <b>Remote Without Experience:</b> {len(sec_no_exp_remote)}
-• 🎓 <b>Software & AI Internships:</b> {len(sec_software_intern)}
+Discovered <b>{total_digest_jobs}</b> new verified Frontend opportunities:
+• 🇪🇬 <b>فرص الواجهات الأمامية داخل مصر (Egypt):</b> {len(sec_egypt)} (On-site / Hybrid / Remote & Internships)
+• 🌐 <b>فرص ريموت الخليج والدولية (Remote Abroad / GCC):</b> {len(sec_remote_gcc)} (Remote Only)
+• 📡 <b>منشورات التوظيف (Social Posts):</b> {social_count} | 💼 <b>منصات التوظيف (Job Boards):</b> {boards_count}
 """
                 await self.telegram.send_message(chat_id=recipient_chat_id, text=intro_text)
 
@@ -480,32 +521,18 @@ Discovered <b>{total_digest_jobs}</b> new verified opportunities across your 3 t
                         await session.commit()
                         await asyncio.sleep(0.5)
 
-                # Dispatch Track 1: Web & Angular
-                if sec_web_angular:
+                # Dispatch Section 1: Egypt Frontend
+                if sec_egypt:
                     await dispatch_section(
-                        f"🌐 <b>القسم الأول: فرص Web و Angular Frontend ({len(sec_web_angular)}):</b>\n─────────────────────────",
-                        sec_web_angular,
+                        f"🇪🇬 <b>القسم الأول: فرص الواجهات الأمامية داخل مصر — Egypt ({len(sec_egypt)}):</b>\n<i>(Cairo, Giza, Alexandria & Remote Egypt • On-site | Hybrid | Remote)</i>\n─────────────────────────",
+                        sec_egypt,
                     )
 
-                # Dispatch Track 2: Remote No-Experience
-                if sec_no_exp_remote:
+                # Dispatch Section 2: Remote Abroad / GCC Frontend
+                if sec_remote_gcc:
                     await dispatch_section(
-                        f"💼 <b>القسم الثاني: شغل ريموت بدون خبرة (Data Entry & Call Center) ({len(sec_no_exp_remote)}):</b>\n─────────────────────────",
-                        sec_no_exp_remote,
-                    )
-
-                # Dispatch Track 3: Software & AI Internships
-                if sec_software_intern:
-                    await dispatch_section(
-                        f"🎓 <b>القسم الثالث: تدريب سوفت وير و AI (Internships) ({len(sec_software_intern)}):</b>\n─────────────────────────",
-                        sec_software_intern,
-                    )
-
-                # Dispatch any other matched opportunities
-                if sec_other:
-                    await dispatch_section(
-                        f"📌 <b>فرص أخرى متوافقة ({len(sec_other)}):</b>\n─────────────────────────",
-                        sec_other,
+                        f"🌐 <b>القسم الثاني: فرص ريموت الخليج والدولية — Remote Abroad / GCC ({len(sec_remote_gcc)}):</b>\n<i>(Saudi Arabia, UAE, Qatar, Kuwait & International • Strictly Remote Only)</i>\n─────────────────────────",
+                        sec_remote_gcc,
                     )
 
                 notified_count = total_digest_jobs

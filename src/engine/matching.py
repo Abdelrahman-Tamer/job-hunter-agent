@@ -142,19 +142,19 @@ class MatchingEngine:
                 gaps.append(f"Experience requested ({required_experience_years:.0f}y) exceeds entry-level expectation (-6 pts)")
 
         # -------------------------------------------------------------
-        # Track 3: Software & AI Internships Track
+        # Track 3: Frontend & Software Internships Track
         # -------------------------------------------------------------
-        elif job_track == JobTrack.SOFTWARE_INTERN:
+        elif job_track in (JobTrack.FRONTEND_INTERN, JobTrack.SOFTWARE_INTERN):
             # 1. Role Relevance (max 20)
             role_score = 20.0
-            if any(term in title_lower for term in ["ai", "machine learning", "data science", "deep learning"]):
-                reasons.append("AI & Machine Learning Internship opportunity.")
-            elif any(term in title_lower for term in ["frontend", "front-end", "web", "angular", "react"]):
+            if eligibility == GeographicEligibility.EGYPT_ELIGIBLE:
+                reasons.append("🇪🇬 Local Egyptian Technology Internship / Trainee Program.")
+            elif any(term in title_lower for term in ["frontend", "front-end", "web", "angular", "react", "vue"]):
                 reasons.append("Frontend & Web Engineering Internship opportunity.")
-            elif any(term in title_lower for term in ["backend", "back-end", "python", "node", "java", "golang"]):
-                reasons.append("Backend Software Engineering Internship opportunity.")
+            elif any(term in title_lower for term in ["ai", "machine learning", "data science", "deep learning"]):
+                reasons.append("AI & Machine Learning Internship opportunity.")
             else:
-                reasons.append("Software Engineering Internship across technology stack.")
+                reasons.append("Software Engineering Internship program.")
 
             # 2. Foundational Tech Skills (max 25)
             confirmed_set = {s.lower().strip() for s in (profile.confirmed_skills or [])}
@@ -170,7 +170,7 @@ class MatchingEngine:
                 skills_score = min(22.0, 15.0 + len(matched_targets) * 2.0)
                 reasons.append(f"Technical learning interest matched: {', '.join(sorted(matched_targets))}.")
             else:
-                skills_score = 15.0
+                skills_score = 18.0 if eligibility == GeographicEligibility.EGYPT_ELIGIBLE else 15.0
                 reasons.append("Internship baseline: Foundational software engineering capability.")
 
             # 3. Experience & Seniority (max 20)
@@ -190,9 +190,9 @@ class MatchingEngine:
         # -------------------------------------------------------------
         else:
             # 1. Role-family relevance (max 20)
-            if not is_software_or_tech:
+            if not is_software_or_tech or job_track == JobTrack.OTHER:
                 role_score = 0.0
-                gaps.append("Role title: Non-software role outside the technical engineering domain (-20 pts)")
+                gaps.append("Role domain: Non-frontend role outside target Frontend Engineering scope (-20 pts)")
             elif "angular" in title_lower:
                 role_score = 20.0
                 reasons.append("Exact target match: Title explicitly mentions Angular.")
@@ -305,11 +305,11 @@ class MatchingEngine:
         elig_score = 0.0
         if eligibility == GeographicEligibility.EGYPT_ELIGIBLE:
             elig_score = 20.0
-            reasons.append("Full geographic eligibility: Egypt on-site, hybrid, or verified remote.")
+            reasons.append("🇪🇬 Local Egypt Focus: Direct hiring in Egypt (on-site, hybrid, or verified local remote).")
         elif eligibility == GeographicEligibility.REMOTE_WORLDWIDE:
-            elig_score = 19.0
+            elig_score = 18.0
             reasons.append("Worldwide remote: Applicants in Egypt permitted.")
-            gaps.append("Worldwide remote: May require international timezone alignment (-1 pt)")
+            gaps.append("Worldwide remote: International competition and timezone alignment (-2 pts)")
         elif eligibility == GeographicEligibility.REMOTE_REGION_POSSIBLE:
             elig_score = 12.0
             reasons.append("Regional remote (EMEA/MENA): Egypt hiring likely but requires verification.")

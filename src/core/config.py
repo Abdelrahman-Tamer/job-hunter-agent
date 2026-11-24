@@ -55,14 +55,26 @@ class Settings(BaseSettings):
     MAX_JOB_AGE_DAYS: int = 30
 
     # Default Sources Configuration
+    LINKEDIN_SOCIAL_ENABLED: bool = True
+    SOCIAL_SEARCH_PROVIDER: str = "auto"
+    SOCIAL_SEARCH_API_KEY: Optional[str] = None
+    SOCIAL_SEARCH_RECENCY: str = "qdr:m"
+    SOCIAL_FEED_URLS: List[str] = Field(default_factory=list)
+
+    EGYPT_COMMUNITY_ENABLED: bool = True
+    JOBICY_ENABLED: bool = True
+    WORKABLE_ENABLED: bool = True
     HIMALAYAS_ENABLED: bool = True
     REMOTIVE_ENABLED: bool = True
     GREENHOUSE_ENABLED: bool = True
     LEVER_ENABLED: bool = True
     RSS_ENABLED: bool = True
 
+    WORKABLE_COMPANY_SLUGS: List[str] = Field(
+        default_factory=lambda: ["integrant", "robusta", "lamdax", "foodics", "petroapp"]
+    )
     GREENHOUSE_BOARD_TOKENS: List[str] = Field(
-        default_factory=lambda: ["canonical", "cloudflare", "reddit"]
+        default_factory=lambda: ["canonical", "speechify", "tamara", "cloudflare", "reddit"]
     )
     LEVER_COMPANY_SLUGS: List[str] = Field(
         default_factory=lambda: ["palantir"]
@@ -70,7 +82,6 @@ class Settings(BaseSettings):
     RSS_JOB_FEEDS: List[str] = Field(
         default_factory=lambda: [
             "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",
-            "https://weworkremotely.com/categories/remote-customer-support-jobs.rss",
             "https://weworkremotely.com/categories/remote-programming-jobs.rss",
         ]
     )

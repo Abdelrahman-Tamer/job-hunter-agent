@@ -89,6 +89,47 @@ class ResilientHttpClient:
                     )
                     await asyncio.sleep(wait_time)
 
+    async def post(
+        self,
+        url: str,
+        data: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> httpx.Response:
+        """Execute a safe POST request with retries and backoff."""
+        if not is_safe_url(url):
+            raise ValueError(f"Blocked unsafe or private host URL: {url}")
+
+        merged_headers = {**self.headers, **(headers or {})}
+
+        async with self.semaphore:
+            last_exception: Optional[Exception] = None
+            client = await self.get_client()
+            for attempt in range(1, self.max_retries + 1):
+                try:
+                    response = await client.post(url, data=data, json=json, headers=merged_headers)
+
+                    if response.status_code == 429:
+                        wait_time = 2.0 ** attempt
+                        logger.warning(
+                            f"Rate limited on {url} (HTTP 429). Waiting {wait_time:.1f}s before attempt {attempt}/{self.max_retries}"
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue
+
+                    if response.status_code >= 500:
+                        response.raise_for_status()
+
+                    return response
+
+                except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+                    last_exception = exc
+                    wait_time = 2.0 ** attempt
+                    logger.warning(
+                        f"HTTP POST error ({url}): {exc}. Retrying in {wait_time:.1f}s (attempt {attempt}/{self.max_retries})"
+                    )
+                    await asyncio.sleep(wait_time)
+
             if last_exception:
                 raise last_exception
-            raise RuntimeError(f"HTTP request failed after {self.max_retries} attempts: {url}")
+            raise RuntimeError(f"HTTP POST request failed after {self.max_retries} attempts: {url}")

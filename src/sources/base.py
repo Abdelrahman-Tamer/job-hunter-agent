@@ -68,6 +68,7 @@ class NormalizedJobData(BaseModel):
     required_experience_years: Optional[float] = None
 
     published_at: Optional[datetime] = None  # Explicit publication timestamp from source, if any
+    is_social_post: bool = False
     raw_payload: Dict[str, Any] = Field(default_factory=dict)
 
 

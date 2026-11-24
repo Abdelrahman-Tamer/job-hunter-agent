@@ -9,8 +9,10 @@ from src.models.enums import (
     MatchBand,
     NotificationStatus,
     NotificationType,
+    OpportunitySegment,
     RunStatus,
     SeniorityLevel,
+    SourceCategory,
     WorkplaceType,
 )
 from src.models.job import Job
@@ -29,8 +31,10 @@ __all__ = [
     "MatchBand",
     "NotificationStatus",
     "NotificationType",
+    "OpportunitySegment",
     "RunStatus",
     "SeniorityLevel",
+    "SourceCategory",
     "WorkplaceType",
     "CandidateProfile",
     "Source",

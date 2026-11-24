@@ -1,6 +1,7 @@
 """Normalized job opportunity database model."""
 
 from datetime import datetime, timezone
+from typing import Any
 from sqlalchemy import (
     Boolean,
     Column,
@@ -109,6 +110,47 @@ class Job(Base):
     tracker = relationship("JobStatusTracker", back_populates="job", uselist=False, cascade="all, delete-orphan", lazy="selectin")
     notifications = relationship("NotificationLog", back_populates="job", cascade="all, delete-orphan", lazy="selectin")
     notes = relationship("ApplicationNote", back_populates="job", cascade="all, delete-orphan", lazy="selectin")
+
+    @property
+    def is_social_post(self) -> bool:
+        """Return True if opportunity originates from a social hiring post (e.g. LinkedIn)."""
+        if self.raw_payload and self.raw_payload.get("is_social_post"):
+            return True
+        s_name = (self.source_name or "").lower()
+        return "linkedin_social" in s_name or "social" in s_name
+
+    @is_social_post.setter
+    def is_social_post(self, value: bool) -> None:
+        if self.raw_payload is None:
+            self.raw_payload = {}
+        self.raw_payload = {**self.raw_payload, "is_social_post": bool(value)}
+
+    @property
+    def source_category_label(self) -> str:
+        """Display label distinguishing Social Post vs Job Board."""
+        return "Social Post" if self.is_social_post else "Job Board"
+
+    @property
+    def opportunity_segment(self) -> str:
+        """Determine whether job belongs to Egypt or Remote Abroad / GCC bucket."""
+        if self.raw_payload and self.raw_payload.get("opportunity_segment"):
+            return str(self.raw_payload["opportunity_segment"])
+        from src.engine.eligibility import GeographicEligibilityEngine
+        engine = GeographicEligibilityEngine()
+        return engine.classify_segment(
+            raw_location=self.raw_location,
+            workplace_type=self.workplace_type,
+            remote_scope=self.remote_scope,
+            eligibility=self.eligibility,
+            description_text=self.description_text,
+        ).value
+
+    @opportunity_segment.setter
+    def opportunity_segment(self, value: Any) -> None:
+        if self.raw_payload is None:
+            self.raw_payload = {}
+        val_str = value.value if hasattr(value, "value") else str(value)
+        self.raw_payload = {**self.raw_payload, "opportunity_segment": val_str}
 
     __table_args__ = (
         Index("ix_jobs_source_and_id", "source_name", "source_job_id", unique=True),

@@ -17,16 +17,41 @@ class GeographicEligibility(str, Enum):
 
 class JobTrack(str, Enum):
     """
-    Explicit search and classification tracks for opportunities:
-    1. WEB_ANGULAR: Web & Frontend Development with primary Angular focus.
-    2. NO_EXP_REMOTE: Remote entry-level roles (Data Entry, Call Center, Virtual Assistant, Support).
-    3. SOFTWARE_INTERN: Software engineering internships across all disciplines (Frontend, Backend, AI/ML, Fullstack).
-    4. OTHER: Unclassified or outside target scope.
+    Explicit search and classification tracks for Frontend opportunities:
+    1. FRONTEND_EGYPT: Frontend Engineering opportunities based in Egypt (Cairo, Giza, Alexandria, Egypt-wide Remote; On-site, Hybrid, Remote).
+    2. FRONTEND_REMOTE_GCC: Frontend Engineering opportunities outside Egypt (Arab Gulf / GCC & International; Remote ONLY).
+    3. FRONTEND_INTERN: Frontend Internships / Trainee / Fresh graduate roles.
+    4. WEB_ANGULAR: Web & Frontend Development with primary Angular/modern frontend focus.
+    5. NO_EXP_REMOTE: Legacy track (deprecated in frontend-only radar).
+    6. SOFTWARE_INTERN: Legacy track (deprecated in frontend-only radar).
+    7. OTHER: Unclassified or outside target frontend engineering scope.
     """
+    FRONTEND_EGYPT = "FRONTEND_EGYPT"
+    FRONTEND_REMOTE_GCC = "FRONTEND_REMOTE_GCC"
+    FRONTEND_INTERN = "FRONTEND_INTERN"
     WEB_ANGULAR = "WEB_ANGULAR"
     NO_EXP_REMOTE = "NO_EXP_REMOTE"
     SOFTWARE_INTERN = "SOFTWARE_INTERN"
     OTHER = "OTHER"
+
+
+class OpportunitySegment(str, Enum):
+    """
+    The two top-level geographic segments for the Frontend Radar:
+    1. EGYPT: Cairo, Giza, Alexandria, and Egypt-wide remote (On-site, Hybrid, Remote).
+    2. REMOTE_GCC_ABROAD: Arab Gulf / GCC (KSA, UAE, Qatar, Kuwait, Bahrain, Oman) and International remote (Remote ONLY).
+    3. OTHER: Outside eligible geography or work-mode boundaries.
+    """
+    EGYPT = "EGYPT"
+    REMOTE_GCC_ABROAD = "REMOTE_GCC_ABROAD"
+    OTHER = "OTHER"
+
+
+class SourceCategory(str, Enum):
+    """Origin category of job opportunity."""
+    JOB_BOARD = "JOB_BOARD"
+    SOCIAL_POST = "SOCIAL_POST"
+
 
 
 class WorkplaceType(str, Enum):

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import html
 import re
 from typing import Any, Dict, List, Optional
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, delete, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.formatters import (
@@ -78,35 +78,48 @@ class TelegramBotDispatcher:
         clean_text = text.strip()
         clean_lower = clean_text.lower()
 
-        # Handle Conversational Greetings (Pure English)
+        # Handle Conversational Greetings
         greetings = ("hello", "hi", "hey", "welcome", "good morning", "good evening", "howdy", "start")
         if any(clean_lower == g or clean_lower.startswith(g + " ") for g in greetings):
             profile = await get_or_create_candidate_profile(session)
             welcome_msg = f"""👋 <b>Welcome, {escape(profile.full_name or 'Abdelrahman')}!</b>
-I am your AI agent specialized in high-fit <b>Angular & Frontend Engineering</b> opportunities across Egypt 🇪🇬 and Worldwide Remote.
+I am your specialized <b>Frontend Engineering Opportunity Radar</b>.
+Exclusively tracking frontend roles across:
+• 🇪🇬 <b>Egypt:</b> Cairo, Giza, and Egypt-based Remote (On-site, Hybrid, Remote + Internships)
+• 🌐 <b>Remote Abroad / GCC:</b> Saudi, UAE, Qatar, Kuwait & Global (Remote Only)
+• 📡 <b>Dual Sources:</b> Verified Traditional Job Boards + LinkedIn Social Hiring Posts
 
-💡 <i>Tap any quick action on the bottom keyboard, or type any tech keyword to search instantly:</i>"""
+💡 <i>Tap any quick action on the bottom keyboard, or type any keyword to search:</i>"""
             markup = build_main_menu_keyboard()
             reply_kb = build_persistent_reply_keyboard()
             await self.client.send_message(chat_id=chat_id, text=welcome_msg, reply_markup=reply_kb)
-            await self.client.send_message(chat_id=chat_id, text="🎛️ <b>BottaJobs Control Center:</b>", reply_markup=markup)
+            await self.client.send_message(chat_id=chat_id, text="🎛️ <b>Frontend Radar Control Center:</b>", reply_markup=markup)
             return
 
-        # Handle Persistent Bottom Keyboard Actions (Pure English)
+        # Handle Persistent Bottom Keyboard Actions
         if clean_text in ("🚀 Run Scan", "🚀 Run Scan Now", "Run Scan", "run"):
             await self._cmd_trigger_run(chat_id, session)
             return
         elif clean_text in ("📋 Today's Jobs", "Today Jobs", "today"):
             await self._cmd_today(chat_id, session)
             return
-        elif clean_text in ("🌐 Web & Angular", "web & angular", "web angular"):
+        elif clean_text in ("🇪🇬 Egypt (فرص مصر)", "🇪🇬 مصر والفرص المحلية", "مصر", "egypt", "فرص مصر", "شغل مصر", "شغل في مصر", "cairo", "القاهرة", "local", "فرص في مصر"):
+            await self._handle_filter_query(chat_id, "egypt", session)
+            return
+        elif clean_text in ("🌐 Remote Abroad / GCC", "remote abroad", "gcc", "الخليج", "ريموت الخليج", "remote gcc"):
+            await self._handle_filter_query(chat_id, "remote_gcc", session)
+            return
+        elif clean_text in ("🎓 Frontend Interns", "🎓 تدريب سوفت وير و AI", "🎓 Software Interns", "تدريب", "تدريبات", "frontend intern", "interns", "intern", "تدريب صيفي"):
+            await self._handle_filter_query(chat_id, "track_intern", session)
+            return
+        elif clean_text in ("🌐 Web & Angular", "web & angular", "web angular", "angular", "frontend"):
             await self._handle_filter_query(chat_id, "track_web", session)
             return
-        elif clean_text in ("💼 No-Exp Remote", "no-exp remote", "no exp remote", "data entry", "call center"):
-            await self._handle_filter_query(chat_id, "track_remote", session)
+        elif clean_text in ("📡 Social Hiring Posts", "📡 Social Posts", "social", "posts", "منشورات التوظيف", "لينكد ان"):
+            await self._handle_filter_query(chat_id, "social", session)
             return
-        elif clean_text in ("🎓 Software Interns", "software interns", "software intern", "interns", "intern"):
-            await self._handle_filter_query(chat_id, "track_intern", session)
+        elif clean_text in ("💼 Job Boards", "boards", "منصات التوظيف"):
+            await self._handle_filter_query(chat_id, "boards", session)
             return
         elif clean_text in ("👤 My Profile / CV", "My Profile", "Profile", "profile"):
             await self._cmd_profile(chat_id, session)
@@ -137,10 +150,16 @@ I am your AI agent specialized in high-fit <b>Angular & Frontend Engineering</b>
             await self._cmd_menu(chat_id, session)
         elif command == "/today":
             await self._cmd_today(chat_id, session)
+        elif command in ("/egypt", "/cairo", "/local", "/masr"):
+            await self._handle_filter_query(chat_id, "egypt", session)
+        elif command in ("/remote_gcc", "/gcc", "/abroad", "/remote"):
+            await self._handle_filter_query(chat_id, "remote_gcc", session)
+        elif command in ("/social", "/linkedin", "/posts"):
+            await self._handle_filter_query(chat_id, "social", session)
+        elif command in ("/boards", "/traditional"):
+            await self._handle_filter_query(chat_id, "boards", session)
         elif command in ("/web", "/angular", "/track_web", "/track1"):
             await self._handle_filter_query(chat_id, "track_web", session)
-        elif command in ("/remote", "/noexp", "/track_remote", "/track2"):
-            await self._handle_filter_query(chat_id, "track_remote", session)
         elif command in ("/intern", "/interns", "/track_intern", "/track3"):
             await self._handle_filter_query(chat_id, "track_intern", session)
         elif command == "/search":
@@ -246,8 +265,11 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
                 Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
                 Job.match_score >= 60.0,
             )
-            .order_by(Job.match_score.desc())
-            .limit(5)
+            .order_by(
+                (Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE).desc(),
+                Job.match_score.desc(),
+            )
+            .limit(6)
         )
         res = await session.execute(stmt)
         jobs = res.scalars().all()
@@ -664,8 +686,11 @@ All previous listings have been purged.
                 Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
                 Job.match_score >= min_score,
             )
-            .order_by(Job.match_score.desc())
-            .limit(5)
+            .order_by(
+                (Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE).desc(),
+                Job.match_score.desc(),
+            )
+            .limit(6)
         )
         res = await session.execute(stmt)
         top_jobs = res.scalars().all()
@@ -725,7 +750,7 @@ All previous listings have been purged.
   Shows the top curated matches against your verified CV (including itemized requirement gaps to reach 100%).
 
 • <b>🔍 Smart Filters</b> (<code>/filters</code>):
-  Instant presets for Angular, Junior roles, Remote Worldwide, Egypt & Gulf, and Disclosed Salaries.
+  Instant presets: 🇪🇬 Egypt (On-site/Hybrid/Remote), 🌐 Remote Abroad / GCC (Remote Only), 🎓 Frontend Interns, 📡 Social Posts, and 💼 Job Boards.
 
 • <b>👤 My Profile / CV</b> (<code>/profile</code>):
   Displays your 32 verified skills, experience, portfolio links, and education.
@@ -1101,51 +1126,122 @@ All previous listings have been purged.
         )
 
         filter_titles = {
-            "track_web": "🌐 Track 1: Web & Angular Frontend",
-            "track_remote": "💼 Track 2: Remote Without Experience (Data Entry & Call Center)",
-            "track_intern": "🎓 Track 3: Software & AI Internships",
-            "angular": "🅰️ Angular & Frontend Engineering Roles",
+            "egypt": "🇪🇬 فرص الواجهات الأمامية داخل مصر (Egypt Frontend)",
+            "remote_gcc": "🌐 فرص ريموت الخليج والدولية (Remote Abroad / GCC)",
+            "track_intern": "🎓 تدريب وتأهيل فرونت اند (Frontend Internships)",
+            "angular": "🅰️ Angular & Modern Frontend Engineering",
+            "social": "📡 منشورات التوظيف (LinkedIn Social Posts)",
+            "boards": "💼 منصات التوظيف الرسمية (Job Boards)",
             "top": "⭐ Top Matches (Score ≥ 75%)",
-            "egypt": "🇪🇬 Egypt & Gulf Opportunities",
-            "remote": "🌍 Remote Worldwide Positions",
-            "junior": "⚡ Junior & Entry-Level Roles",
+            "junior": "⚡ Junior & Entry-Level Frontend",
             "cv_skills": "🛠️ Core CV Skills (TypeScript, RxJS, APIs)",
             "salary": "💵 Roles with Disclosed Salary",
+            "track_web": "🌐 Web & Frontend Development",
+            "remote": "🌍 Remote Positions",
         }
         title = filter_titles.get(key, "Filtered Results")
 
-        if key == "track_web":
-            stmt = stmt.where(Job.job_track == JobTrack.WEB_ANGULAR)
-        elif key == "track_remote":
-            stmt = stmt.where(Job.job_track == JobTrack.NO_EXP_REMOTE)
-        elif key == "track_intern":
-            stmt = stmt.where(Job.job_track == JobTrack.SOFTWARE_INTERN)
-        elif key == "angular":
+        if key == "egypt":
+            stmt = stmt.where(
+                or_(
+                    Job.job_track == JobTrack.FRONTEND_EGYPT,
+                    and_(
+                        Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE,
+                        or_(
+                            Job.raw_location.ilike("%egypt%"),
+                            Job.raw_location.ilike("%cairo%"),
+                            Job.raw_location.ilike("%giza%"),
+                            Job.raw_location.ilike("%alexandria%"),
+                            Job.raw_location.ilike("%smart village%"),
+                            Job.raw_location.ilike("%maadi%"),
+                            Job.raw_location.ilike("%nasr city%"),
+                            Job.raw_location.ilike("%مصر%"),
+                            Job.raw_location.ilike("%القاهرة%"),
+                            Job.raw_location.ilike("%الجيزة%"),
+                            Job.raw_location.ilike("%الاسكندرية%"),
+                        ),
+                    ),
+                )
+            )
+        elif key in ("remote_gcc", "remote"):
+            stmt = stmt.where(
+                Job.workplace_type == WorkplaceType.REMOTE,
+                Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
+                or_(
+                    Job.job_track == JobTrack.FRONTEND_REMOTE_GCC,
+                    Job.eligibility.in_([
+                        GeographicEligibility.REMOTE_WORLDWIDE,
+                        GeographicEligibility.REMOTE_REGION_POSSIBLE,
+                    ]),
+                    Job.raw_location.ilike("%saudi%"),
+                    Job.raw_location.ilike("%riyadh%"),
+                    Job.raw_location.ilike("%uae%"),
+                    Job.raw_location.ilike("%dubai%"),
+                    Job.raw_location.ilike("%qatar%"),
+                    Job.raw_location.ilike("%kuwait%"),
+                    Job.raw_location.ilike("%bahrain%"),
+                    Job.raw_location.ilike("%oman%"),
+                    Job.raw_location.ilike("%gcc%"),
+                    Job.raw_location.ilike("%worldwide%"),
+                    Job.raw_location.ilike("%السعودية%"),
+                    Job.raw_location.ilike("%الرياض%"),
+                    Job.raw_location.ilike("%الإمارات%"),
+                    Job.raw_location.ilike("%دبي%"),
+                    Job.raw_location.ilike("%قطر%"),
+                    Job.raw_location.ilike("%الكويت%"),
+                ),
+                not_(
+                    or_(
+                        Job.job_track == JobTrack.FRONTEND_EGYPT,
+                        Job.raw_location.ilike("%egypt%"),
+                        Job.raw_location.ilike("%cairo%"),
+                        Job.raw_location.ilike("%giza%"),
+                        Job.raw_location.ilike("%alexandria%"),
+                        Job.raw_location.ilike("%smart village%"),
+                        Job.raw_location.ilike("%maadi%"),
+                        Job.raw_location.ilike("%مصر%"),
+                        Job.raw_location.ilike("%القاهرة%"),
+                        Job.raw_location.ilike("%الجيزة%"),
+                        Job.raw_location.ilike("%الاسكندرية%"),
+                    )
+                ),
+            )
+        elif key == "social":
+            stmt = stmt.where(
+                or_(
+                    Job.source_name.ilike("%social%"),
+                    Job.source_name.ilike("%linkedin%"),
+                )
+            )
+        elif key == "boards":
+            stmt = stmt.where(
+                not_(
+                    or_(
+                        Job.source_name.ilike("%social%"),
+                        Job.source_name.ilike("%linkedin%"),
+                    )
+                )
+            )
+        elif key in ("track_intern", "intern"):
+            stmt = stmt.where(
+                or_(
+                    Job.seniority == SeniorityLevel.INTERNSHIP,
+                    Job.employment_type == EmploymentType.INTERNSHIP,
+                    Job.job_track == JobTrack.FRONTEND_INTERN,
+                )
+            )
+        elif key in ("track_web", "angular"):
             stmt = stmt.where(
                 or_(
                     Job.title.ilike("%angular%"),
                     Job.description_text.ilike("%angular%"),
                     Job.title.ilike("%frontend%"),
                     Job.title.ilike("%front-end%"),
+                    Job.job_track == JobTrack.WEB_ANGULAR,
                 )
             )
         elif key == "top":
             stmt = stmt.where(Job.match_score >= 75.0)
-        elif key == "egypt":
-            stmt = stmt.where(
-                or_(
-                    Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE,
-                    Job.raw_location.ilike("%egypt%"),
-                    Job.raw_location.ilike("%cairo%"),
-                    Job.raw_location.ilike("%alexandria%"),
-                    Job.raw_location.ilike("%saudi%"),
-                    Job.raw_location.ilike("%uae%"),
-                    Job.raw_location.ilike("%dubai%"),
-                    Job.raw_location.ilike("%riyadh%"),
-                )
-            )
-        elif key == "remote":
-            stmt = stmt.where(Job.workplace_type == WorkplaceType.REMOTE)
         elif key == "junior":
             stmt = stmt.where(
                 or_(
@@ -1173,7 +1269,13 @@ All previous listings have been purged.
         elif key == "salary":
             stmt = stmt.where(Job.salary_min != None, Job.salary_min > 0)
 
-        stmt = stmt.order_by(Job.match_score.desc()).limit(5)
+        if key == "egypt":
+            stmt = stmt.order_by(
+                (Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE).desc(),
+                Job.match_score.desc(),
+            ).limit(8)
+        else:
+            stmt = stmt.order_by(Job.match_score.desc()).limit(5)
         res = await session.execute(stmt)
         jobs = res.scalars().all()
 

@@ -84,6 +84,9 @@ async def test_jobs_list_and_detail(db_session):
         assert data["total"] == 1
         assert data["items"][0]["title"] == "Senior Angular Developer"
         assert data["items"][0]["job_track"] == "WEB_ANGULAR"
+        assert data["items"][0]["is_social_post"] is False
+        assert data["items"][0]["source_category_label"] == "Job Board"
+        assert data["items"][0]["opportunity_segment"] in ("EGYPT", "REMOTE_GCC_ABROAD", "OTHER")
 
         # Test listing with different track returns 0
         resp_other = await ac.get("/api/v1/jobs?track=NO_EXP_REMOTE")

@@ -69,6 +69,14 @@ def test_gulf_and_arab_remote_is_egypt_eligible(engine):
     assert status == GeographicEligibility.EGYPT_ELIGIBLE
     assert "gulf" in reason.lower() or "egypt" in reason.lower()
 
+    # Arabic GCC remote roles
+    for loc in ["الرياض, السعودية", "دبي, الإمارات", "الدوحة, قطر", "الكويت", "المنامة, البحرين", "مسقط, عمان", "نيوم, السعودية"]:
+        status_ar, _ = engine.classify(
+            raw_location=loc,
+            workplace_type=WorkplaceType.REMOTE,
+        )
+        assert status_ar == GeographicEligibility.EGYPT_ELIGIBLE, f"Failed for Arabic GCC remote: {loc}"
+
 
 def test_explicit_exclusion_of_egypt_or_single_country_restriction(engine):
     """Verify that US only, UK only, or explicit exclusions result in NOT_ELIGIBLE."""
@@ -105,3 +113,23 @@ def test_remote_alone_without_scope_is_unknown(engine):
         remote_scope=None,
     )
     assert status == GeographicEligibility.UNKNOWN
+
+
+def test_egypt_arabic_and_tech_districts(engine):
+    """Verify Arabic location names and Egyptian tech districts are classified as EGYPT_ELIGIBLE."""
+    for loc in ["القاهرة, مصر", "القرية الذكية", "المعادي", "مدينة نصر, القاهرة", "Smart Village", "New Cairo", "Sheikh Zayed"]:
+        status, _ = engine.classify(
+            raw_location=loc,
+            workplace_type=WorkplaceType.ON_SITE,
+        )
+        assert status == GeographicEligibility.EGYPT_ELIGIBLE, f"Failed for {loc}"
+
+
+def test_alexandria_va_safeguard(engine):
+    """Verify Alexandria VA in United States is not mistakenly treated as Alexandria Egypt."""
+    status, _ = engine.classify(
+        raw_location="Alexandria, VA, USA",
+        workplace_type=WorkplaceType.ON_SITE,
+    )
+    assert status == GeographicEligibility.NOT_ELIGIBLE
+

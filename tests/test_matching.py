@@ -6,6 +6,7 @@ from src.engine.matching import MatchingEngine
 from src.models.enums import (
     EmploymentType,
     GeographicEligibility,
+    JobTrack,
     MatchBand,
     SeniorityLevel,
 )
@@ -135,35 +136,13 @@ def test_java_and_javascript_are_not_conflated(base_profile):
     assert result.breakdown.confirmed_skills == 3.0  # fallback minimal when no skills match
 
 
-def test_no_exp_remote_track_scoring(base_profile):
-    """Remote entry-level jobs (Data Entry / Call Center) achieve high score without code skills."""
+def test_frontend_internship_scoring(base_profile):
+    """Frontend engineering internships achieve high match score for candidate profile."""
     engine = MatchingEngine()
     result = engine.evaluate(
-        job_title="Remote Data Entry Clerk",
-        job_description="Enter customer records, verify data, communicate with team online.",
-        job_skills=["Data Entry", "Excel", "English"],
-        seniority=SeniorityLevel.ENTRY,
-        employment_type=EmploymentType.FULL_TIME,
-        eligibility=GeographicEligibility.REMOTE_WORLDWIDE,
-        published_at=datetime.now(timezone.utc),
-        required_experience_years=0.0,
-        profile=base_profile,
-    )
-
-    assert result.breakdown.role_relevance == 20.0
-    assert result.breakdown.experience_seniority == 20.0
-    assert result.breakdown.confirmed_skills >= 20.0
-    assert result.score >= 80.0
-    assert result.band in (MatchBand.EXCELLENT, MatchBand.STRONG)
-
-
-def test_software_and_ai_internship_scoring(base_profile):
-    """Software & AI internships achieve high match score across the tech stack."""
-    engine = MatchingEngine()
-    result = engine.evaluate(
-        job_title="AI & Machine Learning Research Intern",
-        job_description="Python, PyTorch, and NLP models exploration.",
-        job_skills=["Python", "Machine Learning"],
+        job_title="Frontend Engineering Intern",
+        job_description="Angular, TypeScript, and modern web UI components development.",
+        job_skills=["Angular", "TypeScript", "HTML", "CSS"],
         seniority=SeniorityLevel.INTERNSHIP,
         employment_type=EmploymentType.INTERNSHIP,
         eligibility=GeographicEligibility.EGYPT_ELIGIBLE,
@@ -176,3 +155,39 @@ def test_software_and_ai_internship_scoring(base_profile):
     assert result.breakdown.experience_seniority == 20.0
     assert result.score >= 75.0
     assert result.band in (MatchBand.EXCELLENT, MatchBand.STRONG)
+
+
+def test_non_frontend_roles_penalized(base_profile):
+    """Non-frontend roles (Data Entry, pure backend) receive heavily penalized scores."""
+    engine = MatchingEngine()
+    result = engine.evaluate(
+        job_title="Remote Data Entry Clerk",
+        job_description="Enter customer records into spreadsheet.",
+        job_skills=["Data Entry", "Excel"],
+        seniority=SeniorityLevel.ENTRY,
+        employment_type=EmploymentType.FULL_TIME,
+        eligibility=GeographicEligibility.REMOTE_WORLDWIDE,
+        published_at=datetime.now(timezone.utc),
+        required_experience_years=0.0,
+        profile=base_profile,
+    )
+
+    assert result.breakdown.role_relevance == 0.0
+    assert result.score <= 30.0
+    assert result.band == MatchBand.LOW
+
+    # Pure backend role classified as OTHER is also heavily penalized in role relevance
+    result_be = engine.evaluate(
+        job_title="Backend Software Engineer",
+        job_description="Python, FastAPI, and PostgreSQL microservices.",
+        job_skills=["Python", "PostgreSQL", "Docker"],
+        seniority=SeniorityLevel.MID,
+        employment_type=EmploymentType.FULL_TIME,
+        eligibility=GeographicEligibility.EGYPT_ELIGIBLE,
+        published_at=datetime.now(timezone.utc),
+        required_experience_years=2.0,
+        profile=base_profile,
+    )
+    assert result_be.job_track == JobTrack.OTHER
+    assert result_be.breakdown.role_relevance == 0.0
+    assert result_be.score <= 45.0
