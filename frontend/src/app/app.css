@@ -141,7 +141,7 @@
   width: var(--sidebar-width);
   background-color: var(--bg-surface-1);
   border-right: 1px solid var(--border-default);
-  box-shadow: inset -1px 0 0 0 var(--surface-highlight);
+  box-shadow: inset -1px 0 0 0 var(--border-subtle);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -256,7 +256,6 @@
   text-decoration: none;
   border: 1px solid transparent;
   transition: all var(--motion-fast);
-  outline: none;
   position: relative;
 }
 
@@ -333,7 +332,6 @@
   cursor: pointer;
   text-align: left;
   transition: all var(--motion-fast);
-  outline: none;
 }
 
 .sidebar-action-btn:hover {
@@ -558,7 +556,6 @@
     transition: all var(--motion-fast);
     min-width: 52px;
     min-height: 44px;
-    outline: none;
   }
 
   .dock-link:active {

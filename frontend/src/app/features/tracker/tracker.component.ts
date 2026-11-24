@@ -51,11 +51,13 @@ interface StatusColumn {
           </p>
         </div>
 
-        <!-- View Switcher & Stage Quick Filters -->
+        <!-- View Switcher -->
         <div class="header-controls">
-          <div class="segmented-control" role="group" aria-label="Pipeline view layout">
+          <div class="segmented-control" role="tablist" aria-label="Pipeline view layout">
             <button
               type="button"
+              role="tab"
+              [attr.aria-selected]="viewMode() === 'kanban'"
               (click)="setViewMode('kanban')"
               [class.active]="viewMode() === 'kanban'"
               class="segment-btn"
@@ -65,6 +67,8 @@ interface StatusColumn {
             </button>
             <button
               type="button"
+              role="tab"
+              [attr.aria-selected]="viewMode() === 'list'"
               (click)="setViewMode('list')"
               [class.active]="viewMode() === 'list'"
               class="segment-btn"
@@ -78,30 +82,66 @@ interface StatusColumn {
 
       <!-- Stage Funnel Metrics Bar -->
       <section class="funnel-metrics-bar tabular-nums" aria-label="Stage distribution">
-        <div class="funnel-stat-card" (click)="selectFilterStatus('ALL')" [class.active]="filterStatus() === 'ALL'">
+        <button
+          type="button"
+          class="funnel-stat-card"
+          (click)="selectFilterStatus('ALL')"
+          [class.active]="filterStatus() === 'ALL'"
+          [attr.aria-pressed]="filterStatus() === 'ALL'"
+        >
           <span class="stat-count">{{ allItems().length }}</span>
           <span class="stat-name">Total Roles</span>
-        </div>
-        <div class="funnel-stat-card" (click)="selectFilterStatus('SAVED')" [class.active]="filterStatus() === 'SAVED'">
+        </button>
+        <button
+          type="button"
+          class="funnel-stat-card"
+          (click)="selectFilterStatus('SAVED')"
+          [class.active]="filterStatus() === 'SAVED'"
+          [attr.aria-pressed]="filterStatus() === 'SAVED'"
+        >
           <span class="stat-count text-brand">{{ getCountForStatus('SAVED') }}</span>
           <span class="stat-name">Saved</span>
-        </div>
-        <div class="funnel-stat-card" (click)="selectFilterStatus('APPLIED')" [class.active]="filterStatus() === 'APPLIED'">
+        </button>
+        <button
+          type="button"
+          class="funnel-stat-card"
+          (click)="selectFilterStatus('APPLIED')"
+          [class.active]="filterStatus() === 'APPLIED'"
+          [attr.aria-pressed]="filterStatus() === 'APPLIED'"
+        >
           <span class="stat-count text-indigo">{{ getCountForStatus('APPLIED') }}</span>
           <span class="stat-name">Applied</span>
-        </div>
-        <div class="funnel-stat-card" (click)="selectFilterStatus('INTERVIEW')" [class.active]="filterStatus() === 'INTERVIEW'">
+        </button>
+        <button
+          type="button"
+          class="funnel-stat-card"
+          (click)="selectFilterStatus('INTERVIEW')"
+          [class.active]="filterStatus() === 'INTERVIEW'"
+          [attr.aria-pressed]="filterStatus() === 'INTERVIEW'"
+        >
           <span class="stat-count text-purple">{{ getCountForStatus('INTERVIEW') }}</span>
           <span class="stat-name">Interviews</span>
-        </div>
-        <div class="funnel-stat-card" (click)="selectFilterStatus('OFFER')" [class.active]="filterStatus() === 'OFFER'">
+        </button>
+        <button
+          type="button"
+          class="funnel-stat-card"
+          (click)="selectFilterStatus('OFFER')"
+          [class.active]="filterStatus() === 'OFFER'"
+          [attr.aria-pressed]="filterStatus() === 'OFFER'"
+        >
           <span class="stat-count text-emerald">{{ getCountForStatus('OFFER') }}</span>
-          <span class="stat-name">Offers 🎉</span>
-        </div>
-        <div class="funnel-stat-card" (click)="selectFilterStatus('REJECTED')" [class.active]="filterStatus() === 'REJECTED'">
+          <span class="stat-name">Offers</span>
+        </button>
+        <button
+          type="button"
+          class="funnel-stat-card"
+          (click)="selectFilterStatus('REJECTED')"
+          [class.active]="filterStatus() === 'REJECTED'"
+          [attr.aria-pressed]="filterStatus() === 'REJECTED'"
+        >
           <span class="stat-count text-muted">{{ getCountForStatus('REJECTED') + getCountForStatus('ARCHIVED') }}</span>
           <span class="stat-name">Archived</span>
-        </div>
+        </button>
       </section>
 
       <!-- Loading State -->
@@ -135,13 +175,27 @@ interface StatusColumn {
       >
         <div class="kanban-columns-container">
           <!-- Stage Column Loop -->
-          <div *ngFor="let col of kanbanColumns" class="kanban-column">
+          <div
+            *ngFor="let col of kanbanColumns"
+            class="kanban-column"
+            [class.is-highlighted]="filterStatus() === col.status"
+            [class.is-dimmed]="filterStatus() !== 'ALL' && filterStatus() !== col.status && filterStatus() !== 'REJECTED'"
+          >
             <header class="column-header">
               <div class="column-title-left">
-                <span class="column-dot" [style.background-color]="col.dotColor"></span>
+                <span class="column-dot" [style.background-color]="col.dotColor" aria-hidden="true"></span>
                 <span class="column-label">{{ col.label }}</span>
               </div>
-              <span class="column-count-badge tabular-nums">{{ getCountForStatus(col.status) }}</span>
+              <div class="column-metrics-right tabular-nums">
+                <span
+                  *ngIf="getCountForStatus(col.status) > 0"
+                  class="column-avg-pill"
+                  title="Average fit score in stage"
+                >
+                  Avg {{ getAvgFitForStage(col.status) }}%
+                </span>
+                <span class="column-count-badge">{{ getCountForStatus(col.status) }}</span>
+              </div>
             </header>
 
             <div class="column-cards-list custom-scrollbar">
@@ -156,11 +210,12 @@ interface StatusColumn {
                 class="kanban-card"
                 tabindex="0"
                 (keydown.enter)="openDrawer(item)"
-                [attr.aria-label]="item.title + ' at ' + item.company"
+                (keydown.space)="$event.preventDefault(); openDrawer(item)"
+                [attr.aria-label]="item.title + ' at ' + item.company + ', ' + roundScore(item.match_score) + '% match'"
               >
                 <!-- Card Header -->
                 <div class="card-head-row">
-                  <span class="company-badge-name">{{ item.company }}</span>
+                  <span class="company-badge-name" dir="auto">{{ item.company }}</span>
                   <span
                     class="score-pill tabular-nums"
                     [attr.data-band]="getScoreBand(item.match_score)"
@@ -169,12 +224,12 @@ interface StatusColumn {
                   </span>
                 </div>
 
-                <h3 class="role-title-heading">{{ item.title }}</h3>
+                <h3 class="role-title-heading" dir="auto">{{ item.title }}</h3>
 
                 <!-- Follow-Up Alert Pill (when due or active) -->
                 <div
                   *ngIf="item.follow_up_at"
-                  class="follow-up-badge"
+                  class="follow-up-badge tabular-nums"
                   [class.due]="isFollowUpDue(item.follow_up_at)"
                 >
                   <app-icon name="clock" [size]="11"></app-icon>
@@ -191,7 +246,8 @@ interface StatusColumn {
                       class="advance-action-btn"
                       title="Move to Applied"
                     >
-                      <span>Applied →</span>
+                      <span>Applied</span>
+                      <app-icon name="arrow-right" [size]="11"></app-icon>
                     </button>
 
                     <button
@@ -201,7 +257,8 @@ interface StatusColumn {
                       class="advance-action-btn"
                       title="Move to Interview"
                     >
-                      <span>Interview →</span>
+                      <span>Interview</span>
+                      <app-icon name="arrow-right" [size]="11"></app-icon>
                     </button>
 
                     <button
@@ -211,7 +268,8 @@ interface StatusColumn {
                       class="advance-action-btn offer"
                       title="Mark as Offer"
                     >
-                      <span>Offer! 🎉</span>
+                      <app-icon name="star" [size]="11"></app-icon>
+                      <span>Offer</span>
                     </button>
                   </div>
 
@@ -225,7 +283,7 @@ interface StatusColumn {
                     title="Direct portal link"
                     aria-label="Direct apply link"
                   >
-                    <app-icon name="external-link" [size]="12"></app-icon>
+                    <app-icon name="external-link" [size]="13"></app-icon>
                   </a>
                 </div>
               </article>
@@ -240,7 +298,14 @@ interface StatusColumn {
         class="list-table-workspace"
         aria-label="List table view"
       >
-        <div class="table-container">
+        <div *ngIf="filteredItems().length === 0" class="list-empty-slot">
+          <span>No tracked opportunities match the selected stage filter.</span>
+          <button type="button" (click)="selectFilterStatus('ALL')" class="reset-stage-btn">
+            Show All Roles
+          </button>
+        </div>
+
+        <div *ngIf="filteredItems().length > 0" class="table-container">
           <div class="table-header-row">
             <span class="col-th th-company">Opportunity & Company</span>
             <span class="col-th th-score">Fit Score</span>
@@ -256,10 +321,12 @@ interface StatusColumn {
               class="table-item-row"
               tabindex="0"
               (keydown.enter)="openDrawer(item)"
+              (keydown.space)="$event.preventDefault(); openDrawer(item)"
+              [attr.aria-label]="item.title + ' at ' + item.company"
             >
               <div class="col-td td-company">
-                <span class="item-role-title">{{ item.title }}</span>
-                <span class="item-company-name">{{ item.company }}</span>
+                <span class="item-role-title" dir="auto">{{ item.title }}</span>
+                <span class="item-company-name" dir="auto">{{ item.company }}</span>
               </div>
 
               <div class="col-td td-score">
@@ -282,13 +349,13 @@ interface StatusColumn {
                   <option value="SAVED">Saved</option>
                   <option value="APPLIED">Applied</option>
                   <option value="INTERVIEW">Interview</option>
-                  <option value="OFFER">Offer 🎉</option>
+                  <option value="OFFER">Offer</option>
                   <option value="REJECTED">Rejected</option>
                   <option value="ARCHIVED">Archived</option>
                 </select>
               </div>
 
-              <div class="col-td td-followup">
+              <div class="col-td td-followup tabular-nums">
                 <span
                   *ngIf="item.follow_up_at"
                   class="follow-up-pill"
@@ -310,7 +377,7 @@ interface StatusColumn {
                   title="Direct link"
                   aria-label="Direct link"
                 >
-                  <app-icon name="external-link" [size]="13"></app-icon>
+                  <app-icon name="external-link" [size]="14"></app-icon>
                 </a>
               </div>
             </article>
@@ -340,6 +407,7 @@ interface StatusColumn {
       width: 100%;
       max-width: 1240px;
       margin: 0 auto;
+      min-width: 0;
     }
 
     /* ==========================================================================
@@ -356,64 +424,73 @@ interface StatusColumn {
     .header-titles {
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 3px;
     }
 
     .title-row {
       display: flex;
       align-items: center;
       gap: var(--space-2-5);
+      flex-wrap: wrap;
     }
 
     .page-title {
       margin: 0;
-      font-size: var(--text-lg);
+      font-size: var(--text-2xl);
       font-weight: 700;
-      letter-spacing: -0.02em;
-      color: var(--color-text-primary);
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
     }
 
     .page-subtitle {
       margin: 0;
-      font-size: var(--text-xs);
-      color: var(--color-text-secondary);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: 1.45;
     }
 
-    /* Segmented Control */
+    /* Recessed Track Segmented Control */
     .segmented-control {
       display: inline-flex;
       align-items: center;
       gap: 2px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-sm);
-      padding: 2px;
+      padding: 3px;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
     }
 
     .segment-btn {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 5px 12px;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 13px;
       background: transparent;
       border: 1px solid transparent;
       border-radius: var(--radius-xs);
       font-size: 12px;
       font-weight: 500;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       cursor: pointer;
       user-select: none;
       transition: all var(--motion-fast);
+      white-space: nowrap;
     }
     .segment-btn:hover {
-      color: var(--color-text-primary);
+      color: var(--text-primary);
+      background-color: var(--bg-surface-hover);
+    }
+    .segment-btn:active {
+      transform: scale(0.98);
     }
     .segment-btn.active {
-      background-color: var(--color-bg-surface-1);
-      color: var(--color-text-primary);
-      border-color: var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      color: var(--text-primary);
+      border-color: var(--border-default);
       font-weight: 600;
-      box-shadow: var(--shadow-xs);
+      box-shadow: var(--surface-highlight-sm), var(--shadow-xs);
     }
 
     /* ==========================================================================
@@ -426,29 +503,39 @@ interface StatusColumn {
     }
 
     .funnel-stat-card {
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight), var(--shadow-xs);
       border-radius: var(--radius-xs);
-      padding: 8px 10px;
+      padding: 9px 11px;
       display: flex;
       flex-direction: column;
+      align-items: flex-start;
       gap: 2px;
+      text-align: left;
       cursor: pointer;
       transition: all var(--motion-fast);
     }
     .funnel-stat-card:hover {
-      background-color: var(--color-bg-surface-2);
-      border-color: var(--color-border-default);
+      background-color: var(--bg-surface-2);
+      border-color: var(--border-strong);
+      box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
+      transform: translateY(-1px);
+    }
+    .funnel-stat-card:active {
+      transform: scale(0.98);
     }
     .funnel-stat-card.active {
-      border-color: var(--color-brand-accent);
-      background-color: var(--color-brand-subtle);
+      border-color: var(--brand-primary);
+      background-color: var(--brand-bg-subtle);
+      box-shadow: inset 0 0 0 1px var(--brand-border-subtle), var(--surface-highlight-sm);
     }
 
     .stat-count {
-      font-size: 16px;
+      font-size: 17px;
       font-weight: 700;
-      color: var(--color-text-primary);
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
       line-height: 1.2;
     }
     .stat-name {
@@ -456,7 +543,7 @@ interface StatusColumn {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     /* Skeletons */
@@ -471,17 +558,23 @@ interface StatusColumn {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 14px;
-      background-color: var(--color-brand-accent);
+      padding: 7px 14px;
+      background-color: var(--brand-primary);
+      border: 1px solid var(--brand-primary);
+      box-shadow: var(--surface-highlight-sm);
       color: #ffffff;
       border-radius: var(--radius-xs);
       font-size: 12px;
       font-weight: 600;
       text-decoration: none;
-      transition: background-color var(--motion-fast);
+      transition: all var(--motion-fast);
     }
     .find-roles-btn:hover {
-      background-color: var(--color-brand-hover);
+      background-color: var(--brand-primary-hover);
+      box-shadow: var(--shadow-glow-brand);
+    }
+    .find-roles-btn:active {
+      transform: scale(0.98);
     }
 
     /* ==========================================================================
@@ -491,6 +584,8 @@ interface StatusColumn {
       width: 100%;
       overflow-x: auto;
       padding-bottom: var(--space-3);
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
     }
 
     .kanban-columns-container {
@@ -501,42 +596,84 @@ interface StatusColumn {
     }
 
     .kanban-column {
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight), var(--shadow-xs);
       border-radius: var(--radius-sm);
       display: flex;
       flex-direction: column;
       overflow: hidden;
       max-height: calc(100vh - 240px);
+      transition: border-color var(--motion-fast), opacity var(--motion-fast), box-shadow var(--motion-fast);
+    }
+    .kanban-column.is-highlighted {
+      border-color: var(--brand-primary);
+      box-shadow: inset 0 0 0 1px var(--brand-border-subtle), var(--surface-highlight), var(--shadow-sm);
+    }
+    .kanban-column.is-dimmed {
+      opacity: 0.52;
+    }
+    .kanban-column.is-dimmed:hover {
+      opacity: 0.9;
     }
 
     .column-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: var(--space-2);
       padding: 9px 12px;
-      border-bottom: 1px solid var(--color-border-subtle);
-      background-color: var(--color-bg-surface-2);
+      border-bottom: 1px solid var(--border-subtle);
+      background-color: var(--bg-surface-2);
+      box-shadow: var(--surface-highlight-sm);
     }
 
     .column-title-left {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
+      min-width: 0;
     }
     .column-dot {
-      width: 6px;
-      height: 6px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
+      flex-shrink: 0;
     }
     .column-label {
       font-size: 12px;
       font-weight: 600;
-      color: var(--color-text-primary);
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+    }
+
+    .column-metrics-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .column-avg-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 1px 6px;
     }
     .column-count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: var(--radius-xs);
+      background-color: var(--bg-surface-3);
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-primary);
       font-family: var(--font-mono);
       font-weight: 600;
     }
@@ -550,29 +687,33 @@ interface StatusColumn {
     }
 
     .empty-column-slot {
-      padding: var(--space-4) var(--space-2);
+      padding: var(--space-5) var(--space-2);
       text-align: center;
       font-size: 11px;
-      color: var(--color-text-muted);
-      font-style: italic;
+      color: var(--text-tertiary);
     }
 
     /* Kanban Card */
     .kanban-card {
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
       padding: 10px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 7px;
       cursor: pointer;
       transition: all var(--motion-fast);
     }
     .kanban-card:hover {
-      background-color: var(--color-bg-surface-hover);
-      border-color: var(--color-border-default);
+      background-color: var(--bg-surface-3);
+      border-color: var(--border-strong);
+      box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
       transform: translateY(-1px);
+    }
+    .kanban-card:active {
+      transform: scale(0.985);
     }
 
     .card-head-row {
@@ -585,46 +726,51 @@ interface StatusColumn {
     .company-badge-name {
       font-size: 11px;
       font-weight: 600;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 160px;
+      min-width: 0;
+      flex: 1;
     }
 
     .score-pill {
+      font-family: var(--font-mono);
       font-size: 10px;
       font-weight: 700;
-      padding: 1px 5px;
+      padding: 2px 6px;
       border-radius: 3px;
-      border: 1px solid var(--color-border-subtle);
-      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--border-default);
+      background-color: var(--bg-surface-1);
+      box-shadow: var(--surface-highlight-sm);
+      flex-shrink: 0;
     }
     .score-pill[data-band="emerald"] {
-      border-color: rgba(16, 185, 129, 0.4);
-      background-color: rgba(16, 185, 129, 0.08);
-      color: var(--color-success);
+      border-color: var(--emerald-border);
+      background-color: var(--emerald-bg);
+      color: var(--emerald-400);
     }
     .score-pill[data-band="indigo"] {
-      border-color: var(--color-brand-border);
-      background-color: var(--color-brand-subtle);
-      color: var(--color-brand-accent);
+      border-color: var(--brand-border-subtle);
+      background-color: var(--brand-bg-subtle);
+      color: var(--brand-accent);
     }
     .score-pill[data-band="amber"] {
-      border-color: rgba(245, 158, 11, 0.4);
-      background-color: rgba(245, 158, 11, 0.08);
-      color: var(--color-warning);
+      border-color: var(--amber-border);
+      background-color: var(--amber-bg);
+      color: var(--amber-400);
     }
     .score-pill[data-band="muted"] {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     .role-title-heading {
       margin: 0;
       font-size: 13px;
       font-weight: 600;
-      color: var(--color-text-primary);
-      line-height: 1.35;
+      letter-spacing: -0.015em;
+      color: var(--text-primary);
+      line-height: 1.38;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
@@ -636,18 +782,19 @@ interface StatusColumn {
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      align-self: flex-start;
       font-size: 10px;
       font-weight: 600;
-      padding: 2px 6px;
+      padding: 2px 7px;
       border-radius: 3px;
-      background-color: rgba(59, 130, 246, 0.08);
-      border: 1px solid rgba(59, 130, 246, 0.2);
-      color: var(--color-brand-accent);
+      background-color: var(--sky-bg);
+      border: 1px solid var(--sky-border);
+      color: var(--sky-400);
     }
     .follow-up-badge.due {
-      background-color: rgba(239, 68, 68, 0.1);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: var(--color-danger);
+      background-color: var(--rose-bg);
+      border-color: var(--rose-border);
+      color: var(--rose-400);
     }
 
     /* Card Footer Actions */
@@ -655,8 +802,8 @@ interface StatusColumn {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-top: 6px;
-      border-top: 1px solid var(--color-border-subtle);
+      padding-top: 7px;
+      border-top: 1px solid var(--border-subtle);
       margin-top: 2px;
     }
 
@@ -667,32 +814,52 @@ interface StatusColumn {
     }
 
     .advance-action-btn {
-      padding: 2px 7px;
-      border-radius: 3px;
-      font-size: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: var(--radius-xs);
+      font-size: 11px;
       font-weight: 600;
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-secondary);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
+      color: var(--text-secondary);
       cursor: pointer;
       transition: all var(--motion-fast);
     }
     .advance-action-btn:hover {
-      background-color: var(--color-brand-subtle);
-      border-color: var(--color-brand-border);
-      color: var(--color-brand-accent);
+      background-color: var(--brand-bg-subtle);
+      border-color: var(--brand-border-subtle);
+      color: var(--brand-accent);
+    }
+    .advance-action-btn:active {
+      transform: scale(0.97);
     }
     .advance-action-btn.offer {
-      color: var(--color-success);
+      color: var(--emerald-400);
+      border-color: var(--emerald-border);
+      background-color: var(--emerald-bg);
     }
 
     .card-external-link {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
       display: inline-flex;
-      padding: 2px;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-xs);
+      border: 1px solid transparent;
+      transition: all var(--motion-fast);
     }
     .card-external-link:hover {
-      color: var(--color-brand-accent);
+      color: var(--brand-accent);
+      background-color: var(--bg-surface-1);
+      border-color: var(--border-default);
+    }
+    .card-external-link:active {
+      transform: scale(0.96);
     }
 
     /* ==========================================================================
@@ -700,10 +867,41 @@ interface StatusColumn {
        ========================================================================== */
     .list-table-workspace {
       width: 100%;
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight), var(--shadow-xs);
       border-radius: var(--radius-sm);
       overflow: hidden;
+    }
+
+    .list-empty-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-2-5);
+      padding: var(--space-8) var(--space-4);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      text-align: center;
+    }
+    .reset-stage-btn {
+      padding: 6px 12px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border-default);
+      background-color: var(--bg-surface-2);
+      box-shadow: var(--surface-highlight-sm);
+      color: var(--text-primary);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--motion-fast);
+    }
+    .reset-stage-btn:hover {
+      background-color: var(--bg-surface-3);
+      border-color: var(--border-strong);
+    }
+    .reset-stage-btn:active {
+      transform: scale(0.98);
     }
 
     .table-container {
@@ -714,15 +912,15 @@ interface StatusColumn {
 
     .table-header-row {
       display: grid;
-      grid-template-columns: 2fr 100px 140px 140px 60px;
-      padding: 8px 14px;
-      background-color: var(--color-bg-surface-2);
-      border-bottom: 1px solid var(--color-border-subtle);
+      grid-template-columns: 2fr 100px 148px 150px 64px;
+      padding: 9px 14px;
+      background-color: var(--bg-surface-2);
+      border-bottom: 1px solid var(--border-default);
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     .table-body {
@@ -732,10 +930,11 @@ interface StatusColumn {
 
     .table-item-row {
       display: grid;
-      grid-template-columns: 2fr 100px 140px 140px 60px;
+      grid-template-columns: 2fr 100px 148px 150px 64px;
       align-items: center;
+      gap: var(--space-2);
       padding: 10px 14px;
-      border-bottom: 1px solid var(--color-border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
       cursor: pointer;
       transition: background-color var(--motion-fast);
     }
@@ -743,7 +942,10 @@ interface StatusColumn {
       border-bottom: none;
     }
     .table-item-row:hover {
-      background-color: var(--color-bg-surface-hover);
+      background-color: var(--bg-surface-hover);
+    }
+    .table-item-row:active {
+      background-color: var(--bg-surface-active);
     }
 
     .td-company {
@@ -755,76 +957,151 @@ interface StatusColumn {
     .item-role-title {
       font-size: 13px;
       font-weight: 600;
-      color: var(--color-text-primary);
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .item-company-name {
       font-size: 11px;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .stage-select-compact {
-      height: 26px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      height: 30px;
+      width: 100%;
+      max-width: 140px;
+      padding: 0 8px;
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
       font-size: 11px;
       font-weight: 500;
-      color: var(--color-text-secondary);
+      color: var(--text-primary);
       cursor: pointer;
+      transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
+    }
+    .stage-select-compact:hover {
+      border-color: var(--border-strong);
     }
     .stage-select-compact:focus {
       outline: none;
-      border-color: var(--color-brand-accent);
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 2px var(--brand-focus-ring);
     }
 
     .follow-up-pill {
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-secondary);
     }
     .follow-up-pill.due {
-      color: var(--color-danger);
+      color: var(--rose-400);
       font-weight: 600;
     }
 
     .table-icon-btn {
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       border-radius: var(--radius-xs);
-      border: 1px solid var(--color-border-subtle);
-      background-color: var(--color-bg-surface-2);
-      color: var(--color-text-secondary);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
+      background-color: var(--bg-surface-2);
+      color: var(--text-secondary);
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      transition: all var(--motion-fast);
     }
     .table-icon-btn:hover {
-      color: var(--color-brand-accent);
-      border-color: var(--color-border-default);
+      color: var(--brand-accent);
+      background-color: var(--bg-surface-3);
+      border-color: var(--border-strong);
+    }
+    .table-icon-btn:active {
+      transform: scale(0.96);
     }
 
-    .text-emerald { color: var(--color-success); }
-    .text-brand { color: var(--color-brand-accent); }
-    .text-indigo { color: #6366f1; }
-    .text-purple { color: #a855f7; }
-    .text-amber { color: var(--color-warning); }
-    .text-muted { color: var(--color-text-muted); }
+    .text-emerald { color: var(--emerald-400); }
+    .text-brand { color: var(--brand-accent); }
+    .text-indigo { color: var(--brand-primary); }
+    .text-purple { color: #c084fc; }
+    .text-amber { color: var(--amber-400); }
+    .text-muted { color: var(--text-tertiary); }
 
     @media (max-width: 860px) {
       .funnel-metrics-bar {
         grid-template-columns: repeat(3, 1fr);
       }
+      .funnel-stat-card {
+        min-height: 52px;
+      }
+      .segment-btn {
+        min-height: 44px;
+        padding: 8px 16px;
+      }
+      .kanban-workspace {
+        scroll-snap-type: x proximity;
+        margin: 0 calc(var(--space-1) * -1);
+        padding: 0 var(--space-1) var(--space-3) var(--space-1);
+      }
       .kanban-columns-container {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(4, minmax(272px, 84vw));
+      }
+      .kanban-column {
+        scroll-snap-align: start;
+        max-height: 64vh;
+      }
+      .advance-action-btn {
+        min-height: 44px;
+        padding: 0 12px;
+      }
+      .card-external-link {
+        width: 44px;
+        height: 44px;
       }
       .table-header-row {
         display: none;
       }
       .table-item-row {
-        grid-template-columns: 1fr;
-        gap: var(--space-2);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2-5);
+        padding: 12px;
+      }
+      .td-company {
+        flex: 1 1 100%;
+      }
+      .item-role-title {
+        white-space: normal;
+        line-height: 1.35;
+      }
+      .td-stage {
+        flex: 1 1 140px;
+      }
+      .stage-select-compact {
+        min-height: 44px;
+        max-width: none;
+        font-size: 12px;
+      }
+      .table-icon-btn {
+        width: 44px;
+        height: 44px;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .funnel-metrics-bar {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .kanban-columns-container {
+        grid-template-columns: repeat(4, minmax(260px, 86vw));
       }
     }
   `],
@@ -844,7 +1121,7 @@ export class TrackerComponent implements OnInit {
   readonly selectedJob = signal<JobSummary | null>(null);
 
   readonly kanbanColumns: StatusColumn[] = [
-    { status: 'SAVED', label: 'Saved', dotColor: '#3B82F6' },
+    { status: 'SAVED', label: 'Saved', dotColor: '#38BDF8' },
     { status: 'APPLIED', label: 'Applied', dotColor: '#6366F1' },
     { status: 'INTERVIEW', label: 'Interview', dotColor: '#A855F7' },
     { status: 'OFFER', label: 'Offer', dotColor: '#10B981' },
@@ -877,11 +1154,19 @@ export class TrackerComponent implements OnInit {
   selectFilterStatus(status: string): void {
     this.telegram.haptic('selection');
     this.filterStatus.set(status);
+    if (status === 'REJECTED' && this.viewMode() === 'kanban') {
+      this.viewMode.set('list');
+    }
   }
 
   filteredItems(): TrackedJobItem[] {
     const s = this.filterStatus();
     if (s === 'ALL') return this.allItems();
+    if (s === 'REJECTED') {
+      return this.allItems().filter(
+        (item) => item.status === 'REJECTED' || item.status === 'ARCHIVED'
+      );
+    }
     return this.allItems().filter((item) => item.status === s);
   }
 
@@ -892,6 +1177,13 @@ export class TrackerComponent implements OnInit {
   getCountForStatus(status: string): number {
     if (status === 'ALL') return this.allItems().length;
     return this.allItems().filter((item) => item.status === status).length;
+  }
+
+  getAvgFitForStage(stage: ApplicationStatus): number {
+    const items = this.getItemsForStage(stage);
+    if (items.length === 0) return 0;
+    const totalScore = items.reduce((acc, item) => acc + (item.match_score || 0), 0);
+    return Math.round(totalScore / items.length);
   }
 
   onStatusChange(jobId: number, newStatus: ApplicationStatus): void {

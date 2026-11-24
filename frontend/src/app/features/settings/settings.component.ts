@@ -30,7 +30,7 @@ import { CandidateProfile } from '../../core/models/job.model';
         <section class="surface-card settings-panel" aria-labelledby="delivery-title">
           <div class="panel-header">
             <div class="panel-title-wrap">
-              <div class="panel-icon-box text-cyan">
+              <div class="panel-icon-box text-brand">
                 <app-icon name="bell" [size]="16"></app-icon>
               </div>
               <div>
@@ -125,7 +125,7 @@ import { CandidateProfile } from '../../core/models/job.model';
         <section class="surface-card settings-panel" aria-labelledby="theme-title">
           <div class="panel-header">
             <div class="panel-title-wrap">
-              <div class="panel-icon-box text-cyan">
+              <div class="panel-icon-box text-brand">
                 <app-icon name="sparkles" [size]="16"></app-icon>
               </div>
               <div>
@@ -147,8 +147,9 @@ import { CandidateProfile } from '../../core/models/job.model';
                 (click)="selectTheme('dark')"
                 role="button"
                 tabindex="0"
+                [attr.aria-pressed]="theme.isDark()"
                 (keydown.enter)="selectTheme('dark')"
-                (keydown.space)="selectTheme('dark')"
+                (keydown.space)="$event.preventDefault(); selectTheme('dark')"
                 aria-label="Select Dark Obsidian Theme"
               >
                 <div class="theme-card-top">
@@ -157,7 +158,7 @@ import { CandidateProfile } from '../../core/models/job.model';
                   </div>
                   <div class="theme-meta">
                     <strong class="theme-name">Dark Obsidian</strong>
-                    <span class="theme-desc">Linear Jet Black with Electric Cyan</span>
+                    <span class="theme-desc">Obsidian canvas with crisp Indigo accent</span>
                   </div>
                   <div class="theme-radio" [class.checked]="theme.isDark()">
                     <app-icon *ngIf="theme.isDark()" name="check" [size]="11"></app-icon>
@@ -165,12 +166,12 @@ import { CandidateProfile } from '../../core/models/job.model';
                 </div>
 
                 <div class="theme-preview dark-preview">
-                  <div class="preview-bar preview-bar-dark">
+                  <div class="preview-bar">
                     <span class="preview-dot dot-dark-bg"></span>
                     <span class="preview-dot dot-dark-border"></span>
-                    <span class="preview-dot dot-cyan"></span>
+                    <span class="preview-dot dot-indigo-dark"></span>
                   </div>
-                  <div class="preview-chip">#090C13 · Jet Black</div>
+                  <div class="preview-chip dark-chip">#09090B · Obsidian</div>
                 </div>
               </div>
 
@@ -181,8 +182,9 @@ import { CandidateProfile } from '../../core/models/job.model';
                 (click)="selectTheme('light')"
                 role="button"
                 tabindex="0"
+                [attr.aria-pressed]="!theme.isDark()"
                 (keydown.enter)="selectTheme('light')"
-                (keydown.space)="selectTheme('light')"
+                (keydown.space)="$event.preventDefault(); selectTheme('light')"
                 aria-label="Select Light Titanium Theme"
               >
                 <div class="theme-card-top">
@@ -199,12 +201,12 @@ import { CandidateProfile } from '../../core/models/job.model';
                 </div>
 
                 <div class="theme-preview light-preview">
-                  <div class="preview-bar preview-bar-light">
+                  <div class="preview-bar">
                     <span class="preview-dot dot-light-bg"></span>
                     <span class="preview-dot dot-light-border"></span>
-                    <span class="preview-dot dot-cyan"></span>
+                    <span class="preview-dot dot-indigo-light"></span>
                   </div>
-                  <div class="preview-chip">#F8FAFC · Titanium</div>
+                  <div class="preview-chip light-chip">#F8FAFC · Titanium</div>
                 </div>
               </div>
             </div>
@@ -249,7 +251,7 @@ import { CandidateProfile } from '../../core/models/job.model';
               </div>
 
               <div class="guardrail-row">
-                <div class="guardrail-icon-box text-cyan">
+                <div class="guardrail-icon-box text-sky">
                   <app-icon name="database" [size]="15"></app-icon>
                 </div>
                 <div class="guardrail-info">
@@ -265,7 +267,7 @@ import { CandidateProfile } from '../../core/models/job.model';
         <section class="surface-card settings-panel danger-panel" aria-labelledby="danger-title">
           <div class="panel-header danger-header">
             <div class="panel-title-wrap">
-              <div class="panel-icon-box text-rose">
+              <div class="panel-icon-box danger-icon-box text-rose">
                 <app-icon name="alert-circle" [size]="16"></app-icon>
               </div>
               <div>
@@ -287,7 +289,7 @@ import { CandidateProfile } from '../../core/models/job.model';
                 <div class="admin-key-group">
                   <label for="adminKeyInput" class="admin-label">
                     <app-icon name="lock" [size]="12"></app-icon>
-                    <span>Admin Secret Key (X-Admin-Key):</span>
+                    <span>Admin Secret Key (X-Admin-Key)</span>
                   </label>
                   <input
                     id="adminKeyInput"
@@ -341,12 +343,19 @@ import { CandidateProfile } from '../../core/models/job.model';
     </div>
   `,
   styles: [`
+    :host {
+      display: block;
+      width: 100%;
+    }
+
     .settings-view {
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
       width: 100%;
-      max-width: 960px;
+      max-width: 1000px;
+      margin: 0 auto;
+      min-width: 0;
     }
 
     .settings-header {
@@ -375,10 +384,11 @@ import { CandidateProfile } from '../../core/models/job.model';
 
     .settings-panel {
       padding: var(--space-5);
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius-md);
       border: 1px solid var(--border-default);
       background: var(--bg-surface-1);
-      transition: border-color var(--motion-fast);
+      box-shadow: var(--surface-highlight), var(--shadow-xs);
+      transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
     }
 
     .panel-header {
@@ -388,18 +398,21 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: var(--space-3);
       padding-bottom: var(--space-3-5);
       border-bottom: 1px solid var(--border-subtle);
+      flex-wrap: wrap;
     }
     .panel-title-wrap {
       display: flex;
       align-items: center;
       gap: var(--space-3);
+      min-width: 0;
     }
     .panel-icon-box {
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: var(--radius-sm);
       background: var(--bg-surface-2);
       border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -408,7 +421,7 @@ import { CandidateProfile } from '../../core/models/job.model';
     .panel-title {
       font-size: var(--text-sm);
       font-weight: 600;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.015em;
       color: var(--text-primary);
       margin: 0 0 2px 0;
     }
@@ -416,7 +429,7 @@ import { CandidateProfile } from '../../core/models/job.model';
       font-size: var(--text-xs);
       color: var(--text-tertiary);
       margin: 0;
-      line-height: 1.35;
+      line-height: 1.4;
     }
 
     .panel-body {
@@ -457,13 +470,16 @@ import { CandidateProfile } from '../../core/models/job.model';
     .toggle-switch-btn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: var(--space-1-5);
+      min-height: 36px;
       padding: 6px 14px;
       font-size: var(--text-xs);
       font-weight: 600;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-default);
       background: var(--bg-surface-2);
+      box-shadow: var(--surface-highlight-sm);
       color: var(--text-secondary);
       cursor: pointer;
       transition: all var(--motion-fast);
@@ -471,11 +487,15 @@ import { CandidateProfile } from '../../core/models/job.model';
     }
     .toggle-switch-btn:hover {
       border-color: var(--border-strong);
+      background: var(--bg-surface-3);
       color: var(--text-primary);
     }
+    .toggle-switch-btn:active {
+      transform: scale(0.98);
+    }
     .toggle-switch-btn.active {
-      background: rgba(16, 185, 129, 0.12);
-      border-color: rgba(16, 185, 129, 0.35);
+      background: var(--emerald-bg);
+      border-color: var(--emerald-border);
       color: var(--emerald-400);
     }
 
@@ -483,9 +503,11 @@ import { CandidateProfile } from '../../core/models/job.model';
       display: flex;
       align-items: center;
       gap: var(--space-2);
+      flex-wrap: wrap;
     }
     .time-input {
-      width: 105px;
+      width: 112px;
+      min-height: 36px;
       text-align: center;
       font-size: var(--text-xs);
       font-weight: 600;
@@ -494,14 +516,22 @@ import { CandidateProfile } from '../../core/models/job.model';
       border: 1px solid var(--border-default);
       background: var(--bg-surface-2);
       color: var(--text-primary);
+      transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
+    }
+    .time-input:focus {
+      outline: none;
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 2px var(--brand-focus-ring);
+      background: var(--bg-surface-1);
     }
     .tz-pill {
       font-size: 11px;
       font-family: var(--font-mono);
-      color: var(--text-tertiary);
+      color: var(--text-secondary);
       background: var(--bg-surface-2);
-      border: 1px solid var(--border-subtle);
-      padding: 5px 9px;
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
+      padding: 6px 10px;
       border-radius: var(--radius-xs);
       white-space: nowrap;
     }
@@ -512,22 +542,55 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: var(--space-3);
     }
     .score-range {
-      width: 130px;
+      -webkit-appearance: none;
+      appearance: none;
+      width: 140px;
+      height: 6px;
+      border-radius: var(--radius-full);
+      background: var(--bg-surface-3);
+      border: 1px solid var(--border-default);
       cursor: pointer;
-      accent-color: var(--brand-primary);
+    }
+    .score-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--brand-primary);
+      border: 2px solid #ffffff;
+      box-shadow: var(--shadow-xs);
+      cursor: pointer;
+      transition: transform var(--motion-fast), background-color var(--motion-fast);
+    }
+    .score-range::-webkit-slider-thumb:hover {
+      background: var(--brand-primary-hover);
+      transform: scale(1.1);
+    }
+    .score-range::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--brand-primary);
+      border: 2px solid #ffffff;
+      box-shadow: var(--shadow-xs);
+      cursor: pointer;
+      transition: transform var(--motion-fast), background-color var(--motion-fast);
     }
     .score-badge-wrap {
       display: flex;
       align-items: center;
       justify-content: center;
-      min-width: 48px;
-      padding: 4px 8px;
+      min-width: 52px;
+      padding: 5px 9px;
       background: var(--bg-surface-2);
       border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
+      font-family: var(--font-mono);
       font-size: var(--text-xs);
       font-weight: 700;
-      color: var(--brand-primary);
+      color: var(--brand-accent);
     }
 
     .panel-footer {
@@ -550,25 +613,26 @@ import { CandidateProfile } from '../../core/models/job.model';
       flex-direction: column;
       gap: var(--space-3);
       padding: var(--space-4);
-      border-radius: var(--radius-md);
+      border-radius: var(--radius-sm);
       background: var(--bg-surface-2);
       border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       cursor: pointer;
       transition: all var(--motion-fast);
       user-select: none;
-      outline: none;
     }
     .theme-card:hover {
       border-color: var(--border-strong);
       background: var(--bg-surface-3);
+      box-shadow: var(--surface-highlight-hover), var(--shadow-xs);
     }
-    .theme-card:focus-visible {
-      border-color: var(--brand-primary);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
+    .theme-card:active {
+      transform: scale(0.99);
     }
     .theme-card.active {
       border-color: var(--brand-primary);
-      background: rgba(34, 211, 238, 0.04);
+      background: var(--brand-bg-subtle);
+      box-shadow: inset 0 0 0 1px var(--brand-border-subtle), var(--surface-highlight-sm);
     }
     .theme-card-top {
       display: flex;
@@ -576,8 +640,8 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: var(--space-3);
     }
     .theme-icon-wrap {
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
@@ -585,20 +649,23 @@ import { CandidateProfile } from '../../core/models/job.model';
       flex-shrink: 0;
     }
     .dark-icon {
-      background: #090c13;
-      color: #22d3ee;
+      background: #09090b;
+      color: #818cf8;
       border: 1px solid #27272a;
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
     }
     .light-icon {
-      background: #f8fafc;
-      color: #0284c7;
+      background: #ffffff;
+      color: #4f46e5;
       border: 1px solid #cbd5e1;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
     }
     .theme-meta {
       flex: 1;
       display: flex;
       flex-direction: column;
       gap: 2px;
+      min-width: 0;
     }
     .theme-name {
       font-size: var(--text-sm);
@@ -606,20 +673,22 @@ import { CandidateProfile } from '../../core/models/job.model';
       color: var(--text-primary);
     }
     .theme-desc {
-      font-size: var(--text-2xs);
-      color: var(--text-tertiary);
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      line-height: 1.35;
     }
     .theme-radio {
       width: 18px;
       height: 18px;
       border-radius: 50%;
-      border: 1px solid var(--border-default);
+      border: 1px solid var(--border-strong);
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
       color: #ffffff;
       background: var(--bg-surface-1);
+      transition: all var(--motion-fast);
     }
     .theme-radio.checked {
       background: var(--brand-primary);
@@ -631,13 +700,15 @@ import { CandidateProfile } from '../../core/models/job.model';
       justify-content: space-between;
       padding: var(--space-2) var(--space-2-5);
       border-radius: var(--radius-xs);
-      border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-default);
     }
     .dark-preview {
-      background: #090c13;
+      background: #09090b;
+      border-color: rgba(255, 255, 255, 0.1);
     }
     .light-preview {
       background: #f8fafc;
+      border-color: rgba(15, 23, 42, 0.12);
     }
     .preview-bar {
       display: flex;
@@ -649,17 +720,19 @@ import { CandidateProfile } from '../../core/models/job.model';
       height: 8px;
       border-radius: 50%;
     }
-    .dot-dark-bg { background: #18181b; }
-    .dot-dark-border { background: #3f3f46; }
-    .dot-light-bg { background: #e2e8f0; }
+    .dot-dark-bg { background: #16161a; border: 1px solid rgba(255,255,255,0.12); }
+    .dot-dark-border { background: #2e2e36; }
+    .dot-indigo-dark { background: #6366f1; }
+    .dot-light-bg { background: #e2e8f0; border: 1px solid rgba(15,23,42,0.1); }
     .dot-light-border { background: #94a3b8; }
-    .dot-cyan { background: #22d3ee; }
+    .dot-indigo-light { background: #4f46e5; }
     .preview-chip {
       font-family: var(--font-mono);
       font-size: 10px;
       font-weight: 500;
-      color: var(--text-tertiary);
     }
+    .dark-chip { color: #a1a1aa; }
+    .light-chip { color: #475569; }
 
     /* Guardrail Grid */
     .guardrail-grid {
@@ -674,7 +747,8 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: var(--space-3);
       padding: var(--space-3) var(--space-3-5);
       background: var(--bg-surface-2);
-      border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-sm);
     }
     .guardrail-icon-box {
@@ -682,6 +756,7 @@ import { CandidateProfile } from '../../core/models/job.model';
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
     .guardrail-info strong {
       font-size: var(--text-xs);
@@ -691,7 +766,7 @@ import { CandidateProfile } from '../../core/models/job.model';
       margin-bottom: 2px;
     }
     .guardrail-info p {
-      font-size: var(--text-2xs);
+      font-size: var(--text-xs);
       color: var(--text-secondary);
       margin: 0;
       line-height: 1.45;
@@ -699,11 +774,20 @@ import { CandidateProfile } from '../../core/models/job.model';
 
     /* Danger Zone */
     .danger-panel {
-      border-color: rgba(244, 63, 94, 0.28);
-      background: rgba(244, 63, 94, 0.02);
+      border-color: var(--rose-border);
+      background: linear-gradient(180deg, rgba(244, 63, 94, 0.04) 0%, var(--bg-surface-1) 50%);
+      box-shadow: inset 0 1px 0 0 rgba(244, 63, 94, 0.16), var(--shadow-xs);
+    }
+    .danger-panel:hover {
+      border-color: rgba(244, 63, 94, 0.45);
+      box-shadow: inset 0 1px 0 0 rgba(244, 63, 94, 0.24), var(--shadow-sm);
     }
     .danger-header {
-      border-bottom-color: rgba(244, 63, 94, 0.15);
+      border-bottom-color: rgba(244, 63, 94, 0.16);
+    }
+    .danger-icon-box {
+      border-color: var(--rose-border);
+      background: var(--rose-bg);
     }
     .danger-box {
       display: flex;
@@ -730,8 +814,9 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: var(--space-3);
       padding: var(--space-3-5);
       background: var(--bg-surface-2);
-      border: 1px solid rgba(244, 63, 94, 0.2);
-      border-radius: var(--radius-md);
+      border: 1px solid var(--rose-border);
+      box-shadow: var(--surface-highlight-sm);
+      border-radius: var(--radius-sm);
     }
     .admin-key-group {
       display: flex;
@@ -741,24 +826,25 @@ import { CandidateProfile } from '../../core/models/job.model';
     .admin-label {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-1);
+      gap: var(--space-1-5);
       font-size: var(--text-xs);
       font-weight: 600;
       color: var(--text-secondary);
     }
     .admin-input {
+      min-height: 36px;
       font-family: var(--font-mono);
       font-size: var(--text-xs);
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
     }
     .confirm-box {
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
       padding: var(--space-3);
-      background: rgba(244, 63, 94, 0.06);
-      border: 1px solid rgba(244, 63, 94, 0.35);
-      border-radius: var(--radius-sm);
+      background: var(--rose-bg);
+      border: 1px solid var(--rose-border);
+      border-radius: var(--radius-xs);
     }
     .confirm-warning {
       display: flex;
@@ -767,32 +853,61 @@ import { CandidateProfile } from '../../core/models/job.model';
       font-size: var(--text-xs);
       font-weight: 600;
       color: var(--rose-400);
+      line-height: 1.4;
     }
     .confirm-actions {
       display: flex;
       align-items: center;
       gap: var(--space-2);
+      flex-wrap: wrap;
     }
 
     /* Utilities */
-    .text-cyan { color: var(--cyan-400); }
+    .text-brand { color: var(--brand-accent); }
+    .text-sky { color: var(--sky-400); }
     .text-emerald { color: var(--emerald-400); }
     .text-rose { color: var(--rose-400); }
 
     @media (max-width: 768px) {
+      .settings-panel {
+        padding: var(--space-4);
+      }
       .setting-item {
         flex-direction: column;
         align-items: flex-start;
         gap: var(--space-3);
       }
+      .toggle-switch-btn,
+      .time-input,
+      .admin-input {
+        min-height: 44px;
+      }
+      .score-range {
+        width: 160px;
+        height: 8px;
+      }
+      .score-range::-webkit-slider-thumb {
+        width: 22px;
+        height: 22px;
+      }
+      .score-range::-moz-range-thumb {
+        width: 22px;
+        height: 22px;
+      }
       .theme-grid {
         grid-template-columns: 1fr;
       }
-      .panel-footer ui-button {
+      .panel-footer ui-button,
+      .danger-action-flow ui-button {
         width: 100%;
       }
-      .panel-footer ::ng-deep .ui-btn {
+      .panel-footer ::ng-deep .ui-btn,
+      .danger-action-flow ::ng-deep .ui-btn {
         width: 100%;
+        min-height: 44px;
+      }
+      .confirm-actions ui-button {
+        flex: 1 1 140px;
       }
     }
   `],
@@ -827,7 +942,6 @@ export class SettingsComponent implements OnInit {
         this.digestThreshold = p.digest_threshold ?? 70;
       },
       error: () => {
-        // Fallback default
         this.digestEnabled.set(true);
       },
     });
