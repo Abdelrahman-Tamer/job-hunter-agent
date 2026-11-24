@@ -1,0 +1,71 @@
+name: Daily Frontend Opportunity Radar
+
+on:
+  schedule:
+    # 09:00 Africa/Cairo in winter (UTC+2) -> 07:00 UTC
+    # Note: During Egypt summer DST (UTC+3, late April to late October), update to '0 6 * * *'
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force re-run even if daily run already completed today'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-radar
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  daily-radar:
+    name: Execute Daily Opportunity Radar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Daily Pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
+          SOCIAL_SEARCH_API_KEY: ${{ secrets.SOCIAL_SEARCH_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TZ: "Africa/Cairo"
+          FORCE_RUN: ${{ inputs.force }}
+          LINKEDIN_SOCIAL_ENABLED: "true"
+          EGYPT_COMMUNITY_ENABLED: "true"
+          JOBICY_ENABLED: "true"
+          WORKABLE_ENABLED: "true"
+          HIMALAYAS_ENABLED: "true"
+          REMOTIVE_ENABLED: "true"
+        run: |
+          python -c "
+          import asyncio
+          import os
+          import sys
+          from src.scheduler.cron import JobSchedulerService
+
+          force_input = os.getenv('FORCE_RUN', '${{ inputs.force }}').lower() == 'true'
+          print(f'Starting daily radar run (force={force_input})...')
+          scheduler = JobSchedulerService()
+          asyncio.run(scheduler.run_daily_job(force=force_input))
+          print('Daily radar completed successfully.')
+          "
