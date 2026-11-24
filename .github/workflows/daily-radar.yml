@@ -57,27 +57,34 @@ jobs:
           HIMALAYAS_ENABLED: "true"
           REMOTIVE_ENABLED: "true"
         run: |
-          python -c "
+          python - <<'EOF'
           import asyncio
           import os
           import sys
+
+          from src.core.database import async_session_factory
           from src.models.enums import RunStatus
-          from src.scheduler.cron import JobSchedulerService
+          from src.scheduler.runner import DailyPipelineRunner
 
-          force_input = os.getenv('FORCE_RUN', 'false').lower() == 'true'
-          print(f'Starting daily radar run (force={force_input})...')
-          scheduler = JobSchedulerService()
+          async def main() -> None:
+              force_input = os.getenv("FORCE_RUN", "false").lower() == "true"
+              print(f"Starting daily frontend radar run (force={force_input})...")
+              runner = DailyPipelineRunner()
+              async with async_session_factory() as session:
+                  run = await runner.execute_daily_run(session, force=force_input)
 
-          try:
-              run = asyncio.run(scheduler.run_daily_job(force=force_input))
-          except Exception as exc:
-              print(f'Daily radar run raised an exception: {exc}', file=sys.stderr)
-              sys.exit(1)
+              if run is None or getattr(run, "status", None) == RunStatus.FAILED:
+                  status_label = getattr(run, "status", "None")
+                  print(f"Daily radar run failed with status: {status_label}", file=sys.stderr)
+                  sys.exit(1)
 
-          if run is not None and getattr(run, 'status', None) == RunStatus.FAILED:
-              print(f'Daily radar run failed with status: {run.status}', file=sys.stderr)
-              sys.exit(1)
+              print(f"Daily radar completed successfully with status: {run.status}")
+              sys.exit(0)
 
-          print('Daily radar completed successfully.')
-          sys.exit(0)
-          "
+          if __name__ == "__main__":
+              try:
+                  asyncio.run(main())
+              except Exception as exc:
+                  print(f"Daily radar encountered an unhandled exception: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          EOF
