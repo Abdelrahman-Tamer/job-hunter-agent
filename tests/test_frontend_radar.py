@@ -1106,5 +1106,78 @@ def test_workable_and_egypt_community_return_none_published_at():
     assert norm_egypt.published_at is None, "EgyptCommunityAdapter should return published_at=None instead of faking current time"
 
 
+def test_parse_markdown_skips_internships_2025_and_accepts_2026():
+    """Verify Egypt community adapter ignores archived ## Internships 2025 and accepts 2026 and Egypt sections."""
+    adapter = EgyptCommunityAdapter()
+    sample_md = """
+# Guide
+## Internships 2025
+| Company | Internship Title | Link | Location |
+|---|---|---|---|
+| OldCompany2025 | Old Intern 2025 | [Link](https://old.example.com/2025) | Cairo, Egypt |
+
+## Internships 2026
+| Company | Internship Title | Link | Location |
+|---|---|---|---|
+| NewCompany2026 | Tech Intern 2026 | [Link](https://new.example.com/2026) | Cairo, Egypt |
+
+## Internships in Egypt
+| Company | Internship Title | Link | Location |
+|---|---|---|---|
+| EgyptCompany | Egypt Intern | [Link](https://egypt.example.com/intern) | Giza, Egypt |
+"""
+    parsed = adapter._parse_markdown(sample_md, "Guide")
+    titles = [item["title"] for item in parsed]
+    assert "Tech Intern 2026" in titles
+    assert "Egypt Intern" in titles
+    assert "Old Intern 2025" not in titles
+
+
+def test_job_persistence_column_clamping_and_eligibility_classification():
+    """Verify long raw_location (>260 chars) preserves eligibility detection before clamping to <= 255 for DB."""
+    from src.engine.eligibility import GeographicEligibilityEngine
+    from src.models.enums import GeographicEligibility, OpportunitySegment
+    from src.scheduler.runner import _clamp
+
+    engine = GeographicEligibilityEngine()
+    # String with non-Gulf countries exceeding 255 chars, with 'Egypt' appearing after char 260
+    long_prefix = "Argentina, Brazil, Canada, Denmark, Estonia, France, Germany, Greece, Hungary, Iceland, Ireland, Italy, Japan, Kenya, Latvia, Lithuania, Luxembourg, Mexico, Netherlands, Norway, Poland, Portugal, Romania, Spain, Sweden, Switzerland, Turkey, United Kingdom, United States, "
+    long_location = long_prefix + "Egypt"
+    assert len(long_location) > 255
+    assert long_location.find("Egypt") > 255
+
+    # 1. Classification works on full untruncated string
+    elig, reason = engine.classify(raw_location=long_location, workplace_type=WorkplaceType.REMOTE)
+    assert elig == GeographicEligibility.EGYPT_ELIGIBLE
+    segment = engine.classify_segment(raw_location=long_location, workplace_type=WorkplaceType.REMOTE, eligibility=elig)
+    assert segment == OpportunitySegment.EGYPT
+
+    # 2. Clamping ensures string is safe for PostgreSQL String(255)
+    clamped_loc = _clamp(long_location, 255)
+    assert clamped_loc is not None
+    assert len(clamped_loc) == 255
+    assert len(clamped_loc) <= 255
+
+    # 3. Job model accepts clamped string without error
+    job = Job(
+        source_id=1,
+        source_name="himalayas",
+        source_job_id="test-long-loc",
+        source_url="https://example.com/job/1",
+        canonical_url_hash="hash64",
+        original_application_url="https://example.com/job/1",
+        company="HimalayasCo",
+        title="Frontend Engineer",
+        description_text="Frontend",
+        raw_location=clamped_loc,
+        remote_scope=clamped_loc,
+        eligibility=elig,
+        eligibility_reason="Eligible",
+    )
+    assert job.raw_location is not None and len(job.raw_location) <= 255
+    assert job.remote_scope is not None and len(job.remote_scope) <= 255
+
+
+
 
 

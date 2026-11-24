@@ -4,15 +4,12 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.engine.gemini_extractor import ExtractedJobAttributes
 from src.models import (
-    DailyRun,
     Job,
-    NotificationLog,
-    NotificationType,
     RunStatus,
-    Source,
 )
 from src.scheduler.runner import DailyPipelineRunner
 from src.sources.base import BaseSourceAdapter, NormalizedJobData, RawJobData, SourceMetadata
@@ -170,3 +167,88 @@ async def test_zero_results_truthful_summary(db_session):
     args, kwargs = mock_telegram.send_message.call_args
     assert "No new job opportunities met your matching threshold today" in kwargs["text"]
     assert "Daily Job Digest" in kwargs["text"]
+
+
+class MockMultiJobSourceAdapter(BaseSourceAdapter):
+    """Adapter that returns two jobs: one that fails DB persistence, and one healthy job."""
+    def source_metadata(self) -> SourceMetadata:
+        return SourceMetadata(
+            name="multi_job_source",
+            source_type="custom",
+            base_url="https://multi.example.com",
+            doc_url="https://multi.example.com",
+            allowed_usage_summary="Mock multi test source",
+            rate_limit_req_per_minute=10,
+            attribution_requirement="Mock",
+            freshness_limitations="None",
+            fields_provided=["title", "companyName"],
+        )
+
+    async def health_check(self) -> bool:
+        return True
+
+    async def fetch_jobs(self, since=None, query_config=None):
+        return [
+            RawJobData(
+                source_name="multi_job_source",
+                source_job_id="job-fail-1",
+                source_url="https://multi.example.com/job/fail",
+                payload={"title": "Angular Developer Fail"},
+            ),
+            RawJobData(
+                source_name="multi_job_source",
+                source_job_id="job-pass-2",
+                source_url="https://multi.example.com/job/pass",
+                payload={"title": "Angular Developer Pass"},
+            ),
+        ]
+
+    def normalize(self, raw_job: RawJobData) -> NormalizedJobData:
+        return NormalizedJobData(
+            source_name="multi_job_source",
+            source_job_id=raw_job.source_job_id,
+            source_url=raw_job.source_url,
+            canonical_url=raw_job.source_url,
+            original_application_url=raw_job.source_url,
+            company="MultiCorp",
+            title=raw_job.payload["title"],
+            description_text="Angular and TypeScript web application development.",
+            raw_location="Cairo, Egypt",
+            required_skills=["Angular", "TypeScript"],
+            published_at=datetime.now(timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_db_row_isolation_in_runner(db_session, monkeypatch):
+    """Verify that a database error on one job is isolated via nested transaction and allows others to persist."""
+    registry = SourceRegistry()
+    registry.register(MockMultiJobSourceAdapter())
+    mock_telegram = AsyncMock()
+
+    runner = DailyPipelineRunner(
+        registry=registry,
+        telegram_client=mock_telegram,
+        gemini_extractor=create_mock_gemini(),
+    )
+
+    original_flush = db_session.flush
+    first_call = True
+
+    async def faulty_flush(*args, **kwargs):
+        nonlocal first_call
+        if first_call:
+            first_call = False
+            raise SQLAlchemyError("Simulated DB flush truncation or constraint error")
+        return await original_flush(*args, **kwargs)
+
+    monkeypatch.setattr(db_session, "flush", faulty_flush)
+
+    run = await runner.execute_daily_run(db_session, force=True, target_chat_id=123456)
+    assert run.status == RunStatus.COMPLETED
+    assert run.jobs_new == 1  # 1 succeeded despite 1 failing
+
+    saved_jobs = (await db_session.execute(select(Job))).scalars().all()
+    assert len(saved_jobs) == 1
+    assert saved_jobs[0].title == "Angular Developer Pass"
+

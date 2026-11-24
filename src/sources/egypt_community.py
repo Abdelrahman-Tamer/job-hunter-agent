@@ -104,10 +104,9 @@ class EgyptCommunityAdapter(BaseSourceAdapter):
     def _parse_markdown(self, markdown_text: str, feed_name: str) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
 
-        # Parse tables under relevant sections (Internships 2026, 2025, Internships in Egypt, Full-time in Egypt)
+        # Parse tables under relevant sections (Internships 2026, Internships in Egypt, Full-time in Egypt)
         target_sections = [
             "## Internships 2026",
-            "## Internships 2025",
             "## Internships in Egypt",
             "## Full-time Positions in Egypt",
         ]
@@ -132,11 +131,19 @@ class EgyptCommunityAdapter(BaseSourceAdapter):
                 continue
 
             # Must be a table row: | Company | Title | Link | ...
-            if line_str.startswith("|") and not line_str.startswith("|---") and "company" not in line_str.lower():
+            if line_str.startswith("|") and not line_str.startswith("|---"):
                 cols = [c.strip() for c in line_str.split("|")[1:-1]]
                 if len(cols) >= 3:
                     company_raw = cols[0]
                     title_raw = cols[1]
+
+                    # Skip header rows
+                    if (
+                        company_raw.lower() in ("company", "company name", "الشركة")
+                        or "---" in company_raw
+                        or title_raw.lower() in ("title", "internship title", "role", "position")
+                    ):
+                        continue
 
                     # Clean markdown formatting (*, [, ], bold)
                     company = re.sub(r"[*\[\]_]", "", company_raw).strip()

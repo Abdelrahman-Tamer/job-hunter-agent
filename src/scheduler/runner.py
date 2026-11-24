@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import zoneinfo
 from typing import Any, Dict, List, Optional
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.formatters import build_job_inline_keyboard, format_job_card
@@ -41,6 +42,11 @@ from src.services.followup_service import check_and_send_followup_reminders
 from src.services.profile_service import get_or_create_candidate_profile
 from src.sources.base import BaseSourceAdapter, NormalizedJobData
 from src.sources.registry import SourceRegistry, create_default_registry
+
+
+def _clamp(val: Optional[str], limit: int) -> Optional[str]:
+    """Clamp string value to maximum allowed column length for SQL persistence."""
+    return val[:limit] if val is not None else None
 
 
 class DailyPipelineRunner:
@@ -317,29 +323,33 @@ class DailyPipelineRunner:
                         "is_social_post": getattr(normalized, "is_social_post", False),
                         "source_category": "SOCIAL_POST" if getattr(normalized, "is_social_post", False) else "JOB_BOARD",
                     }
+                    app_url = _clamp(
+                        normalized.original_application_url or normalized.source_url or "",
+                        1024,
+                    ) or ""
                     job_record = Job(
                         source_id=source_rec.id,
-                        source_name=source_name,
-                        source_job_id=normalized.source_job_id,
-                        source_url=normalized.source_url,
-                        canonical_url_hash=url_hash,
-                        original_application_url=normalized.original_application_url,
-                        company=normalized.company,
-                        title=normalized.title,
+                        source_name=_clamp(source_name, 100) or "",
+                        source_job_id=_clamp(normalized.source_job_id, 255) or "",
+                        source_url=_clamp(normalized.source_url, 1024) or "",
+                        canonical_url_hash=url_hash[:64],
+                        original_application_url=app_url,
+                        company=_clamp(normalized.company, 255) or "Unknown",
+                        title=_clamp(normalized.title, 255) or "",
                         description_text=normalized.description_text,
                         description_html=normalized.description_html,
-                        raw_location=normalized.raw_location,
+                        raw_location=_clamp(normalized.raw_location, 255),
                         country_codes=normalized.country_codes,
                         workplace_type=normalized.workplace_type,
-                        remote_scope=normalized.remote_scope,
+                        remote_scope=_clamp(normalized.remote_scope, 255),
                         eligible_countries=normalized.eligible_countries,
                         excluded_countries=normalized.excluded_countries,
                         seniority=normalized.seniority,
                         employment_type=normalized.employment_type,
                         salary_min=normalized.salary_min,
                         salary_max=normalized.salary_max,
-                        salary_currency=normalized.salary_currency,
-                        salary_period=normalized.salary_period,
+                        salary_currency=_clamp(normalized.salary_currency, 10),
+                        salary_period=_clamp(normalized.salary_period, 20),
                         required_skills=normalized.required_skills,
                         preferred_skills=normalized.preferred_skills,
                         required_experience_years=normalized.required_experience_years,
@@ -352,7 +362,7 @@ class DailyPipelineRunner:
                         ),
                         job_track=job_track,
                         eligibility=eligibility,
-                        eligibility_reason=elig_reason,
+                        eligibility_reason=_clamp(elig_reason, 500) or "",
                         match_score=match_result.score,
                         match_band=match_result.band,
                         score_breakdown=match_result.breakdown.model_dump(),
@@ -361,12 +371,20 @@ class DailyPipelineRunner:
                         match_confidence=match_result.confidence,
                         raw_payload=payload_audit,
                     )
-                    session.add(job_record)
-                    await session.flush()
+                    try:
+                        async with session.begin_nested():
+                            session.add(job_record)
+                            await session.flush()
 
-                    # Attach ApplicationTracker
-                    tracker = JobStatusTracker(job_id=job_record.id)
-                    session.add(tracker)
+                            # Attach ApplicationTracker
+                            tracker = JobStatusTracker(job_id=job_record.id)
+                            session.add(tracker)
+                            await session.flush()
+                    except SQLAlchemyError as db_err:
+                        logger.warning(
+                            f"Skipping persistence of job '{normalized.title}' at '{normalized.company}' due to DB error: {db_err}"
+                        )
+                        continue
 
                     new_count += 1
                     total_new += 1
@@ -421,6 +439,7 @@ class DailyPipelineRunner:
                 .where(
                     Job.is_active == True,
                     Job.is_expired == False,
+                    Job.job_track != JobTrack.OTHER,
                     Job.match_score >= profile.digest_threshold,
                     NotificationLog.id == None,
                 )
@@ -439,6 +458,8 @@ class DailyPipelineRunner:
             sec_remote_gcc: List[Job] = []
 
             for j in eligible_for_digest:
+                if j.job_track == JobTrack.OTHER:
+                    continue
                 seg = getattr(j, "opportunity_segment", "")
                 if seg == OpportunitySegment.EGYPT.value:
                     sec_egypt.append(j)
