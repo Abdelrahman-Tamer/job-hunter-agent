@@ -50,7 +50,11 @@ export type IconName =
   | 'shield-check'
   | 'download'
   | 'message-square'
-  | 'send';
+  | 'radar'
+  | 'compass'
+  | 'send'
+  | 'lock'
+  | 'key';
 
 @Component({
   selector: 'app-icon',
@@ -86,6 +90,20 @@ export type IconName =
         <!-- Moon (Dark Mode) -->
         <g *ngSwitchCase="'moon'">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </g>
+
+        <!-- Radar -->
+        <g *ngSwitchCase="'radar'">
+          <path d="M19.07 4.93a10 10 0 0 0-14.14 0"></path>
+          <path d="M16.24 7.76a6 6 0 0 0-8.49 0"></path>
+          <circle cx="12" cy="12" r="2"></circle>
+          <path d="m13.41 10.59 5.66-5.66"></path>
+        </g>
+
+        <!-- Compass -->
+        <g *ngSwitchCase="'compass'">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
         </g>
 
         <!-- Briefcase -->
@@ -379,6 +397,18 @@ export type IconName =
         <g *ngSwitchCase="'send'">
           <line x1="22" y1="2" x2="11" y2="13"></line>
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </g>
+
+        <!-- Lock -->
+        <g *ngSwitchCase="'lock'">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </g>
+
+        <!-- Key -->
+        <g *ngSwitchCase="'key'">
+          <path d="m21 2-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2 1.5 1.5L3 20v2h2l9-9"></path>
+          <circle cx="7.5" cy="16.5" r="1.5"></circle>
         </g>
       </ng-container>
     </svg>

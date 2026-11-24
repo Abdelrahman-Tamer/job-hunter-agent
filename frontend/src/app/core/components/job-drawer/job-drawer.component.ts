@@ -1,116 +1,181 @@
-import { Component, EventEmitter, Input, Output, OnInit, inject, signal } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  HostListener,
+  Input,
+  OnChanges,
+  OnInit,
+  Output,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { TelegramService } from '../../services/telegram.service';
+import { ToastService } from '../../services/toast.service';
 import { IconComponent } from '../icon/icon.component';
-import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model';
+import { UiBadgeComponent } from '../../../shared/ui/ui-badge.component';
+import {
+  ApplicationStatus,
+  JobDetail,
+  JobSummary,
+} from '../../models/job.model';
 
 @Component({
   selector: 'app-job-drawer',
   standalone: true,
-  imports: [CommonModule, IconComponent],
+  imports: [
+    CommonModule,
+    IconComponent,
+    UiBadgeComponent,
+  ],
   template: `
     <div
       class="drawer-backdrop"
-      (click)="onBackdropClick($event)"
       [class.open]="isOpen"
+      (click)="onBackdropClick($event)"
       role="dialog"
       aria-modal="true"
       [attr.aria-label]="job?.title || 'Job details'"
     >
-      <div class="drawer-container" (click)="$event.stopPropagation()">
-        <!-- Drawer Header -->
+      <div class="drawer-panel" (click)="$event.stopPropagation()">
+        <!-- Sticky Drawer Header -->
         <header class="drawer-header">
-          <div class="header-brand-wrap">
-            <span class="drawer-company-avatar">{{ job?.company?.charAt(0) || 'J' }}</span>
+          <div class="header-left">
+            <div class="company-avatar-box">
+              <span>{{ job?.company?.charAt(0) || 'J' }}</span>
+            </div>
             <div class="header-titles">
-              <span class="company-subtext">{{ job?.company }}</span>
-              <h2 class="drawer-title">{{ job?.title }}</h2>
+              <div class="company-row">
+                <span class="company-name">{{ job?.company || 'Company' }}</span>
+                <ui-badge
+                  *ngIf="job?.is_social_post"
+                  variant="social"
+                  size="sm"
+                  [dot]="true"
+                >
+                  LinkedIn Post
+                </ui-badge>
+              </div>
+              <h2 class="job-title">{{ job?.title || 'Opportunity Details' }}</h2>
             </div>
           </div>
 
-          <div class="header-actions-row">
+          <div class="header-actions">
+            <a
+              *ngIf="job?.original_application_url"
+              [href]="job?.original_application_url"
+              target="_blank"
+              rel="noopener noreferrer"
+              (click)="onApplyClick($event)"
+              class="apply-primary-link"
+              title="Apply Direct"
+              aria-label="Apply direct on employer portal"
+            >
+              <span>Apply</span>
+              <app-icon name="external-link" [size]="12"></app-icon>
+            </a>
+
             <button
               (click)="copyJobLink()"
-              class="btn-icon-control"
-              [title]="copied() ? 'Copied!' : 'Copy link'"
-              aria-label="Copy job application link"
+              class="action-icon-btn"
+              [title]="copied() ? 'Copied URL!' : 'Copy link'"
+              aria-label="Copy job link"
             >
-              <app-icon [name]="copied() ? 'check' : 'copy'" [size]="16"></app-icon>
+              <app-icon [name]="copied() ? 'check' : 'copy'" [size]="14"></app-icon>
             </button>
+
             <button
               (click)="close()"
-              class="btn-icon-control btn-close"
+              class="action-icon-btn close-btn"
+              title="Close (Esc)"
               aria-label="Close drawer"
             >
-              <app-icon name="x" [size]="18"></app-icon>
+              <app-icon name="x" [size]="15"></app-icon>
             </button>
           </div>
         </header>
 
-        <!-- Drawer Body Content -->
-        <div class="drawer-body">
-          <!-- Loading Detail Indicator -->
-          <div *ngIf="isLoadingDetail()" class="loading-bar-wrap">
-            <div class="loading-bar"></div>
-          </div>
+        <!-- Loading indicator -->
+        <div *ngIf="isLoadingDetail()" class="loading-line-indicator">
+          <div class="shimmer-active loading-bar"></div>
+        </div>
 
-          <!-- Match Score & Key Telemetry Banner -->
-          <section class="telemetry-banner" aria-label="Match score and telemetry">
-            <div class="match-score-card" [class.excellent]="(job?.match_score || 0) >= 80" [class.strong]="(job?.match_score || 0) >= 70 && (job?.match_score || 0) < 80">
-              <div class="score-circle">
-                <span class="score-num">{{ roundScore(job?.match_score || 0) }}%</span>
-                <span class="score-sub">Match</span>
+        <!-- Scrollable Drawer Body -->
+        <div class="drawer-body custom-scrollbar">
+          <!-- Social Post Callout (when role originated from LinkedIn hiring post) -->
+          <section *ngIf="job?.is_social_post" class="social-post-callout">
+            <div class="social-callout-header">
+              <app-icon name="message-square" [size]="14" class="social-glyph"></app-icon>
+              <span class="social-callout-title">Direct Social Hiring Post</span>
+            </div>
+            <div class="social-callout-body">
+              <p *ngIf="job?.poster_name" class="poster-info">
+                <strong>Shared by:</strong> {{ job?.poster_name }}
+              </p>
+              <p *ngIf="job?.contact_hint" class="contact-hint-info">
+                <strong>Contact Hint:</strong> {{ job?.contact_hint }}
+              </p>
+              <p class="social-disclaimer">
+                This opportunity was surfaced from authentic recruiter outreach on LinkedIn. You can apply directly by reaching out to the poster.
+              </p>
+            </div>
+          </section>
+
+          <!-- Match Score & Core Telemetry -->
+          <section class="telemetry-card">
+            <div class="score-split">
+              <div
+                class="score-pill-large tabular-nums"
+                [attr.data-band]="getScoreBand(job?.match_score || 0)"
+              >
+                <span class="score-val">{{ roundScore(job?.match_score || 0) }}%</span>
+                <span class="score-lbl">Fit Score</span>
               </div>
-              <div class="score-meta">
-                <span class="score-badge-text">
-                  <app-icon name="sparkles" [size]="12"></app-icon>
-                  {{ (job?.match_score || 0) >= 80 ? 'Top Tier Match' : (job?.match_score || 0) >= 70 ? 'Strong Candidate Fit' : 'Relevant Opportunity' }}
-                </span>
-                <span class="score-explanation">
-                  {{ jobDetail()?.eligibility_reason || 'Verified match calculated against your candidate profile.' }}
-                </span>
+              <div class="score-context">
+                <div class="score-fit-label">
+                  <app-icon name="sparkles" [size]="13" class="sparkle-icon"></app-icon>
+                  <span>{{ getScoreFitText(job?.match_score || 0) }}</span>
+                </div>
+                <p class="score-reason">
+                  {{ jobDetail()?.eligibility_reason || 'Verified match calculated against your target engineering profile.' }}
+                </p>
               </div>
             </div>
 
-            <!-- Key Tags Grid -->
-            <div class="key-tags-grid">
-              <div class="tag-card" *ngIf="job?.job_track">
-                <span class="tag-label">Specialization Track</span>
-                <span class="tag-value text-blue" *ngIf="job?.job_track === 'WEB_ANGULAR'">
-                  🌐 Web & Angular
-                </span>
-                <span class="tag-value text-green" *ngIf="job?.job_track === 'NO_EXP_REMOTE'">
-                  💼 No-Exp Remote
-                </span>
-                <span class="tag-value text-purple" *ngIf="job?.job_track === 'SOFTWARE_INTERN'">
-                  🎓 Software Intern
+            <!-- Key Badges Grid -->
+            <div class="meta-chips-grid">
+              <div class="meta-chip">
+                <span class="meta-label">Segment</span>
+                <span class="meta-value">
+                  <app-icon name="compass" [size]="12"></app-icon>
+                  {{ formatSegment(job?.opportunity_segment) }}
                 </span>
               </div>
-              <div class="tag-card">
-                <span class="tag-label">Eligibility</span>
-                <span class="tag-value text-green">
-                  <app-icon name="globe" [size]="12"></app-icon>
-                  {{ formatEligibility(job?.eligibility) }}
-                </span>
-              </div>
-              <div class="tag-card">
-                <span class="tag-label">Workplace</span>
-                <span class="tag-value">
+              <div class="meta-chip">
+                <span class="meta-label">Workplace</span>
+                <span class="meta-value">
                   <app-icon name="building" [size]="12"></app-icon>
                   {{ formatWorkplace(job?.workplace_type) }}
                 </span>
               </div>
-              <div class="tag-card">
-                <span class="tag-label">Seniority</span>
-                <span class="tag-value">
+              <div class="meta-chip">
+                <span class="meta-label">Eligibility</span>
+                <span class="meta-value text-emerald">
+                  <app-icon name="globe" [size]="12"></app-icon>
+                  {{ formatEligibility(job?.eligibility) }}
+                </span>
+              </div>
+              <div class="meta-chip">
+                <span class="meta-label">Seniority</span>
+                <span class="meta-value">
                   <app-icon name="user" [size]="12"></app-icon>
                   {{ formatSeniority(job?.seniority) }}
                 </span>
               </div>
-              <div class="tag-card" *ngIf="job?.raw_location">
-                <span class="tag-label">Location</span>
-                <span class="tag-value text-muted-truncate">
+              <div class="meta-chip" *ngIf="job?.raw_location">
+                <span class="meta-label">Location</span>
+                <span class="meta-value text-truncate">
                   <app-icon name="map-pin" [size]="12"></app-icon>
                   {{ job?.raw_location }}
                 </span>
@@ -118,24 +183,25 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
             </div>
           </section>
 
-          <!-- Application Stage Switcher -->
-          <section class="pipeline-stage-section" aria-label="Pipeline stage management">
-            <div class="section-heading-row">
-              <div class="section-title-wrap">
+          <!-- Tracker Pipeline Stage Selector -->
+          <section class="section-card">
+            <div class="section-card-head">
+              <div class="head-left">
                 <app-icon name="bookmark" [size]="14"></app-icon>
-                <h3>Pipeline Status</h3>
+                <h3 class="section-heading">Application Pipeline</h3>
               </div>
-              <span class="current-status-pill" [attr.data-status]="currentStatus()">
+              <ui-badge variant="brand" size="sm">
                 {{ formatStatus(currentStatus()) }}
-              </span>
+              </ui-badge>
             </div>
 
-            <div class="stages-pill-group" role="radiogroup" aria-label="Change stage">
+            <div class="pipeline-stages-bar" role="radiogroup" aria-label="Pipeline stage">
               <button
                 *ngFor="let s of availableStages"
+                type="button"
                 (click)="setJobStatus(s.status)"
-                [class.selected]="currentStatus() === s.status"
-                class="stage-select-btn"
+                [class.active]="currentStatus() === s.status"
+                class="stage-pill-btn"
                 [attr.data-stage]="s.status"
               >
                 <span>{{ s.label }}</span>
@@ -144,68 +210,79 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
           </section>
 
           <!-- Skills Alignment Matrix -->
-          <section class="skills-matrix-section" aria-label="Skills alignment">
-            <div class="section-heading-row">
-              <div class="section-title-wrap">
-                <app-icon name="check-circle" [size]="14" class="text-green"></app-icon>
-                <h3>Matched Skills</h3>
+          <section class="section-card">
+            <div class="section-card-head">
+              <div class="head-left">
+                <app-icon name="check-circle" [size]="14" class="text-emerald"></app-icon>
+                <h3 class="section-heading">Matched Tech Stack</h3>
               </div>
-              <span class="skill-count">{{ matchedSkills().length }} aligned</span>
+              <span class="sub-counter tabular-nums">{{ matchedSkills().length }} aligned</span>
             </div>
 
-            <div class="skills-pill-wrap" *ngIf="matchedSkills().length > 0">
-              <span *ngFor="let skill of matchedSkills()" class="skill-pill matched">
+            <div class="badges-wrap" *ngIf="matchedSkills().length > 0">
+              <ui-badge
+                *ngFor="let skill of matchedSkills()"
+                variant="success"
+                size="md"
+              >
                 <app-icon name="check" [size]="11"></app-icon>
                 <span>{{ skill }}</span>
-              </span>
+              </ui-badge>
+            </div>
+            <div *ngIf="matchedSkills().length === 0" class="empty-inline-note">
+              <span>No explicit skill tags indexed for this role.</span>
             </div>
 
-            <!-- Skill Gaps / Learning Points -->
-            <div class="gap-block" *ngIf="skillGaps().length > 0">
-              <div class="section-heading-row gap-head">
-                <div class="section-title-wrap">
+            <!-- Skill Gaps / Areas to Review -->
+            <div *ngIf="skillGaps().length > 0" class="gaps-block">
+              <div class="section-card-head sub-head">
+                <div class="head-left">
                   <app-icon name="info" [size]="13" class="text-amber"></app-icon>
-                  <h4>Requirements to Review</h4>
+                  <h4 class="sub-heading">Requirements to Review</h4>
                 </div>
-                <span class="skill-count text-amber">{{ skillGaps().length }} to note</span>
+                <span class="sub-counter text-amber tabular-nums">{{ skillGaps().length }} notes</span>
               </div>
-              <div class="skills-pill-wrap">
-                <span *ngFor="let gap of skillGaps()" class="skill-pill gap">
+              <div class="badges-wrap">
+                <ui-badge
+                  *ngFor="let gap of skillGaps()"
+                  variant="warning"
+                  size="md"
+                >
                   <span>{{ gap }}</span>
-                </span>
+                </ui-badge>
               </div>
             </div>
           </section>
 
-          <!-- Elite AI Application Toolkit -->
-          <section class="toolkit-section" aria-label="Application toolkit">
-            <div class="section-heading-row">
-              <div class="section-title-wrap">
-                <app-icon name="sparkles" [size]="14" class="text-blue"></app-icon>
-                <h3>Application Outreach & Toolkit</h3>
+          <!-- AI Outreach & Tailored Resume Toolkit -->
+          <section class="section-card">
+            <div class="section-card-head">
+              <div class="head-left">
+                <app-icon name="sparkles" [size]="14" class="text-brand"></app-icon>
+                <h3 class="section-heading">AI Application Toolkit</h3>
               </div>
-              <span class="toolkit-badge">AI Powered</span>
+              <ui-badge variant="brand" size="sm">Gemini Powered</ui-badge>
             </div>
 
-            <div class="toolkit-grid">
+            <div class="toolkit-actions-row">
               <button
+                type="button"
                 (click)="toggleOutreachTool()"
                 [class.active]="activeTool() === 'outreach'"
-                class="toolkit-btn"
-                aria-label="Generate LinkedIn outreach note"
+                class="tool-tab-btn"
               >
-                <app-icon name="message-square" [size]="14"></app-icon>
-                <span>LinkedIn DM</span>
+                <app-icon name="message-square" [size]="13"></app-icon>
+                <span>Recruiter Outreach</span>
               </button>
 
               <button
+                type="button"
                 (click)="toggleCoverTool()"
                 [class.active]="activeTool() === 'cover'"
-                class="toolkit-btn"
-                aria-label="Generate AI cover letter"
+                class="tool-tab-btn"
               >
-                <app-icon name="file-text" [size]="14"></app-icon>
-                <span>AI Cover Letter</span>
+                <app-icon name="file-text" [size]="13"></app-icon>
+                <span>Cover Letter</span>
               </button>
 
               <a
@@ -213,131 +290,156 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
                 [href]="api.getTailoredResumeUrl(job!.id)"
                 target="_blank"
                 download
-                class="toolkit-btn pdf-btn"
-                aria-label="Download tailored ATS PDF resume"
+                class="tool-tab-btn resume-pdf-btn"
+                title="Download ATS PDF resume tailored for this role"
               >
-                <app-icon name="download" [size]="14"></app-icon>
-                <span>Tailored PDF</span>
+                <app-icon name="download" [size]="13"></app-icon>
+                <span>Tailored ATS Resume</span>
               </a>
             </div>
 
-            <!-- Tool Output: LinkedIn Pack -->
-            <div *ngIf="activeTool() === 'outreach'" class="tool-result-panel">
-              <div class="tool-panel-header">
-                <span class="tool-panel-title">LinkedIn Recruiter Pack</span>
-                <button (click)="closeTool()" class="tool-close-btn" aria-label="Close tool">
+            <!-- Tool Result: Recruiter Outreach Kit -->
+            <div *ngIf="activeTool() === 'outreach'" class="tool-content-drawer">
+              <div class="tool-result-header">
+                <span class="tool-result-title">Recruiter Outreach Kit</span>
+                <button (click)="closeTool()" class="tool-dismiss-btn" aria-label="Close tool">
                   <app-icon name="x" [size]="12"></app-icon>
                 </button>
               </div>
 
-              <div *ngIf="isLoadingTool()" class="tool-loading">
-                <div class="tool-spinner"></div>
-                <span>Crafting high-conversion recruiter message...</span>
+              <div *ngIf="isLoadingTool()" class="tool-loading-box">
+                <div class="btn-spinner"></div>
+                <span>Synthesizing tailored recruiter outreach...</span>
               </div>
 
-              <div *ngIf="!isLoadingTool() && outreachData()" class="outreach-content">
-                <!-- 1. Connection Request Note -->
-                <div class="outreach-card">
-                  <div class="outreach-card-head">
-                    <span class="outreach-type">Connection Note (&lt; 300 chars)</span>
-                    <button (click)="copyText(outreachData()!.connection_note, 'conn')" class="btn-copy-micro">
-                      <app-icon [name]="copiedKey() === 'conn' ? 'check' : 'copy'" [size]="12"></app-icon>
+              <div *ngIf="!isLoadingTool() && outreachData()" class="tool-cards-stack">
+                <!-- 1. Connection Note -->
+                <div class="outreach-block">
+                  <div class="outreach-top">
+                    <span class="outreach-label">LinkedIn Connection Note (&lt; 300 chars)</span>
+                    <button (click)="copyText(outreachData()!.connection_note, 'conn')" class="copy-micro-btn">
+                      <app-icon [name]="copiedKey() === 'conn' ? 'check' : 'copy'" [size]="11"></app-icon>
                       <span>{{ copiedKey() === 'conn' ? 'Copied' : 'Copy' }}</span>
                     </button>
                   </div>
-                  <pre class="outreach-pre">{{ outreachData()!.connection_note }}</pre>
-                  <span class="char-count-pill">{{ outreachData()!.connection_note.length }}/300 chars</span>
+                  <pre class="outreach-prose">{{ outreachData()!.connection_note }}</pre>
+                  <span class="char-length-indicator tabular-nums">{{ outreachData()!.connection_note.length }}/300 chars</span>
                 </div>
 
                 <!-- 2. Recruiter InMail / Direct Message -->
-                <div class="outreach-card">
-                  <div class="outreach-card-head">
-                    <span class="outreach-type">InMail / Direct Message</span>
-                    <button (click)="copyText(outreachData()!.inmail_dm, 'inmail')" class="btn-copy-micro">
-                      <app-icon [name]="copiedKey() === 'inmail' ? 'check' : 'copy'" [size]="12"></app-icon>
+                <div class="outreach-block">
+                  <div class="outreach-top">
+                    <span class="outreach-label">Recruiter InMail / Direct Message</span>
+                    <button (click)="copyText(outreachData()!.inmail_dm, 'inmail')" class="copy-micro-btn">
+                      <app-icon [name]="copiedKey() === 'inmail' ? 'check' : 'copy'" [size]="11"></app-icon>
                       <span>{{ copiedKey() === 'inmail' ? 'Copied' : 'Copy' }}</span>
                     </button>
                   </div>
-                  <pre class="outreach-pre">{{ outreachData()!.inmail_dm }}</pre>
+                  <pre class="outreach-prose">{{ outreachData()!.inmail_dm }}</pre>
+                </div>
+
+                <!-- 3. Follow-up Note -->
+                <div class="outreach-block" *ngIf="outreachData()!.follow_up_note">
+                  <div class="outreach-top">
+                    <span class="outreach-label">5-Day Follow-Up Message</span>
+                    <button (click)="copyText(outreachData()!.follow_up_note, 'follow')" class="copy-micro-btn">
+                      <app-icon [name]="copiedKey() === 'follow' ? 'check' : 'copy'" [size]="11"></app-icon>
+                      <span>{{ copiedKey() === 'follow' ? 'Copied' : 'Copy' }}</span>
+                    </button>
+                  </div>
+                  <pre class="outreach-prose">{{ outreachData()!.follow_up_note }}</pre>
                 </div>
               </div>
             </div>
 
-            <!-- Tool Output: AI Cover Letter -->
-            <div *ngIf="activeTool() === 'cover'" class="tool-result-panel">
-              <div class="tool-panel-header">
-                <span class="tool-panel-title">Tailored AI Cover Letter</span>
-                <div class="tool-header-actions">
-                  <button *ngIf="coverLetterText()" (click)="copyText(coverLetterText()!, 'cover')" class="btn-copy-micro">
-                    <app-icon [name]="copiedKey() === 'cover' ? 'check' : 'copy'" [size]="12"></app-icon>
-                    <span>{{ copiedKey() === 'cover' ? 'Copied' : 'Copy' }}</span>
+            <!-- Tool Result: Cover Letter -->
+            <div *ngIf="activeTool() === 'cover'" class="tool-content-drawer">
+              <div class="tool-result-header">
+                <span class="tool-result-title">Tailored AI Cover Letter</span>
+                <div class="header-tools">
+                  <button
+                    *ngIf="coverLetterText()"
+                    (click)="copyText(coverLetterText()!, 'cover')"
+                    class="copy-micro-btn"
+                  >
+                    <app-icon [name]="copiedKey() === 'cover' ? 'check' : 'copy'" [size]="11"></app-icon>
+                    <span>{{ copiedKey() === 'cover' ? 'Copied' : 'Copy Letter' }}</span>
                   </button>
-                  <button (click)="closeTool()" class="tool-close-btn" aria-label="Close tool">
+                  <button (click)="closeTool()" class="tool-dismiss-btn" aria-label="Close tool">
                     <app-icon name="x" [size]="12"></app-icon>
                   </button>
                 </div>
               </div>
 
-              <div *ngIf="isLoadingTool()" class="tool-loading">
-                <div class="tool-spinner"></div>
-                <span>Synthesizing custom cover letter...</span>
+              <div *ngIf="isLoadingTool()" class="tool-loading-box">
+                <div class="btn-spinner"></div>
+                <span>Crafting custom cover letter...</span>
               </div>
 
-              <div *ngIf="!isLoadingTool() && coverLetterText()" class="cover-content">
-                <pre class="outreach-pre">{{ coverLetterText() }}</pre>
+              <div *ngIf="!isLoadingTool() && coverLetterText()" class="cover-letter-wrap">
+                <pre class="outreach-prose cover-prose">{{ coverLetterText() }}</pre>
               </div>
             </div>
           </section>
 
-          <!-- Job Description Body -->
-          <section class="description-section" aria-label="Job description">
-            <div class="section-heading-row">
-              <div class="section-title-wrap">
+          <!-- Job Description with RTL Support -->
+          <section class="section-card description-card">
+            <div class="section-card-head">
+              <div class="head-left">
                 <app-icon name="file-text" [size]="14"></app-icon>
-                <h3>Role Description</h3>
+                <h3 class="section-heading">Role Description</h3>
               </div>
-              <span class="source-tag">Source: {{ job?.source_name }}</span>
+              <span class="sub-counter">{{ job?.source_name }}</span>
             </div>
 
-            <div class="description-content" *ngIf="jobDetail()?.description_text; else fallbackDesc">
+            <div
+              class="prose-description"
+              dir="auto"
+              *ngIf="jobDetail()?.description_text; else fallbackDesc"
+            >
               <p *ngFor="let paragraph of getParagraphs(jobDetail()?.description_text)">
                 {{ paragraph }}
               </p>
             </div>
             <ng-template #fallbackDesc>
-              <div class="description-content">
-                <p>Curated software engineering opportunity matched by BottaJobs AI Agent.</p>
-                <p>Click "Apply on Company Site" below to view the official posting and complete your submission.</p>
+              <div class="prose-description fallback">
+                <p>Curated frontend opportunity verified and classified by Frontend Radar autonomous pipeline.</p>
+                <p>Click "Apply Direct" below to access the live hiring portal and submit your application.</p>
               </div>
             </ng-template>
           </section>
         </div>
 
-        <!-- Sticky Drawer Footer Action Bar -->
+        <!-- Sticky Drawer Bottom Bar -->
         <footer class="drawer-footer">
-          <div class="footer-left-info">
-            <span class="first-seen" *ngIf="job?.first_seen_at">
-              Discovered {{ job?.first_seen_at | date:'mediumDate' }}
+          <div class="footer-timestamp tabular-nums">
+            <span *ngIf="job?.published_at">
+              Published {{ formatRelativeDate(job?.published_at) }}
+            </span>
+            <span *ngIf="!job?.published_at && job?.first_seen_at">
+              Discovered {{ formatRelativeDate(job?.first_seen_at) }}
             </span>
           </div>
 
-          <div class="footer-buttons">
+          <div class="footer-btn-group">
             <button
+              type="button"
               (click)="toggleSave()"
-              class="btn btn-secondary btn-save"
+              class="drawer-btn secondary-btn"
               [class.saved]="currentStatus() === 'SAVED'"
             >
-              <app-icon [name]="currentStatus() === 'SAVED' ? 'check' : 'bookmark'" [size]="14"></app-icon>
+              <app-icon [name]="currentStatus() === 'SAVED' ? 'check' : 'bookmark'" [size]="13"></app-icon>
               <span>{{ currentStatus() === 'SAVED' ? 'Saved' : 'Save' }}</span>
             </button>
 
             <button
+              type="button"
               (click)="toggleApplied()"
-              class="btn btn-secondary btn-applied"
+              class="drawer-btn secondary-btn"
               [class.applied]="currentStatus() === 'APPLIED'"
             >
-              <app-icon [name]="currentStatus() === 'APPLIED' ? 'check' : 'send'" [size]="14"></app-icon>
-              <span>{{ currentStatus() === 'APPLIED' ? 'Applied (5d Alert)' : 'Mark Applied' }}</span>
+              <app-icon [name]="currentStatus() === 'APPLIED' ? 'check' : 'send'" [size]="13"></app-icon>
+              <span>{{ currentStatus() === 'APPLIED' ? 'Applied' : 'Mark Applied' }}</span>
             </button>
 
             <a
@@ -346,10 +448,10 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
               target="_blank"
               rel="noopener noreferrer"
               (click)="onApplyClick($event)"
-              class="btn btn-primary btn-apply"
+              class="drawer-btn primary-btn"
             >
               <span>Apply Direct</span>
-              <app-icon name="external-link" [size]="14"></app-icon>
+              <app-icon name="external-link" [size]="13"></app-icon>
             </a>
           </div>
         </footer>
@@ -357,650 +459,728 @@ import { JobDetail, JobSummary, ApplicationStatus } from '../../models/job.model
     </div>
   `,
   styles: [`
+    :host {
+      display: contents;
+    }
+
     .drawer-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(4, 6, 12, 0.65);
+      background-color: rgba(9, 9, 11, 0.7);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      z-index: 200;
+      z-index: 1100;
       display: flex;
       justify-content: flex-end;
       opacity: 0;
       pointer-events: none;
       transition: opacity var(--motion-base);
     }
+
     .drawer-backdrop.open {
       opacity: 1;
       pointer-events: auto;
     }
 
-    .drawer-container {
+    .drawer-panel {
       width: 100%;
-      max-width: 620px;
+      max-width: 640px;
       height: 100%;
-      background: var(--color-bg-surface);
-      border-left: 1px solid var(--color-border-default);
-      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45);
+      background-color: var(--color-bg-surface-1);
+      border-left: 1px solid var(--color-border-subtle);
+      box-shadow: var(--shadow-xl);
       display: flex;
       flex-direction: column;
       transform: translateX(100%);
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
       overflow: hidden;
     }
-    .drawer-backdrop.open .drawer-container {
+
+    .drawer-backdrop.open .drawer-panel {
       transform: translateX(0);
     }
 
-    /* Drawer Header */
+    /* Sticky Drawer Header */
     .drawer-header {
-      padding: var(--space-4) var(--space-5);
-      background: var(--color-bg-surface-elevated-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--color-border-subtle);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-3);
-      flex-shrink: 0;
+      padding: var(--space-4) var(--space-5);
+      background-color: var(--color-bg-surface-1);
+      border-bottom: 1px solid var(--color-border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 20;
     }
-    .header-brand-wrap {
+
+    .header-left {
       display: flex;
       align-items: center;
       gap: var(--space-3);
       min-width: 0;
       flex: 1;
     }
-    .drawer-company-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: var(--radius-md);
-      background: linear-gradient(135deg, rgba(37, 99, 235, 0.25) 0%, rgba(96, 165, 250, 0.15) 100%);
-      border: 1px solid var(--color-brand-border);
-      color: var(--color-brand-accent);
+
+    .company-avatar-box {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-sm);
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 700;
-      font-size: var(--text-base);
+      font-size: var(--text-sm);
+      color: var(--color-brand-accent);
       flex-shrink: 0;
-      text-transform: uppercase;
     }
+
     .header-titles {
       display: flex;
       flex-direction: column;
       min-width: 0;
+      gap: 2px;
     }
-    .company-subtext {
+
+    .company-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .company-name {
       font-size: var(--text-xs);
-      font-weight: 600;
       color: var(--color-text-secondary);
-      letter-spacing: 0.02em;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .drawer-title {
+
+    .job-title {
       font-size: var(--text-base);
       font-weight: 700;
+      letter-spacing: -0.02em;
       color: var(--color-text-primary);
       margin: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      letter-spacing: -0.02em;
+      line-height: 1.25;
     }
-    .header-actions-row {
+
+    .header-actions {
       display: flex;
       align-items: center;
       gap: var(--space-1-5);
       flex-shrink: 0;
     }
-    .btn-icon-control {
-      width: 34px;
-      height: 34px;
-      border-radius: var(--radius-md);
+
+    .apply-primary-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      background-color: var(--color-brand-accent);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: var(--radius-xs);
+      text-decoration: none;
+      transition: background-color var(--motion-fast);
+    }
+    .apply-primary-link:hover {
+      background-color: var(--color-brand-hover);
+    }
+
+    .action-icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-xs);
       background: transparent;
       border: 1px solid var(--color-border-subtle);
       color: var(--color-text-secondary);
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: all var(--motion-fast);
+      transition: background-color var(--motion-fast), color var(--motion-fast);
     }
-    .btn-icon-control:hover {
-      background: var(--color-bg-surface-elevated);
+    .action-icon-btn:hover {
+      background-color: var(--color-bg-surface-hover);
       color: var(--color-text-primary);
-      border-color: var(--color-border-hover);
+    }
+
+    .action-icon-btn.close-btn:hover {
+      color: var(--color-danger);
+    }
+
+    /* Loading Line */
+    .loading-line-indicator {
+      height: 2px;
+      width: 100%;
+      background-color: var(--color-bg-surface-2);
+      overflow: hidden;
+    }
+    .loading-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, transparent, var(--color-brand-accent), transparent);
     }
 
     /* Drawer Body */
     .drawer-body {
       flex: 1;
       overflow-y: auto;
-      padding: var(--space-5);
+      padding: var(--space-4) var(--space-5);
       display: flex;
       flex-direction: column;
-      gap: var(--space-5);
+      gap: var(--space-4);
     }
 
-    .loading-bar-wrap {
-      width: 100%;
-      height: 3px;
-      background: var(--color-bg-surface-elevated);
-      border-radius: var(--radius-xs);
-      overflow: hidden;
-    }
-    .loading-bar {
-      width: 100%;
-      height: 100%;
-      background: var(--color-brand-primary);
-      animation: pulseBar 1.2s infinite ease-in-out;
-    }
-    @keyframes pulseBar {
-      0% { transform: translateX(-100%); }
-      50% { transform: translateX(0%); }
-      100% { transform: translateX(100%); }
+    /* Social Post Callout */
+    .social-post-callout {
+      background-color: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.22);
+      border-radius: var(--radius-sm);
+      padding: var(--space-3) var(--space-4);
     }
 
-    /* Telemetry Banner */
-    .telemetry-banner {
+    .social-callout-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
+    }
+    .social-glyph {
+      color: var(--color-brand-accent);
+    }
+    .social-callout-title {
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--color-brand-accent);
+      letter-spacing: -0.01em;
+    }
+
+    .social-callout-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: var(--text-xs);
+      color: var(--color-text-secondary);
+      line-height: 1.4;
+    }
+    .social-callout-body strong {
+      color: var(--color-text-primary);
+    }
+    .social-disclaimer {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--color-text-muted);
+    }
+
+    /* Telemetry Card */
+    .telemetry-card {
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      padding: var(--space-4);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
     }
-    .match-score-card {
-      background: var(--color-bg-surface-elevated-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--color-border-default);
-      border-radius: var(--radius-lg);
-      padding: var(--space-4);
+
+    .score-split {
       display: flex;
       align-items: center;
-      gap: var(--space-4);
-      box-shadow: var(--shadow-xs);
-    }
-    .match-score-card.excellent {
-      border-color: var(--color-success-border);
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 20, 31, 0.6) 100%);
-    }
-    .match-score-card.strong {
-      border-color: var(--color-brand-border);
-      background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(16, 20, 31, 0.6) 100%);
+      gap: var(--space-3);
     }
 
-    .score-circle {
-      width: 52px;
-      height: 52px;
-      border-radius: var(--radius-md);
-      background: var(--color-bg-surface-muted);
-      border: 1px solid var(--color-border-hover);
+    .score-pill-large {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      min-width: 68px;
+      height: 60px;
+      border-radius: var(--radius-sm);
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
       flex-shrink: 0;
     }
-    .excellent .score-circle {
-      border-color: var(--color-success-border);
-      background: var(--color-success-bg);
-    }
-    .strong .score-circle {
-      border-color: var(--color-brand-border);
-      background: var(--color-brand-subtle);
-    }
-
-    .score-num {
-      font-size: var(--text-base);
+    .score-pill-large .score-val {
+      font-size: 20px;
       font-weight: 800;
-      font-family: var(--font-mono);
       line-height: 1;
-      color: var(--color-text-primary);
     }
-    .excellent .score-num { color: var(--color-success-text); }
-    .strong .score-num { color: var(--color-brand-accent); }
-
-    .score-sub {
-      font-size: 8px;
+    .score-pill-large .score-lbl {
+      font-size: 10px;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
       color: var(--color-text-muted);
       margin-top: 3px;
-      font-weight: 700;
-    }
-    .score-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .score-badge-text {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: var(--text-xs);
-      font-weight: 700;
-      color: var(--color-text-primary);
-    }
-    .score-explanation {
-      font-size: var(--text-2xs);
-      color: var(--color-text-secondary);
-      line-height: 1.4;
     }
 
-    /* Key Tags Grid */
-    .key-tags-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: var(--space-2-5);
+    .score-pill-large[data-band="emerald"] {
+      border-color: rgba(16, 185, 129, 0.35);
+      background-color: rgba(16, 185, 129, 0.08);
+      color: var(--color-success);
     }
-    .tag-card {
-      background: var(--color-bg-surface-elevated);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-2-5) var(--space-3);
+    .score-pill-large[data-band="indigo"] {
+      border-color: var(--color-brand-border);
+      background-color: var(--color-brand-subtle);
+      color: var(--color-brand-accent);
+    }
+    .score-pill-large[data-band="amber"] {
+      border-color: rgba(245, 158, 11, 0.35);
+      background-color: rgba(245, 158, 11, 0.08);
+      color: var(--color-warning);
+    }
+    .score-pill-large[data-band="muted"] {
+      color: var(--color-text-muted);
+    }
+
+    .score-context {
       display: flex;
       flex-direction: column;
       gap: 2px;
     }
-    .tag-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      font-weight: 600;
-      color: var(--color-text-muted);
-      letter-spacing: 0.04em;
-    }
-    .tag-value {
-      font-size: var(--text-xs);
-      font-weight: 600;
-      color: var(--color-text-primary);
+    .score-fit-label {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-    }
-    .text-green { color: var(--color-success-text); }
-    .text-amber { color: var(--color-warning-text); }
-    .text-muted-truncate {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    /* Section Headings */
-    .section-heading-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: var(--space-3);
-      padding-bottom: var(--space-1-5);
-      border-bottom: 1px solid var(--color-border-subtle);
-    }
-    .section-title-wrap {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-    }
-    .section-title-wrap h3, .section-title-wrap h4 {
-      font-size: var(--text-sm);
+      font-size: var(--text-xs);
       font-weight: 700;
       color: var(--color-text-primary);
-      margin: 0;
     }
-    .source-tag, .skill-count {
-      font-size: var(--text-2xs);
-      color: var(--color-text-muted);
-      font-family: var(--font-mono);
+    .sparkle-icon {
+      color: var(--color-brand-accent);
+    }
+    .score-reason {
+      margin: 0;
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      line-height: 1.4;
     }
 
-    /* Pipeline Stage Picker */
-    .pipeline-stage-section {
-      background: var(--color-bg-surface-elevated-glass);
-      border: 1px solid var(--color-border-default);
-      border-radius: var(--radius-lg);
-      padding: var(--space-3-5);
+    /* Meta Chips Grid */
+    .meta-chips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--color-border-subtle);
     }
-    .current-status-pill {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-      padding: 2px 7px;
-      border-radius: var(--radius-sm);
-      background: var(--color-brand-subtle);
-      color: var(--color-brand-accent);
-      border: 1px solid var(--color-brand-border);
-    }
-    .stages-pill-group {
+
+    .meta-chip {
       display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-1-5);
+      flex-direction: column;
+      gap: 2px;
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 6px 8px;
     }
-    .stage-select-btn {
-      padding: 5px 12px;
-      min-height: 32px;
+    .meta-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-text-muted);
+    }
+    .meta-value {
       font-size: 12px;
       font-weight: 600;
-      border-radius: var(--radius-sm);
-      background: var(--color-bg-surface);
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
-    }
-    .stage-select-btn:hover {
-      border-color: var(--color-border-hover);
       color: var(--color-text-primary);
-      background-color: var(--color-bg-surface-hover);
-    }
-    .stage-select-btn.selected {
-      background: var(--color-brand-primary);
-      color: #ffffff;
-      border-color: var(--color-brand-primary);
-    }
-
-    /* Skills Alignment */
-    .skills-matrix-section {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2-5);
-    }
-    .skills-pill-wrap {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-1-5);
-    }
-    .skill-pill {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 3px 8px;
+      gap: 4px;
+    }
+
+    /* General Section Cards */
+    .section-card {
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
       border-radius: var(--radius-sm);
-      font-size: var(--text-xs);
-      font-weight: 600;
-    }
-    .skill-pill.matched {
-      background: var(--color-success-bg);
-      border: 1px solid var(--color-success-border);
-      color: var(--color-success-text);
-    }
-    .skill-pill.gap {
-      background: var(--color-bg-surface-elevated);
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-secondary);
-    }
-    .gap-block {
-      margin-top: var(--space-3);
-    }
-    .gap-head {
-      margin-bottom: var(--space-2);
-    }
-
-    /* Description Content */
-    .description-content {
-      font-size: var(--text-sm);
-      line-height: 1.65;
-      color: var(--color-text-secondary);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-      max-width: 100%;
-      word-break: break-word;
-    }
-
-    /* Sticky Footer */
-    .drawer-footer {
-      padding: var(--space-4) var(--space-5);
-      background: var(--color-bg-surface-elevated-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-top: 1px solid var(--color-border-subtle);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      flex-shrink: 0;
-    }
-    .footer-left-info {
-      font-size: var(--text-2xs);
-      color: var(--color-text-muted);
-    }
-    .footer-buttons {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2-5);
-    }
-    .btn-apply {
-      min-height: 40px;
-      padding: 10px 20px;
-      font-size: var(--text-sm);
-      font-weight: 600;
-    }
-    .btn-save {
-      min-height: 40px;
-      padding: 9px 16px;
-      font-size: 13px;
-    }
-    .btn-applied {
-      min-height: 40px;
-      padding: 9px 16px;
-      font-size: 13px;
-    }
-    .btn-save.saved {
-      background: var(--color-success-bg);
-      border-color: var(--color-success-border);
-      color: var(--color-success-text);
-    }
-    .btn-applied.applied {
-      background: rgba(37, 99, 235, 0.18);
-      border-color: var(--color-brand-border);
-      color: var(--color-brand-accent);
-    }
-
-    /* AI Application Toolkit */
-    .toolkit-section {
-      background: var(--color-bg-surface-elevated-glass);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-lg);
       padding: var(--space-4);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
     }
-    .toolkit-badge {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-      color: var(--color-brand-accent);
-      background: var(--color-brand-subtle);
-      padding: 2px 7px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--color-brand-border);
+
+    .section-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-    .toolkit-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+    .head-left {
+      display: flex;
+      align-items: center;
       gap: var(--space-2);
     }
-    .toolkit-btn {
+    .section-heading {
+      margin: 0;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--color-text-primary);
+    }
+    .sub-counter {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-weight: 500;
+    }
+
+    /* Pipeline Stages Bar */
+    .pipeline-stages-bar {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .stage-pill-btn {
+      padding: 5px 10px;
+      border-radius: var(--radius-xs);
+      font-size: 11px;
+      font-weight: 500;
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: all var(--motion-fast);
+    }
+    .stage-pill-btn:hover {
+      background-color: var(--color-bg-surface-hover);
+      color: var(--color-text-primary);
+    }
+    .stage-pill-btn.active {
+      background-color: var(--color-brand-subtle);
+      border-color: var(--color-brand-border);
+      color: var(--color-brand-accent);
+      font-weight: 600;
+    }
+
+    /* Badges Wrap */
+    .badges-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1-5);
+    }
+
+    .empty-inline-note {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      font-style: italic;
+    }
+
+    .gaps-block {
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--color-border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .sub-head {
+      margin-bottom: 2px;
+    }
+    .sub-heading {
+      margin: 0;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+    }
+
+    /* AI Toolkit */
+    .toolkit-actions-row {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .tool-tab-btn {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 6px;
-      min-height: 38px;
-      padding: 8px 12px;
-      border-radius: var(--radius-md);
-      font-size: 13px;
-      font-weight: 600;
-      background: var(--color-bg-surface);
-      border: 1px solid var(--color-border-default);
-      color: var(--color-text-primary);
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: var(--radius-xs);
+      font-size: 12px;
+      font-weight: 500;
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-secondary);
       cursor: pointer;
       text-decoration: none;
-      transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
-      white-space: nowrap;
+      transition: all var(--motion-fast);
     }
-    .toolkit-btn:hover {
-      border-color: var(--color-brand-accent);
-      background: var(--color-bg-surface-hover);
+    .tool-tab-btn:hover {
+      background-color: var(--color-bg-surface-hover);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-default);
     }
-    .toolkit-btn.active {
-      background: var(--color-brand-primary);
-      color: #ffffff;
-      border-color: var(--color-brand-primary);
-      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    .tool-tab-btn.active {
+      background-color: var(--color-brand-subtle);
+      border-color: var(--color-brand-border);
+      color: var(--color-brand-accent);
+      font-weight: 600;
     }
-    .pdf-btn {
+    .tool-tab-btn.resume-pdf-btn {
       color: var(--color-brand-accent);
     }
-    .tool-result-panel {
-      background: var(--color-bg-canvas);
-      border: 1px solid var(--color-border-default);
-      border-radius: var(--radius-md);
-      padding: var(--space-3-5);
+
+    .tool-content-drawer {
+      margin-top: var(--space-3);
+      padding: var(--space-3);
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
     }
-    .tool-panel-header {
+
+    .tool-result-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid var(--color-border-subtle);
       padding-bottom: var(--space-2);
     }
-    .tool-panel-title {
-      font-size: var(--text-xs);
+    .tool-result-title {
+      font-size: 11px;
       font-weight: 700;
       color: var(--color-text-primary);
+      letter-spacing: -0.01em;
     }
-    .tool-header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .tool-close-btn {
+    .tool-dismiss-btn {
       background: transparent;
       border: none;
       color: var(--color-text-muted);
       cursor: pointer;
+      display: flex;
       padding: 2px;
+    }
+    .tool-dismiss-btn:hover {
+      color: var(--color-text-primary);
+    }
+    .header-tools {
       display: flex;
       align-items: center;
-      justify-content: center;
+      gap: var(--space-2);
     }
-    .tool-loading {
+
+    .tool-loading-box {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      padding: var(--space-3) 0;
+      gap: var(--space-2);
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      padding: var(--space-2) 0;
     }
-    .tool-spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--color-border-default);
-      border-top-color: var(--color-brand-accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    .outreach-content {
+
+    .tool-cards-stack {
       display: flex;
       flex-direction: column;
-      gap: var(--space-3);
+      gap: var(--space-2-5);
     }
-    .outreach-card {
+
+    .outreach-block {
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+      padding: var(--space-2-5);
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
     }
-    .outreach-card-head {
+    .outreach-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
-    .outreach-type {
-      font-size: 11px;
+    .outreach-label {
+      font-size: 10px;
       font-weight: 600;
-      color: var(--color-brand-accent);
+      color: var(--color-text-secondary);
     }
-    .btn-copy-micro {
+    .copy-micro-btn {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 3px 8px;
-      border-radius: var(--radius-sm);
-      font-size: 10px;
-      font-weight: 600;
-      background: var(--color-bg-surface-elevated);
+      gap: 3px;
+      padding: 2px 6px;
+      background-color: var(--color-bg-surface-1);
       border: 1px solid var(--color-border-subtle);
+      border-radius: 3px;
       color: var(--color-text-secondary);
-      cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .btn-copy-micro:hover {
-      color: var(--color-text-primary);
-      border-color: var(--color-border-hover);
-    }
-    .outreach-pre {
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-family: inherit;
-      font-size: var(--text-xs);
-      line-height: 1.45;
-      background: var(--color-bg-surface);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-sm);
-      padding: var(--space-2-5) var(--space-3);
-      color: var(--color-text-primary);
-      margin: 0;
-    }
-    .char-count-pill {
       font-size: 10px;
-      color: var(--color-text-muted);
-      font-family: var(--font-mono);
-      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+    .copy-micro-btn:hover {
+      color: var(--color-text-primary);
+      border-color: var(--color-border-default);
     }
 
-    @media (max-width: 768px) {
-      .drawer-container {
+    .outreach-prose {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      color: var(--color-text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.45;
+      margin: 4px 0 0 0;
+      background: transparent;
+      border: none;
+      padding: 0;
+    }
+    .cover-prose {
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .char-length-indicator {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      align-self: flex-end;
+    }
+
+    /* Description Prose */
+    .prose-description {
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--color-text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .prose-description p {
+      margin: 0;
+    }
+    .prose-description.fallback {
+      font-style: italic;
+      color: var(--color-text-muted);
+    }
+
+    /* Drawer Footer */
+    .drawer-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-5);
+      background-color: var(--color-bg-surface-1);
+      border-top: 1px solid var(--color-border-subtle);
+      position: sticky;
+      bottom: 0;
+      z-index: 20;
+    }
+
+    .footer-timestamp {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .footer-btn-group {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .drawer-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      border-radius: var(--radius-xs);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all var(--motion-fast);
+    }
+
+    .drawer-btn.secondary-btn {
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-primary);
+    }
+    .drawer-btn.secondary-btn:hover {
+      background-color: var(--color-bg-surface-hover);
+      border-color: var(--color-border-default);
+    }
+    .drawer-btn.secondary-btn.saved,
+    .drawer-btn.secondary-btn.applied {
+      background-color: var(--color-brand-subtle);
+      border-color: var(--color-brand-border);
+      color: var(--color-brand-accent);
+    }
+
+    .drawer-btn.primary-btn {
+      background-color: var(--color-brand-accent);
+      border: 1px solid transparent;
+      color: #ffffff;
+    }
+    .drawer-btn.primary-btn:hover {
+      background-color: var(--color-brand-hover);
+    }
+
+    .text-emerald {
+      color: var(--color-success);
+    }
+    .text-amber {
+      color: var(--color-warning);
+    }
+    .text-brand {
+      color: var(--color-brand-accent);
+    }
+    .text-truncate {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 140px;
+    }
+
+    @media (max-width: 640px) {
+      .drawer-panel {
         max-width: 100%;
-        height: 92vh;
-        align-self: flex-end;
-        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-        border-left: none;
-        border-top: 1px solid var(--color-border-default);
-        transform: translateY(100%);
-      }
-      .drawer-backdrop.open .drawer-container {
-        transform: translateY(0);
       }
       .drawer-header {
-        padding: var(--space-3) var(--space-4);
+        padding: var(--space-3);
       }
       .drawer-body {
-        padding: var(--space-4);
+        padding: var(--space-3);
       }
       .drawer-footer {
-        padding: var(--space-3) var(--space-4);
-        flex-direction: column-reverse;
+        padding: var(--space-3);
+        flex-direction: column;
         align-items: stretch;
+        gap: var(--space-2);
       }
-      .footer-buttons {
-        width: 100%;
+      .footer-btn-group {
+        justify-content: stretch;
       }
-      .footer-buttons .btn {
+      .footer-btn-group .drawer-btn {
         flex: 1;
+        justify-content: center;
       }
     }
   `],
 })
-export class JobDrawerComponent implements OnInit {
+export class JobDrawerComponent implements OnInit, OnChanges {
   @Input() isOpen = false;
   @Input() job: JobSummary | JobDetail | null = null;
   @Output() closeDrawer = new EventEmitter<void>();
-  @Output() statusUpdated = new EventEmitter<{ jobId: number; status: ApplicationStatus }>();
+  @Output() statusUpdated = new EventEmitter<{
+    jobId: number;
+    status: ApplicationStatus;
+  }>();
 
   readonly api = inject(ApiService);
   private readonly telegram = inject(TelegramService);
+  private readonly toast = inject(ToastService);
 
   readonly isLoadingDetail = signal<boolean>(false);
   readonly jobDetail = signal<JobDetail | null>(null);
@@ -1009,7 +1189,11 @@ export class JobDrawerComponent implements OnInit {
 
   readonly activeTool = signal<'none' | 'outreach' | 'cover'>('none');
   readonly isLoadingTool = signal<boolean>(false);
-  readonly outreachData = signal<{ connection_note: string; inmail_dm: string; follow_up_note: string } | null>(null);
+  readonly outreachData = signal<{
+    connection_note: string;
+    inmail_dm: string;
+    follow_up_note: string;
+  } | null>(null);
   readonly coverLetterText = signal<string | null>(null);
   readonly copiedKey = signal<string | null>(null);
 
@@ -1019,8 +1203,16 @@ export class JobDrawerComponent implements OnInit {
     { status: 'APPLIED', label: 'Applied' },
     { status: 'INTERVIEW', label: 'Interview' },
     { status: 'OFFER', label: 'Offer' },
+    { status: 'REJECTED', label: 'Rejected' },
     { status: 'ARCHIVED', label: 'Archived' },
   ];
+
+  @HostListener('document:keydown.escape')
+  onEsc(): void {
+    if (this.isOpen) {
+      this.close();
+    }
+  }
 
   ngOnInit(): void {
     if (this.job) {
@@ -1038,7 +1230,6 @@ export class JobDrawerComponent implements OnInit {
     if (!this.job) return;
     this.currentStatus.set(this.job.tracker_status || 'DISCOVERED');
 
-    // If it's already a full JobDetail
     if ('description_text' in this.job && this.job.description_text) {
       this.jobDetail.set(this.job as JobDetail);
     } else {
@@ -1079,9 +1270,13 @@ export class JobDrawerComponent implements OnInit {
 
     this.api.updateJobStatus(this.job.id, status).subscribe({
       next: () => {
+        this.toast.show(`Stage updated to ${this.formatStatus(status)}`, 'success', 2000);
         this.statusUpdated.emit({ jobId: this.job!.id, status });
       },
-      error: (e) => console.error('Failed to update job status:', e),
+      error: (e) => {
+        console.error('Failed to update job status:', e);
+        this.toast.show('Failed to update stage', 'error');
+      },
     });
   }
 
@@ -1140,6 +1335,7 @@ export class JobDrawerComponent implements OnInit {
   copyText(text: string, key: string): void {
     navigator.clipboard.writeText(text);
     this.telegram.haptic('selection');
+    this.toast.show('Copied to clipboard', 'info', 1500);
     this.copiedKey.set(key);
     setTimeout(() => this.copiedKey.set(null), 2000);
   }
@@ -1148,6 +1344,7 @@ export class JobDrawerComponent implements OnInit {
     if (!this.job?.original_application_url) return;
     navigator.clipboard.writeText(this.job.original_application_url);
     this.telegram.haptic('selection');
+    this.toast.show('Application link copied', 'info', 1500);
     this.copied.set(true);
     setTimeout(() => this.copied.set(false), 2000);
   }
@@ -1163,38 +1360,95 @@ export class JobDrawerComponent implements OnInit {
     return Math.round(score);
   }
 
+  getScoreBand(score: number): 'emerald' | 'indigo' | 'amber' | 'muted' {
+    if (score >= 80) return 'emerald';
+    if (score >= 65) return 'indigo';
+    if (score >= 50) return 'amber';
+    return 'muted';
+  }
+
+  getScoreFitText(score: number): string {
+    if (score >= 80) return 'Top Tier Match (80+)';
+    if (score >= 65) return 'Strong Fit (65+)';
+    if (score >= 50) return 'Relevant Role (50+)';
+    return 'Exploratory Match';
+  }
+
+  formatSegment(seg?: string): string {
+    switch (seg) {
+      case 'EGYPT':
+        return 'Egypt Frontend';
+      case 'REMOTE_GCC_ABROAD':
+        return 'Remote GCC & Abroad';
+      default:
+        return seg || 'Frontend';
+    }
+  }
+
   formatEligibility(e?: string): string {
     switch (e) {
-      case 'EGYPT_ELIGIBLE': return 'Egypt Eligible';
-      case 'REMOTE_WORLDWIDE': return 'Remote Worldwide';
-      case 'REMOTE_REGION_POSSIBLE': return 'Region Possible';
-      case 'RELOCATION_REQUIRED': return 'Relocation Required';
-      default: return e || 'Remote';
+      case 'EGYPT_ELIGIBLE':
+        return 'Egypt Eligible';
+      case 'REMOTE_WORLDWIDE':
+        return 'Worldwide Remote';
+      case 'REMOTE_REGION_POSSIBLE':
+        return 'Region Possible';
+      case 'RELOCATION_REQUIRED':
+        return 'Relocation Required';
+      default:
+        return e || 'Eligible';
     }
   }
 
   formatWorkplace(w?: string): string {
     switch (w) {
-      case 'REMOTE': return 'Remote';
-      case 'HYBRID': return 'Hybrid';
-      case 'ON_SITE': return 'On-site';
-      default: return w || 'Remote';
+      case 'REMOTE':
+        return 'Remote';
+      case 'HYBRID':
+        return 'Hybrid';
+      case 'ON_SITE':
+        return 'On-site';
+      default:
+        return w || 'Remote';
     }
   }
 
   formatSeniority(s?: string): string {
     switch (s) {
-      case 'JUNIOR': return 'Junior';
-      case 'MID': return 'Mid-level';
-      case 'SENIOR': return 'Senior';
-      case 'GRADUATE': return 'Graduate';
-      case 'ENTRY': return 'Entry-level';
-      default: return s || 'Engineer';
+      case 'JUNIOR':
+        return 'Junior';
+      case 'MID':
+        return 'Mid-level';
+      case 'SENIOR':
+        return 'Senior';
+      case 'GRADUATE':
+        return 'Graduate';
+      case 'ENTRY':
+        return 'Entry-level';
+      default:
+        return s || 'Engineer';
     }
   }
 
   formatStatus(st: string): string {
     return st.charAt(0) + st.slice(1).toLowerCase();
+  }
+
+  formatRelativeDate(dateStr?: string | null): string {
+    if (!dateStr) return 'Recently';
+    try {
+      const date = new Date(dateStr);
+      const diffMs = Date.now() - date.getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (diffHours < 1) return 'Just now';
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return 'Recently';
+    }
   }
 
   matchedSkills(): string[] {

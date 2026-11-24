@@ -22,7 +22,7 @@ export class ApiService {
       ? ''
       : 'http://localhost:8000';
 
-  getJobs(paramsMap?: Record<string, string | number>): Observable<{
+  getJobs(paramsMap?: Record<string, string | number | boolean | null | undefined>): Observable<{
     page: number;
     limit: number;
     total: number;
@@ -143,5 +143,13 @@ export class ApiService {
 
   triggerRun(force: boolean = false): Observable<any> {
     return this.http.post<any>(`${this.baseUrl}/api/v1/runs/trigger?force=${force}`, {});
+  }
+
+  wipeAndReset(adminKey: string): Observable<{ status: string; message: string; candidate?: string; confirmed_skills_count?: number }> {
+    return this.http.post<any>(
+      `${this.baseUrl}/api/v1/jobs/wipe-and-reset`,
+      {},
+      { headers: { 'X-Admin-Key': adminKey } }
+    );
   }
 }

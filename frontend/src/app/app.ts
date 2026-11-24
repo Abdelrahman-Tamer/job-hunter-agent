@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { Router, NavigationEnd, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs';
@@ -7,12 +7,12 @@ import { ThemeService } from './core/services/theme.service';
 import { ToastService } from './core/services/toast.service';
 import { ApiService } from './core/services/api.service';
 import { IconComponent, IconName } from './core/components/icon/icon.component';
-import { AntigravityCanvasComponent } from './core/components/antigravity-canvas/antigravity-canvas.component';
 
 interface NavItem {
   path: string;
   label: string;
   icon: IconName;
+  shortcut: string;
 }
 
 @Component({
@@ -24,12 +24,11 @@ interface NavItem {
     RouterLink,
     RouterLinkActive,
     IconComponent,
-    AntigravityCanvasComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
-export class App implements OnInit {
+export class App implements OnInit, OnDestroy {
   readonly telegram = inject(TelegramService);
   readonly theme = inject(ThemeService);
   readonly toastService = inject(ToastService);
@@ -39,12 +38,16 @@ export class App implements OnInit {
   readonly isScanning = signal<boolean>(false);
 
   readonly navItems: NavItem[] = [
-    { path: '/overview', label: 'Overview', icon: 'layers' },
-    { path: '/jobs', label: 'Jobs', icon: 'briefcase' },
-    { path: '/tracker', label: 'Tracker', icon: 'bookmark' },
-    { path: '/profile', label: 'Profile', icon: 'user' },
-    { path: '/settings', label: 'Settings', icon: 'settings' },
+    { path: '/overview', label: 'Overview', icon: 'layers', shortcut: 'G O' },
+    { path: '/jobs', label: 'Opportunities', icon: 'briefcase', shortcut: 'G J' },
+    { path: '/tracker', label: 'Tracker', icon: 'bookmark', shortcut: 'G T' },
+    { path: '/profile', label: 'Profile', icon: 'user', shortcut: 'G P' },
+    { path: '/settings', label: 'Settings', icon: 'settings', shortcut: 'G S' },
   ];
+
+  private keydownListener?: (e: KeyboardEvent) => void;
+  private pendingSequence: string | null = null;
+  private lastKeyTimestamp = 0;
 
   ngOnInit(): void {
     if (typeof window !== 'undefined') {
@@ -90,6 +93,64 @@ export class App implements OnInit {
         },
         { passive: true }
       );
+
+      // Global keyboard shortcut sequence listener (e.g. G O, G J, G T, G P, G S)
+      this.keydownListener = (e: KeyboardEvent) => this.handleGlobalKeyDown(e);
+      window.addEventListener('keydown', this.keydownListener);
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (typeof window !== 'undefined' && this.keydownListener) {
+      window.removeEventListener('keydown', this.keydownListener);
+    }
+  }
+
+  private handleGlobalKeyDown(e: KeyboardEvent): void {
+    const target = e.target as HTMLElement | null;
+    if (target) {
+      const tag = target.tagName?.toLowerCase();
+      if (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+    }
+
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      return;
+    }
+
+    const key = e.key.toLowerCase();
+    const now = Date.now();
+
+    // Check if within 1.2s of pressing 'g'
+    if (this.pendingSequence === 'g' && now - this.lastKeyTimestamp < 1200) {
+      this.pendingSequence = null;
+      const routes: Record<string, string> = {
+        o: '/overview',
+        j: '/jobs',
+        t: '/tracker',
+        p: '/profile',
+        s: '/settings',
+      };
+
+      if (routes[key]) {
+        e.preventDefault();
+        this.telegram.haptic('selection');
+        this.router.navigate([routes[key]]);
+        return;
+      }
+    }
+
+    if (key === 'g') {
+      this.pendingSequence = 'g';
+      this.lastKeyTimestamp = now;
+    } else {
+      this.pendingSequence = null;
     }
   }
 
@@ -97,7 +158,7 @@ export class App implements OnInit {
     this.telegram.haptic('selection');
     this.theme.toggleTheme();
     this.toastService.show(
-      `Switched to ${this.theme.isDark() ? 'Dark Obsidian' : 'Light Titanium'} mode`,
+      `Switched to ${this.theme.isDark() ? 'Dark Canvas' : 'Light Canvas'} mode`,
       'info',
       2000
     );
@@ -114,12 +175,12 @@ export class App implements OnInit {
     this.toastService.show('Autonomous Agent initiating feed sweep...', 'info', 2500);
 
     this.api.triggerRun(true).subscribe({
-      next: (res) => {
+      next: () => {
         this.isScanning.set(false);
         this.telegram.haptic('success');
-        this.toastService.show('Sweep completed successfully! New roles verified.', 'success');
+        this.toastService.show('Sweep completed successfully! Feeds verified.', 'success');
       },
-      error: (err) => {
+      error: () => {
         this.isScanning.set(false);
         this.telegram.haptic('error');
         this.toastService.show('Feed scan completed or already up to date.', 'info');

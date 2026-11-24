@@ -1,1166 +1,1110 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
 import { ToastService } from '../../core/services/toast.service';
-import { IconComponent, IconName } from '../../core/components/icon/icon.component';
+import { IconComponent } from '../../core/components/icon/icon.component';
 import { JobDrawerComponent } from '../../core/components/job-drawer/job-drawer.component';
-import { JobDetail, JobSummary, ApplicationStatus } from '../../core/models/job.model';
-
-interface QuickChip {
-  id: string;
-  label: string;
-  icon: IconName;
-  track?: string;
-  eligibility?: string;
-  minScore?: number;
-}
+import { UiBadgeComponent } from '../../shared/ui/ui-badge.component';
+import { UiButtonComponent } from '../../shared/ui/ui-button.component';
+import { UiSkeletonComponent } from '../../shared/ui/ui-skeleton.component';
+import { UiEmptyStateComponent } from '../../shared/ui/ui-empty-state.component';
+import {
+  ApplicationStatus,
+  JobSummary,
+  OpportunitySegment,
+  WorkplaceType,
+} from '../../core/models/job.model';
 
 @Component({
   selector: 'app-jobs',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, JobDrawerComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    IconComponent,
+    JobDrawerComponent,
+    UiBadgeComponent,
+    UiButtonComponent,
+    UiSkeletonComponent,
+    UiEmptyStateComponent,
+  ],
   template: `
-    <div class="jobs-view">
-      <!-- 3-Track Architectural Segmented Navigation Bar -->
-      <nav class="track-segmented-bar" role="tablist" aria-label="Job track specialization">
-        <button
-          type="button"
-          role="tab"
-          [attr.aria-selected]="selectedTrack === ''"
-          class="track-segment-btn"
-          [class.active]="selectedTrack === ''"
-          (click)="setTrackFilter('')"
-        >
-          <span class="segment-icon">⚡</span>
-          <div class="segment-meta">
-            <span class="segment-title">All Tracks</span>
-            <span class="segment-sub">All Opportunities</span>
+    <div class="jobs-radar-view">
+      <!-- Sticky Command Bar & Filter Header -->
+      <header class="radar-command-bar">
+        <!-- Top Controls: Regional Segment & Source Category -->
+        <div class="command-row-top">
+          <!-- Regional Segmented Control -->
+          <div class="segmented-control regional-segmented" role="tablist" aria-label="Regional segment filter">
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="selectedSegment() === ''"
+              [class.active]="selectedSegment() === ''"
+              (click)="setSegment('')"
+              class="segment-tab-btn"
+            >
+              <span>All Regions</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="selectedSegment() === 'EGYPT'"
+              [class.active]="selectedSegment() === 'EGYPT'"
+              (click)="setSegment('EGYPT')"
+              class="segment-tab-btn"
+            >
+              <span class="region-flag">🇪🇬</span>
+              <span>Egypt Frontend</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="selectedSegment() === 'REMOTE_GCC_ABROAD'"
+              [class.active]="selectedSegment() === 'REMOTE_GCC_ABROAD'"
+              (click)="setSegment('REMOTE_GCC_ABROAD')"
+              class="segment-tab-btn"
+            >
+              <span class="region-flag">🌍</span>
+              <span>Remote GCC & Abroad</span>
+            </button>
           </div>
-        </button>
 
-        <button
-          type="button"
-          role="tab"
-          [attr.aria-selected]="selectedTrack === 'WEB_ANGULAR'"
-          class="track-segment-btn track-web"
-          [class.active]="selectedTrack === 'WEB_ANGULAR'"
-          (click)="setTrackFilter('WEB_ANGULAR')"
-        >
-          <span class="segment-icon">🌐</span>
-          <div class="segment-meta">
-            <span class="segment-title">Web & Angular</span>
-            <span class="segment-sub">Frontend Specialist</span>
+          <!-- Source Category Toggle -->
+          <div class="segmented-control source-segmented" role="tablist" aria-label="Source category filter">
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="selectedSourceType() === 'ALL'"
+              [class.active]="selectedSourceType() === 'ALL'"
+              (click)="setSourceType('ALL')"
+              class="segment-tab-btn sm"
+            >
+              <span>All Sources</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="selectedSourceType() === 'SOCIAL'"
+              [class.active]="selectedSourceType() === 'SOCIAL'"
+              (click)="setSourceType('SOCIAL')"
+              class="segment-tab-btn sm social-tab"
+            >
+              <app-icon name="message-square" [size]="11"></app-icon>
+              <span>LinkedIn Social</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="selectedSourceType() === 'BOARDS'"
+              [class.active]="selectedSourceType() === 'BOARDS'"
+              (click)="setSourceType('BOARDS')"
+              class="segment-tab-btn sm"
+            >
+              <app-icon name="briefcase" [size]="11"></app-icon>
+              <span>Job Boards</span>
+            </button>
           </div>
-        </button>
+        </div>
 
-        <button
-          type="button"
-          role="tab"
-          [attr.aria-selected]="selectedTrack === 'NO_EXP_REMOTE'"
-          class="track-segment-btn track-remote"
-          [class.active]="selectedTrack === 'NO_EXP_REMOTE'"
-          (click)="setTrackFilter('NO_EXP_REMOTE')"
-        >
-          <span class="segment-icon">💼</span>
-          <div class="segment-meta">
-            <span class="segment-title">No-Exp Remote</span>
-            <span class="segment-sub">Data, Support & VA</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          [attr.aria-selected]="selectedTrack === 'SOFTWARE_INTERN'"
-          class="track-segment-btn track-intern"
-          [class.active]="selectedTrack === 'SOFTWARE_INTERN'"
-          (click)="setTrackFilter('SOFTWARE_INTERN')"
-        >
-          <span class="segment-icon">🎓</span>
-          <div class="segment-meta">
-            <span class="segment-title">Software Interns</span>
-            <span class="segment-sub">Frontend, Backend, AI</span>
-          </div>
-        </button>
-      </nav>
-
-      <!-- Search & Filters Command Bar -->
-      <section class="filters-workbench" aria-label="Search and filter workbench">
-        <!-- Unified Top Search Row -->
-        <div class="search-command-row">
-          <div class="search-input-wrap">
-            <app-icon name="search" [size]="14" class="search-icon"></app-icon>
+        <!-- Bottom Controls: Search & Secondary Filters -->
+        <div class="command-row-bottom">
+          <!-- Search input with ⌘K hint -->
+          <div class="search-box-wrap">
+            <app-icon name="search" [size]="14" class="search-lens"></app-icon>
             <input
+              #searchInput
               type="search"
               [(ngModel)]="searchKeyword"
               (keyup.enter)="applyFilters()"
-              placeholder="Search by role or keywords (Angular, TypeScript, RxJS, Node)..."
-              class="form-input search-input"
-              aria-label="Search jobs"
+              placeholder="Search roles, skills, or companies (Angular, TypeScript, Cairo)..."
+              class="search-input"
+              aria-label="Search opportunities"
             />
             <button
               *ngIf="searchKeyword"
+              type="button"
               (click)="clearSearch()"
-              class="clear-search-btn"
+              class="search-clear-btn"
               aria-label="Clear search"
             >
-              <app-icon name="x" [size]="13"></app-icon>
+              <app-icon name="x" [size]="12"></app-icon>
             </button>
+            <span class="kbd-shortcut-hint" *ngIf="!searchKeyword">⌘K</span>
           </div>
 
-          <div class="search-actions-group">
-            <button (click)="applyFilters()" class="btn btn-primary search-btn">
-              <span>Filter</span>
-            </button>
-
-            <!-- View Switcher -->
-            <div class="view-switcher" role="group" aria-label="View toggle">
-              <button
-                (click)="setViewMode('grid')"
-                [class.active]="viewMode() === 'grid'"
-                class="view-btn"
-                title="Grid view"
-                aria-label="Grid view"
+          <div class="filters-actions-wrap">
+            <!-- Workplace Type Dropdown -->
+            <div class="filter-select-wrap">
+              <select
+                [(ngModel)]="selectedWorkplace"
+                (change)="applyFilters()"
+                class="filter-select"
+                aria-label="Workplace type"
               >
-                <app-icon name="grid" [size]="13"></app-icon>
-              </button>
-              <button
-                (click)="setViewMode('list')"
-                [class.active]="viewMode() === 'list'"
-                class="view-btn"
-                title="Compact list view"
-                aria-label="List view"
-              >
-                <app-icon name="list" [size]="13"></app-icon>
-              </button>
+                <option value="">All Workplaces</option>
+                <option value="REMOTE">Remote</option>
+                <option value="HYBRID">Hybrid</option>
+                <option value="ON_SITE">On-site</option>
+              </select>
             </div>
-          </div>
-        </div>
 
-        <!-- Filter Chips & Dropdowns Bar -->
-        <div class="filter-controls-row">
-          <!-- Quick Filter Segment -->
-          <div class="quick-chips-group" role="group" aria-label="Quick filters">
+            <!-- Min Score Dropdown -->
+            <div class="filter-select-wrap">
+              <select
+                [(ngModel)]="selectedMinScore"
+                (change)="applyFilters()"
+                class="filter-select"
+                aria-label="Minimum score"
+              >
+                <option value="0">Any Fit Score</option>
+                <option value="60">Fit 60%+</option>
+                <option value="75">Fit 75%+</option>
+                <option value="85">Fit 85%+ (Top Tier)</option>
+              </select>
+            </div>
+
+            <!-- Filter Reset Button (visible when filters active) -->
             <button
-              *ngFor="let chip of quickChips"
-              (click)="selectQuickChip(chip.id)"
-              [class.active]="activeQuickChip() === chip.id"
-              class="chip-pill"
+              *ngIf="hasActiveFilters()"
+              type="button"
+              (click)="resetFilters()"
+              class="reset-filters-btn"
+              title="Reset all filters"
             >
-              <app-icon [name]="chip.icon" [size]="11"></app-icon>
-              <span>{{ chip.label }}</span>
+              <app-icon name="refresh" [size]="12"></app-icon>
+              <span>Reset</span>
             </button>
           </div>
+        </div>
 
-          <!-- Dropdowns -->
-          <div class="dropdowns-group">
-            <select [(ngModel)]="selectedTrack" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter track">
-              <option value="">All Tracks</option>
-              <option value="WEB_ANGULAR">🌐 Web & Angular</option>
-              <option value="NO_EXP_REMOTE">💼 No-Exp Remote</option>
-              <option value="SOFTWARE_INTERN">🎓 Software Interns</option>
-            </select>
+        <!-- Telemetry Status Bar -->
+        <div class="telemetry-bar">
+          <div class="telemetry-left">
+            <span class="results-count tabular-nums">
+              <strong>{{ total() }}</strong> verified opportunities
+            </span>
+            <span class="telemetry-dot">•</span>
+            <span class="telemetry-sub">Page {{ currentPage() }} of {{ totalPages() || 1 }}</span>
+          </div>
 
-            <select [(ngModel)]="selectedEligibility" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter geography">
-              <option value="">All Regions</option>
-              <option value="EGYPT_ELIGIBLE">Egypt Eligible</option>
-              <option value="REMOTE_WORLDWIDE">Remote Worldwide</option>
-              <option value="REMOTE_REGION_POSSIBLE">Region Possible</option>
-            </select>
-
-            <select [(ngModel)]="selectedWorkplace" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter workplace">
-              <option value="">Work Mode</option>
-              <option value="REMOTE">Remote</option>
-              <option value="HYBRID">Hybrid</option>
-              <option value="ON_SITE">On-site</option>
-            </select>
-
-            <select [(ngModel)]="selectedSeniority" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter seniority">
-              <option value="">Seniority</option>
-              <option value="GRADUATE">Graduate</option>
-              <option value="JUNIOR">Junior</option>
-              <option value="MID">Mid-level</option>
-              <option value="SENIOR">Senior</option>
-            </select>
-
-            <select [(ngModel)]="minScore" (change)="applyFilters()" class="form-select select-compact" aria-label="Filter min score">
-              <option [ngValue]="0">Score: Any</option>
-              <option [ngValue]="60">60%+ Match</option>
-              <option [ngValue]="70">70%+ Strong</option>
-              <option [ngValue]="80">80%+ Top</option>
-            </select>
+          <div class="telemetry-right">
+            <span class="live-status-pill">
+              <span class="live-dot-green"></span>
+              <span>Cairo 09:00 Radar</span>
+            </span>
           </div>
         </div>
-      </section>
+      </header>
 
-      <!-- Results Count & Active Filter Indicator -->
-      <div class="results-meta-strip">
-        <span class="count-indicator">
-          <strong>{{ jobs().length }}</strong> verified opportunities shown (of {{ totalCount() }} total)
-        </span>
-        <button *ngIf="hasActiveFilters()" (click)="resetFilters()" class="btn btn-ghost btn-sm reset-btn">
-          <app-icon name="x" [size]="11"></app-icon>
-          <span>Reset Filters</span>
-        </button>
-      </div>
-
-      <!-- Main Results Display -->
-      <section class="results-display-area" aria-label="Job listings">
-        <!-- Skeleton Loading State -->
-        <div *ngIf="isLoading()" class="skeleton-grid">
-          <div *ngFor="let i of [1, 2, 3, 4, 5, 6]" class="skeleton-box">
-            <div class="skeleton-line-top"></div>
-            <div class="skeleton-line-middle"></div>
-            <div class="skeleton-line-bottom"></div>
+      <!-- Opportunities Feed Content -->
+      <main class="radar-feed-container">
+        <!-- Loading State: Smooth Skeleton Rows -->
+        <div *ngIf="isLoading()" class="feed-skeletons-list">
+          <div *ngFor="let i of [1, 2, 3, 4, 5]" class="skeleton-opportunity-row">
+            <ui-skeleton height="78px" rounded="sm"></ui-skeleton>
           </div>
         </div>
 
         <!-- Empty State -->
-        <div *ngIf="!isLoading() && jobs().length === 0" class="empty-state-box">
-          <app-icon name="search" [size]="32" class="empty-icon"></app-icon>
-          <h3>No matching opportunities found</h3>
-          <p>Try clearing filters or switching search criteria to discover more roles.</p>
-          <button (click)="resetFilters()" class="btn btn-secondary btn-sm">
-            <span>Reset All Filters</span>
-          </button>
+        <div *ngIf="!isLoading() && jobs().length === 0" class="feed-empty-wrap">
+          <ui-empty-state
+            icon="briefcase"
+            title="No Matching Opportunities Found"
+            subtitle="No roles match your current regional segment, search keywords, or fit criteria."
+          >
+            <div action>
+              <ui-button variant="secondary" size="sm" (buttonClick)="resetFilters()">
+                <app-icon name="refresh" [size]="13"></app-icon>
+                <span>Reset Filters</span>
+              </ui-button>
+            </div>
+          </ui-empty-state>
         </div>
 
-        <!-- GRID VIEW: Clean Architectural Cards -->
-        <div class="jobs-grid-layout" *ngIf="!isLoading() && jobs().length > 0 && viewMode() === 'grid'">
+        <!-- Opportunity Cards Feed -->
+        <div *ngIf="!isLoading() && jobs().length > 0" class="opportunities-list" role="feed">
           <article
             *ngFor="let job of jobs()"
-            class="job-grid-card"
-            [class.card-excellent]="job.match_score >= 80"
-            (click)="inspectJob(job)"
+            (click)="openDrawer(job)"
+            class="opportunity-row-card"
             tabindex="0"
-            (keyup.enter)="inspectJob(job)"
-            role="button"
-            [attr.aria-label]="'Inspect ' + job.title + ' at ' + job.company"
+            (keydown.enter)="openDrawer(job)"
+            [attr.aria-label]="job.title + ' at ' + job.company"
           >
-            <!-- Header Line -->
-            <div class="card-head">
-              <div class="company-brand-meta">
-                <span class="company-avatar">{{ job.company.charAt(0) }}</span>
-                <div class="company-name-wrap">
-                  <span class="company-title">{{ job.company }}</span>
-                  <span class="loc-subtext">
-                    <app-icon name="map-pin" [size]="10"></app-icon>
-                    {{ job.raw_location || 'Remote Worldwide' }}
-                  </span>
+            <!-- Left: Match Score Column -->
+            <div class="card-score-col">
+              <div
+                class="score-badge tabular-nums"
+                [attr.data-band]="getScoreBand(job.match_score)"
+                [title]="'Match Score: ' + roundScore(job.match_score) + '%'"
+              >
+                {{ roundScore(job.match_score) }}%
+              </div>
+            </div>
+
+            <!-- Middle: Main Information Block -->
+            <div class="card-main-col">
+              <!-- Title & Header Row -->
+              <div class="card-title-row">
+                <h3 class="role-title">{{ job.title }}</h3>
+
+                <div class="badges-row">
+                  <ui-badge
+                    *ngIf="job.is_social_post"
+                    variant="social"
+                    size="sm"
+                    [dot]="true"
+                  >
+                    LinkedIn Post
+                  </ui-badge>
+                  <ui-badge
+                    *ngIf="job.opportunity_segment === 'EGYPT'"
+                    variant="default"
+                    size="sm"
+                  >
+                    Egypt
+                  </ui-badge>
+                  <ui-badge
+                    *ngIf="job.opportunity_segment === 'REMOTE_GCC_ABROAD'"
+                    variant="brand"
+                    size="sm"
+                  >
+                    Remote Abroad
+                  </ui-badge>
                 </div>
               </div>
 
-              <span class="match-score-badge" [class.high-match]="job.match_score >= 70">
-                {{ roundScore(job.match_score) }}%
-              </span>
+              <!-- Company & Poster Row -->
+              <div class="card-company-row">
+                <span class="company-name">{{ job.company }}</span>
+                <span *ngIf="job.poster_name" class="poster-tag">
+                  • Shared by <strong>{{ job.poster_name }}</strong>
+                </span>
+                <span class="time-relative tabular-nums">
+                  • {{ formatRelativeDate(job.published_at || job.first_seen_at) }}
+                </span>
+              </div>
+
+              <!-- Metadata & Skills Row -->
+              <div class="card-meta-row">
+                <div class="meta-tags-group">
+                  <span class="meta-tag workplace" [attr.data-workplace]="job.workplace_type">
+                    <app-icon name="building" [size]="11"></app-icon>
+                    <span>{{ formatWorkplace(job.workplace_type) }}</span>
+                  </span>
+
+                  <span class="meta-tag location" *ngIf="job.raw_location">
+                    <app-icon name="map-pin" [size]="11"></app-icon>
+                    <span class="location-text">{{ job.raw_location }}</span>
+                  </span>
+                </div>
+
+                <!-- Skills Pills (Max 4 + Overflow) -->
+                <div class="skills-preview-group" *ngIf="job.required_skills && job.required_skills.length > 0">
+                  <span
+                    *ngFor="let skill of job.required_skills.slice(0, 4)"
+                    class="skill-chip"
+                  >
+                    {{ skill }}
+                  </span>
+                  <span
+                    *ngIf="job.required_skills.length > 4"
+                    class="skill-chip overflow"
+                  >
+                    +{{ job.required_skills.length - 4 }}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <!-- Role Title -->
-            <h3 class="card-job-title">{{ job.title }}</h3>
-
-            <!-- Tags Line -->
-            <div class="card-tags-line">
-              <span class="badge badge-purple" *ngIf="job.job_track === 'WEB_ANGULAR'">🌐 Web & Angular</span>
-              <span class="badge badge-amber" *ngIf="job.job_track === 'NO_EXP_REMOTE'">💼 No-Exp Remote</span>
-              <span class="badge badge-cyan" *ngIf="job.job_track === 'SOFTWARE_INTERN'">🎓 Software Intern</span>
-              <span
-                class="badge"
-                [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
-                [class.badge-blue]="job.eligibility === 'REMOTE_REGION_POSSIBLE'"
-              >
-                {{ formatEligibility(job.eligibility) }}
-              </span>
-              <span class="badge" *ngIf="formatWorkplace(job.workplace_type)">{{ formatWorkplace(job.workplace_type) }}</span>
-              <span class="badge" *ngIf="formatSeniority(job.seniority)">{{ formatSeniority(job.seniority) }}</span>
-            </div>
-
-            <!-- Footer Line -->
-            <div class="card-footer-line" (click)="$event.stopPropagation()">
+            <!-- Right: Quick Hover Actions -->
+            <div class="card-actions-col" (click)="$event.stopPropagation()">
               <button
-                (click)="toggleSaveJob(job)"
-                class="save-btn"
-                [class.active-saved]="job.tracker_status === 'SAVED'"
-                title="Save role"
+                type="button"
+                (click)="toggleSave(job, $event)"
+                class="quick-action-btn bookmark-btn"
+                [class.saved]="job.tracker_status === 'SAVED'"
+                [title]="job.tracker_status === 'SAVED' ? 'Remove from Saved' : 'Save opportunity'"
+                aria-label="Toggle bookmark"
               >
-                <app-icon [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'" [size]="13"></app-icon>
-                <span>{{ job.tracker_status === 'SAVED' ? 'Saved' : 'Save' }}</span>
+                <app-icon
+                  [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'"
+                  [size]="14"
+                ></app-icon>
               </button>
 
-              <div class="footer-actions">
-                <button (click)="inspectJob(job)" class="btn btn-secondary btn-sm inspect-btn">
-                  <app-icon name="eye" [size]="12"></app-icon>
-                  <span>Inspect</span>
-                </button>
-                <a
-                  [href]="job.original_application_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  (click)="onOpenLink($event, job.original_application_url)"
-                  class="btn btn-primary btn-sm apply-btn"
-                >
-                  <span>Apply</span>
-                  <app-icon name="external-link" [size]="11"></app-icon>
-                </a>
-              </div>
+              <a
+                *ngIf="job.original_application_url"
+                [href]="job.original_application_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                (click)="onDirectApply(job, $event)"
+                class="quick-action-btn apply-btn"
+                title="Direct Apply"
+                aria-label="Direct apply on portal"
+              >
+                <app-icon name="external-link" [size]="14"></app-icon>
+              </a>
             </div>
           </article>
         </div>
 
-        <!-- LIST / TABLE VIEW: Linear-Style High Density -->
-        <div class="jobs-table-container" *ngIf="!isLoading() && jobs().length > 0 && viewMode() === 'list'">
-          <table class="dense-table" aria-label="Jobs table">
-            <thead>
-              <tr>
-                <th scope="col">Role & Company</th>
-                <th scope="col">Match</th>
-                <th scope="col">Eligibility</th>
-                <th scope="col">Workplace</th>
-                <th scope="col">Seniority</th>
-                <th scope="col" class="th-actions">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                *ngFor="let job of jobs()"
-                class="dense-table-row"
-                (click)="inspectJob(job)"
-                tabindex="0"
-                (keyup.enter)="inspectJob(job)"
-              >
-                <td class="td-role-info">
-                  <div class="role-brand-box">
-                    <span class="company-avatar">{{ job.company.charAt(0) }}</span>
-                    <div class="role-desc-wrap">
-                      <span class="table-role-title">{{ job.title }}</span>
-                      <span class="table-company-sub">
-                        {{ job.company }} ·
-                        <span class="badge badge-purple" *ngIf="job.job_track === 'WEB_ANGULAR'">🌐 Web & Angular</span>
-                        <span class="badge badge-amber" *ngIf="job.job_track === 'NO_EXP_REMOTE'">💼 No-Exp Remote</span>
-                        <span class="badge badge-cyan" *ngIf="job.job_track === 'SOFTWARE_INTERN'">🎓 Software Intern</span>
-                        <span *ngIf="job.job_track">·</span>
-                        <app-icon name="map-pin" [size]="10"></app-icon>
-                        {{ job.raw_location || 'Remote' }}
-                      </span>
-                    </div>
-                  </div>
-                </td>
-
-                <td>
-                  <span class="match-score-badge" [class.high-match]="job.match_score >= 70">
-                    {{ roundScore(job.match_score) }}%
-                  </span>
-                </td>
-
-                <td>
-                  <span
-                    class="badge"
-                    [class.badge-green]="job.eligibility === 'EGYPT_ELIGIBLE' || job.eligibility === 'REMOTE_WORLDWIDE'"
-                    [class.badge-blue]="job.eligibility === 'REMOTE_REGION_POSSIBLE'"
-                  >
-                    {{ formatEligibility(job.eligibility) }}
-                  </span>
-                </td>
-
-                <td>
-                  <span class="meta-text-table">{{ formatWorkplace(job.workplace_type) }}</span>
-                </td>
-
-                <td>
-                  <span class="meta-text-table">{{ formatSeniority(job.seniority) }}</span>
-                </td>
-
-                <td class="td-actions" (click)="$event.stopPropagation()">
-                  <button
-                    (click)="toggleSaveJob(job)"
-                    class="icon-action-btn"
-                    [class.saved-icon]="job.tracker_status === 'SAVED'"
-                    title="Bookmark"
-                    aria-label="Save"
-                  >
-                    <app-icon [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'" [size]="12"></app-icon>
-                  </button>
-                  <button (click)="inspectJob(job)" class="btn btn-secondary btn-sm">
-                    <app-icon name="eye" [size]="12"></app-icon>
-                  </button>
-                  <a
-                    [href]="job.original_application_url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    (click)="onOpenLink($event, job.original_application_url)"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <app-icon name="external-link" [size]="11"></app-icon>
-                  </a>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
         <!-- Pagination Controls -->
-        <footer class="pagination-strip" *ngIf="totalPages() > 1 && !isLoading()">
-          <button
-            [disabled]="currentPage() === 1"
-            (click)="goToPage(currentPage() - 1)"
-            class="btn btn-secondary btn-sm"
-            aria-label="Previous page"
-          >
-            <app-icon name="chevron-left" [size]="12"></app-icon>
-            <span>Previous</span>
-          </button>
+        <footer *ngIf="!isLoading() && total() > 0" class="radar-pagination-bar">
+          <div class="pagination-info tabular-nums">
+            Showing {{ ((currentPage() - 1) * limit) + 1 }}-{{ Math.min(currentPage() * limit, total()) }} of {{ total() }}
+          </div>
 
-          <span class="page-indicator">
-            Page <strong>{{ currentPage() }}</strong> of <strong>{{ totalPages() }}</strong>
-          </span>
+          <div class="pagination-buttons">
+            <button
+              type="button"
+              (click)="goToPage(currentPage() - 1)"
+              [disabled]="currentPage() <= 1"
+              class="page-nav-btn"
+              aria-label="Previous page"
+            >
+              <app-icon name="chevron-left" [size]="14"></app-icon>
+              <span>Prev</span>
+            </button>
 
-          <button
-            [disabled]="currentPage() === totalPages()"
-            (click)="goToPage(currentPage() + 1)"
-            class="btn btn-secondary btn-sm"
-            aria-label="Next page"
-          >
-            <span>Next</span>
-            <app-icon name="chevron-right" [size]="12"></app-icon>
-          </button>
+            <span class="page-indicator tabular-nums">
+              {{ currentPage() }} / {{ totalPages() }}
+            </span>
+
+            <button
+              type="button"
+              (click)="goToPage(currentPage() + 1)"
+              [disabled]="currentPage() >= totalPages()"
+              class="page-nav-btn"
+              aria-label="Next page"
+            >
+              <span>Next</span>
+              <app-icon name="chevron-right" [size]="14"></app-icon>
+            </button>
+          </div>
         </footer>
-      </section>
+      </main>
 
-      <!-- Integrated Job Drawer Inspector -->
+      <!-- Rebuilt Slide-Over Drawer -->
       <app-job-drawer
         [isOpen]="isDrawerOpen()"
         [job]="selectedJob()"
         (closeDrawer)="closeDrawer()"
-        (statusUpdated)="onJobStatusUpdated($event)"
+        (statusUpdated)="onStatusUpdated($event)"
       ></app-job-drawer>
     </div>
   `,
   styles: [`
-    .jobs-view {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
+    :host {
+      display: block;
       width: 100%;
     }
 
-    /* Segmented Track Navigation Hub */
-    .track-segmented-bar {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-2);
-      width: 100%;
-    }
-
-    .track-segment-btn {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      border-radius: var(--radius-md);
-      background: var(--color-bg-surface-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      text-align: left;
-      transition: all var(--motion-fast);
-      position: relative;
-      user-select: none;
-    }
-
-    .track-segment-btn:hover {
-      border-color: var(--color-border-hover);
-      color: var(--color-text-primary);
-      background: var(--color-bg-surface-hover);
-    }
-
-    .track-segment-btn:active {
-      transform: scale(0.985);
-    }
-
-    .track-segment-btn.active {
-      background: var(--color-bg-surface);
-      border-color: var(--color-brand-primary);
-      color: var(--color-text-primary);
-      box-shadow: 0 0 0 1px var(--color-brand-border), var(--shadow-xs);
-    }
-
-    .track-segment-btn.track-web.active {
-      border-color: #60a5fa;
-      box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.4), var(--shadow-xs);
-    }
-
-    .track-segment-btn.track-remote.active {
-      border-color: #34d399;
-      box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.4), var(--shadow-xs);
-    }
-
-    .track-segment-btn.track-intern.active {
-      border-color: #c084fc;
-      box-shadow: 0 0 0 1px rgba(192, 132, 252, 0.4), var(--shadow-xs);
-    }
-
-    .segment-icon {
-      font-size: 18px;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-
-    .segment-meta {
+    .jobs-radar-view {
       display: flex;
       flex-direction: column;
-      gap: 1px;
-      min-width: 0;
+      gap: var(--space-4);
+      width: 100%;
+      max-width: 1240px;
+      margin: 0 auto;
     }
 
-    .segment-title {
-      font-size: 12.5px;
-      font-weight: 700;
-      color: var(--color-text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .segment-sub {
-      font-size: 10px;
-      color: var(--color-text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    /* Filters Workbench */
-    .filters-workbench {
-      background: var(--color-bg-surface-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+    /* ==========================================================================
+       Sticky Command Bar & Filter Header
+       ========================================================================== */
+    .radar-command-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background-color: var(--color-bg-glass);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-3);
+      border-radius: var(--radius-sm);
+      padding: var(--space-3) var(--space-4);
       display: flex;
       flex-direction: column;
       gap: var(--space-2-5);
+      box-shadow: var(--shadow-xs);
     }
 
-    /* Top Search Row */
-    .search-command-row {
+    .command-row-top {
       display: flex;
       align-items: center;
-      gap: var(--space-2);
-      width: 100%;
+      justify-content: space-between;
+      gap: var(--space-3);
+      flex-wrap: wrap;
     }
-    .search-input-wrap {
-      position: relative;
+
+    /* Segmented Controls */
+    .segmented-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+    }
+
+    .segment-tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-xs);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      user-select: none;
+      transition: all var(--motion-fast);
+      white-space: nowrap;
+    }
+
+    .segment-tab-btn:hover {
+      color: var(--color-text-primary);
+      background-color: var(--color-bg-surface-hover);
+    }
+
+    .segment-tab-btn.active {
+      background-color: var(--color-bg-surface-1);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-subtle);
+      font-weight: 600;
+      box-shadow: var(--shadow-xs);
+    }
+
+    .segment-tab-btn.sm {
+      padding: 4px 10px;
+      font-size: 11px;
+    }
+
+    .segment-tab-btn.social-tab.active {
+      color: var(--color-brand-accent);
+    }
+
+    .region-flag {
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    /* Command Row Bottom: Search & Selects */
+    .command-row-bottom {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
+    .search-box-wrap {
       flex: 1;
+      min-width: 260px;
+      position: relative;
       display: flex;
       align-items: center;
     }
-    .search-icon {
+
+    .search-lens {
       position: absolute;
       left: 10px;
       color: var(--color-text-muted);
       pointer-events: none;
     }
+
     .search-input {
-      padding-left: 36px;
-      padding-right: 32px;
-      height: 40px;
-      min-height: 40px;
-      font-size: var(--text-sm);
-      border-radius: var(--radius-md);
+      width: 100%;
+      height: 34px;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 0 32px 0 32px;
+      font-size: 13px;
+      color: var(--color-text-primary);
+      transition: border-color var(--motion-fast), background-color var(--motion-fast);
     }
-    .clear-search-btn {
+    .search-input:focus {
+      outline: none;
+      border-color: var(--color-brand-accent);
+      background-color: var(--color-bg-surface-1);
+    }
+    .search-input::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    .search-clear-btn {
+      position: absolute;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      display: flex;
+      padding: 2px;
+    }
+    .search-clear-btn:hover {
+      color: var(--color-text-primary);
+    }
+
+    .kbd-shortcut-hint {
       position: absolute;
       right: 10px;
-      background: transparent;
-      border: none;
-      color: var(--color-text-muted);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      padding: 4px;
-    }
-    .clear-search-btn:hover { color: var(--color-text-primary); }
-
-    .search-actions-group {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      flex-shrink: 0;
-    }
-    .search-btn {
-      height: 40px;
-      min-height: 40px;
-      padding: 0 16px;
-      font-size: var(--text-sm);
-    }
-
-    /* View Switcher */
-    .view-switcher {
-      display: flex;
-      align-items: center;
-      background: var(--color-bg-surface-elevated);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: 2px;
-      gap: 2px;
-    }
-    .view-btn {
-      background: transparent;
-      border: none;
-      width: 36px;
-      height: 36px;
-      min-height: 36px;
-      padding: 0;
-      border-radius: var(--radius-sm);
-      color: var(--color-text-muted);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background-color var(--motion-fast), color var(--motion-fast);
-    }
-    .view-btn:hover { color: var(--color-text-primary); }
-    .view-btn.active {
-      background: var(--color-bg-surface);
-      color: var(--color-brand-accent);
-      box-shadow: var(--shadow-xs);
-    }
-
-    /* Bottom Filter Row */
-    .filter-controls-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-2);
-      flex-wrap: wrap;
-    }
-    .quick-chips-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .chip-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 34px;
-      padding: 6px 13px;
-      border-radius: var(--radius-sm);
-      font-size: 12px;
-      font-weight: 600;
-      background: var(--color-bg-surface-elevated);
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-secondary);
-      cursor: pointer;
-      transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
-    }
-    .chip-pill:hover {
-      border-color: var(--color-border-hover);
-      color: var(--color-text-primary);
-    }
-    .chip-pill.active {
-      background: var(--color-brand-primary);
-      color: #ffffff;
-      border-color: var(--color-brand-primary);
-    }
-
-    .dropdowns-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .select-compact {
-      width: auto;
-      min-width: 120px;
-      height: 34px;
-      min-height: 34px;
-      padding: 6px 26px 6px 10px;
-      font-size: 12px;
-      border-radius: var(--radius-sm);
-    }
-
-    /* Results Meta Strip */
-    .results-meta-strip {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 4px;
-    }
-    .count-indicator {
-      font-size: 11px;
-      color: var(--color-text-secondary);
-    }
-    .count-indicator strong {
-      color: var(--color-text-primary);
-    }
-    .reset-btn {
-      font-size: 11px;
-      padding: 2px 6px;
-    }
-
-    /* Skeletons */
-    .skeleton-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: var(--space-3);
-    }
-    .skeleton-box {
-      background: var(--color-bg-surface-glass);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-4);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2-5);
-    }
-    .skeleton-line-top {
-      width: 40%;
-      height: 12px;
-      background: var(--color-bg-surface-elevated);
-      border-radius: var(--radius-xs);
-    }
-    .skeleton-line-middle {
-      width: 80%;
-      height: 14px;
-      background: var(--color-bg-surface-elevated);
-      border-radius: var(--radius-xs);
-    }
-    .skeleton-line-bottom {
-      width: 60%;
-      height: 10px;
-      background: var(--color-bg-surface-elevated);
-      border-radius: var(--radius-xs);
-    }
-
-    /* Empty State */
-    .empty-state-box {
-      background: var(--color-bg-surface-glass);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-8) var(--space-4);
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--space-2);
-    }
-    .empty-icon {
-      color: var(--color-text-muted);
-      opacity: 0.5;
-    }
-
-    /* Grid Layout */
-    .jobs-grid-layout {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: var(--space-3);
-    }
-
-    .job-grid-card {
-      background: var(--color-bg-surface-glass);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-3-5);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2-5);
-      cursor: pointer;
-      /* Silky non-jumpy hover */
-      transition: background-color var(--motion-fast), border-color var(--motion-fast);
-    }
-    .job-grid-card:hover {
-      background-color: var(--color-bg-surface-hover);
-      border-color: var(--color-border-hover);
-    }
-    .job-grid-card.card-excellent {
-      border-color: rgba(16, 185, 129, 0.25);
-    }
-
-    .card-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-2);
-    }
-    .company-brand-meta {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      min-width: 0;
-      flex: 1;
-    }
-    .company-name-wrap {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-    .company-title {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--color-text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .loc-subtext {
-      font-size: 10px;
-      color: var(--color-text-muted);
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .match-score-badge {
-      font-size: 11px;
       font-family: var(--font-mono);
-      font-weight: 700;
-      padding: 2px 6px;
-      border-radius: var(--radius-xs);
-      background: var(--color-brand-subtle);
-      color: var(--color-brand-accent);
-      border: 1px solid var(--color-brand-border);
-      flex-shrink: 0;
-    }
-    .match-score-badge.high-match {
-      background: var(--color-success-bg);
-      color: var(--color-success-text);
-      border-color: var(--color-success-border);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      background: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 3px;
+      padding: 1px 5px;
+      pointer-events: none;
     }
 
-    .card-job-title {
-      font-size: var(--text-sm);
-      font-weight: 700;
-      color: var(--color-text-primary);
-      margin: 0;
-      line-height: 1.35;
-    }
-
-    .card-tags-line {
+    .filters-actions-wrap {
       display: flex;
-      gap: 5px;
-      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
     }
 
-    .card-footer-line {
+    .filter-select-wrap {
+      position: relative;
+    }
+
+    .filter-select {
+      height: 34px;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: border-color var(--motion-fast);
+    }
+    .filter-select:hover {
+      border-color: var(--color-border-default);
+      color: var(--color-text-primary);
+    }
+    .filter-select:focus {
+      outline: none;
+      border-color: var(--color-brand-accent);
+    }
+
+    .reset-filters-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 34px;
+      padding: 0 10px;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+      color: var(--color-text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--motion-fast);
+    }
+    .reset-filters-btn:hover {
+      background-color: var(--color-bg-surface-hover);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-default);
+    }
+
+    /* Telemetry Sub-Bar */
+    .telemetry-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding-top: var(--space-2);
       border-top: 1px solid var(--color-border-subtle);
-      margin-top: 2px;
-    }
-    .save-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      min-height: 32px;
-      padding: 5px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      border-radius: var(--radius-sm);
-      background: transparent;
-      border: 1px solid var(--color-border-subtle);
+      font-size: 11px;
       color: var(--color-text-muted);
-      cursor: pointer;
-      transition: background-color var(--motion-fast), color var(--motion-fast);
-    }
-    .save-btn:hover {
-      color: var(--color-text-primary);
-      background: var(--color-bg-surface-elevated);
-    }
-    .save-btn.active-saved {
-      background: var(--color-success-bg);
-      color: var(--color-success-text);
-      border-color: var(--color-success-border);
     }
 
-    .footer-actions {
+    .telemetry-left {
       display: flex;
       align-items: center;
       gap: 6px;
     }
-
-    /* Dense Linear-Style Table */
-    .jobs-table-container {
-      background: var(--color-bg-surface-glass);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      overflow-x: auto;
+    .results-count strong {
+      color: var(--color-text-primary);
     }
-    .dense-table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-    }
-    .dense-table th {
-      padding: 8px 12px;
-      font-size: 10px;
-      text-transform: uppercase;
-      font-weight: 700;
+    .telemetry-dot {
       color: var(--color-text-muted);
-      letter-spacing: 0.05em;
-      border-bottom: 1px solid var(--color-border-subtle);
-      background: var(--color-bg-surface-elevated);
     }
-    .dense-table td {
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--color-border-subtle);
-      vertical-align: middle;
+
+    .live-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+    }
+    .live-dot-green {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--color-success);
+    }
+
+    /* ==========================================================================
+       Opportunities Feed
+       ========================================================================== */
+    .radar-feed-container {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      width: 100%;
+    }
+
+    .feed-skeletons-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .opportunities-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Row Card */
+    .opportunity-row-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: transform var(--motion-fast), border-color var(--motion-fast), background-color var(--motion-fast);
+      position: relative;
+    }
+
+    .opportunity-row-card:hover {
+      background-color: var(--color-bg-surface-2);
+      border-color: var(--color-border-default);
+      transform: translateY(-1px);
+    }
+
+    /* Score Column */
+    .card-score-col {
+      flex-shrink: 0;
+    }
+
+    .score-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      height: 32px;
+      border-radius: var(--radius-xs);
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--color-border-subtle);
+      background-color: var(--color-bg-surface-2);
+    }
+
+    .score-badge[data-band="emerald"] {
+      border-color: rgba(16, 185, 129, 0.4);
+      background-color: rgba(16, 185, 129, 0.08);
+      color: var(--color-success);
+    }
+    .score-badge[data-band="indigo"] {
+      border-color: var(--color-brand-border);
+      background-color: var(--color-brand-subtle);
+      color: var(--color-brand-accent);
+    }
+    .score-badge[data-band="amber"] {
+      border-color: rgba(245, 158, 11, 0.4);
+      background-color: rgba(245, 158, 11, 0.08);
+      color: var(--color-warning);
+    }
+    .score-badge[data-band="muted"] {
+      color: var(--color-text-muted);
+    }
+
+    /* Main Info Column */
+    .card-main-col {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .role-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      letter-spacing: -0.01em;
+      line-height: 1.3;
+    }
+
+    .badges-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .card-company-row {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .company-name {
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+    .poster-tag strong {
+      color: var(--color-text-primary);
+    }
+    .time-relative {
+      color: var(--color-text-muted);
+    }
+
+    /* Meta & Skills Row */
+    .card-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      margin-top: 3px;
+      flex-wrap: wrap;
+    }
+
+    .meta-tags-group {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
       font-size: 11px;
     }
-    .dense-table-row {
-      cursor: pointer;
-      transition: background-color var(--motion-fast);
+
+    .meta-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--color-text-muted);
     }
-    .dense-table-row:hover {
-      background-color: var(--color-bg-surface-hover);
+    .meta-tag.workplace[data-workplace="REMOTE"] {
+      color: var(--color-brand-accent);
+      font-weight: 500;
     }
 
-    .role-brand-box {
+    .location-text {
+      max-width: 140px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Skill Chips */
+    .skills-preview-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .skill-chip {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: 3px;
+      padding: 1px 5px;
+      color: var(--color-text-secondary);
+    }
+
+    .skill-chip.overflow {
+      color: var(--color-text-muted);
+      border-style: dashed;
+    }
+
+    /* Actions Column */
+    .card-actions-col {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .quick-action-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-xs);
+      background-color: transparent;
+      border: 1px solid var(--color-border-subtle);
+      color: var(--color-text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all var(--motion-fast);
+    }
+
+    .quick-action-btn:hover {
+      background-color: var(--color-bg-surface-hover);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-default);
+    }
+
+    .quick-action-btn.bookmark-btn.saved {
+      color: var(--color-brand-accent);
+      background-color: var(--color-brand-subtle);
+      border-color: var(--color-brand-border);
+    }
+
+    .quick-action-btn.apply-btn:hover {
+      color: var(--color-brand-accent);
+    }
+
+    /* ==========================================================================
+       Pagination Bar
+       ========================================================================== */
+    .radar-pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      margin-top: var(--space-2);
+    }
+
+    .pagination-info {
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+
+    .pagination-buttons {
       display: flex;
       align-items: center;
       gap: var(--space-2);
     }
-    .role-desc-wrap {
-      display: flex;
-      flex-direction: column;
-    }
-    .table-role-title {
-      font-weight: 700;
-      color: var(--color-text-primary);
-      font-size: var(--text-xs);
-    }
-    .table-company-sub {
-      color: var(--color-text-muted);
-      font-size: 10px;
+
+    .page-nav-btn {
       display: inline-flex;
-      align-items: center;
-      gap: 3px;
-    }
-    .meta-text-table {
-      color: var(--color-text-secondary);
-      font-weight: 500;
-    }
-    .td-actions {
-      display: flex;
       align-items: center;
       gap: 4px;
-      justify-content: flex-end;
-    }
-    .th-actions {
-      text-align: right;
-    }
-    .icon-action-btn {
-      padding: 4px;
-      border-radius: var(--radius-xs);
-      background: transparent;
+      height: 30px;
+      padding: 0 10px;
+      background-color: var(--color-bg-surface-2);
       border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-muted);
+      border-radius: var(--radius-xs);
+      color: var(--color-text-secondary);
+      font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
+      transition: all var(--motion-fast);
     }
-    .icon-action-btn:hover { color: var(--color-text-primary); }
-    .icon-action-btn.saved-icon {
-      background: var(--color-success-bg);
-      color: var(--color-success-text);
-      border-color: var(--color-success-border);
+    .page-nav-btn:hover:not(:disabled) {
+      background-color: var(--color-bg-surface-hover);
+      color: var(--color-text-primary);
+      border-color: var(--color-border-default);
+    }
+    .page-nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
-    /* Pagination */
-    .pagination-strip {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-3);
-      padding: var(--space-2) 0;
-    }
     .page-indicator {
-      font-size: 11px;
-      color: var(--color-text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      padding: 0 4px;
     }
 
     @media (max-width: 768px) {
-      .track-segmented-bar {
-        display: flex;
+      .radar-command-bar {
+        padding: var(--space-2-5) var(--space-3);
+      }
+      .command-row-top {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .segmented-control {
+        width: 100%;
         overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        padding-bottom: 2px;
-        gap: 6px;
       }
-      .track-segmented-bar::-webkit-scrollbar {
-        display: none;
-      }
-      .track-segment-btn {
-        flex: 0 0 auto;
-        min-width: 140px;
-        padding: 8px 10px;
-      }
-      .search-command-row {
+      .command-row-bottom {
         flex-direction: column;
         align-items: stretch;
       }
-      .filter-controls-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .dropdowns-group {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        width: 100%;
-      }
-      .select-compact {
-        width: 100%;
-      }
-      .jobs-grid-layout {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .track-segment-btn {
-        min-width: 130px;
-        padding: 6px 8px;
-        gap: 6px;
-      }
-      .segment-icon {
-        font-size: 15px;
-      }
-      .segment-title {
-        font-size: 11.5px;
-      }
-      .segment-sub {
-        font-size: 9px;
-      }
-      .dropdowns-group {
-        grid-template-columns: 1fr;
-      }
-      .search-actions-group {
+      .filters-actions-wrap {
         width: 100%;
         justify-content: space-between;
       }
-      .search-btn {
+      .filter-select {
         flex: 1;
+      }
+      .card-meta-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+      }
+      .card-actions-col {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+      }
+      .opportunity-row-card {
+        padding-right: 76px;
       }
     }
   `],
 })
 export class JobsComponent implements OnInit {
+  @ViewChild('searchInput') searchInputRef?: ElementRef<HTMLInputElement>;
+
   private readonly api = inject(ApiService);
   private readonly telegram = inject(TelegramService);
   private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
 
-  readonly jobs = signal<JobSummary[]>([]);
-  readonly totalCount = signal<number>(0);
+  readonly Math = Math;
+
   readonly isLoading = signal<boolean>(false);
+  readonly jobs = signal<JobSummary[]>([]);
+  readonly total = signal<number>(0);
   readonly currentPage = signal<number>(1);
-  readonly totalPages = signal<number>(1);
-  readonly limit = 18;
+  readonly limit = 20;
 
-  readonly viewMode = signal<'grid' | 'list'>('grid');
-
-  searchKeyword: string = '';
-  selectedTrack: string = '';
-  selectedEligibility: string = '';
-  selectedWorkplace: string = '';
-  selectedSeniority: string = '';
-  minScore: number = 0;
-
-  readonly activeQuickChip = signal<string>('ALL');
+  // Filter States
+  readonly selectedSegment = signal<string>(''); // '', 'EGYPT', 'REMOTE_GCC_ABROAD'
+  readonly selectedSourceType = signal<'ALL' | 'SOCIAL' | 'BOARDS'>('ALL');
+  selectedWorkplace = '';
+  selectedMinScore = '0';
+  searchKeyword = '';
 
   // Drawer state
   readonly isDrawerOpen = signal<boolean>(false);
   readonly selectedJob = signal<JobSummary | null>(null);
 
-  readonly quickChips: QuickChip[] = [
-    { id: 'ALL', label: 'All Tracks', icon: 'layers' },
-    { id: 'TRACK_WEB', label: '🌐 Web & Angular', icon: 'zap', track: 'WEB_ANGULAR' },
-    { id: 'TRACK_REMOTE', label: '💼 No-Exp Remote', icon: 'globe', track: 'NO_EXP_REMOTE' },
-    { id: 'TRACK_INTERN', label: '🎓 Software Interns', icon: 'star', track: 'SOFTWARE_INTERN' },
-    { id: 'TOP_MATCH', label: 'Top Match (70%+)', icon: 'star', minScore: 70 },
-  ];
+  readonly totalPages = computed(() => {
+    return Math.ceil(this.total() / this.limit);
+  });
+
+  // Global ⌘K / Ctrl+K search focus
+  @HostListener('document:keydown', ['$event'])
+  onGlobalKeydown(e: KeyboardEvent): void {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      this.searchInputRef?.nativeElement.focus();
+      this.searchInputRef?.nativeElement.select();
+    }
+  }
 
   ngOnInit(): void {
     this.route.queryParams.subscribe((params) => {
-      if (params['track']) {
-        this.selectedTrack = params['track'];
-        if (params['track'] === 'WEB_ANGULAR') this.activeQuickChip.set('TRACK_WEB');
-        else if (params['track'] === 'NO_EXP_REMOTE') this.activeQuickChip.set('TRACK_REMOTE');
-        else if (params['track'] === 'SOFTWARE_INTERN') this.activeQuickChip.set('TRACK_INTERN');
+      if (params['segment']) {
+        this.selectedSegment.set(params['segment']);
       }
-      this.loadJobs();
+      if (params['keyword']) {
+        this.searchKeyword = params['keyword'];
+      }
+      this.fetchJobs();
     });
   }
 
-  setTrackFilter(track: string): void {
-    this.telegram.haptic('selection');
-    this.selectedTrack = track;
-    if (track === 'WEB_ANGULAR') this.activeQuickChip.set('TRACK_WEB');
-    else if (track === 'NO_EXP_REMOTE') this.activeQuickChip.set('TRACK_REMOTE');
-    else if (track === 'SOFTWARE_INTERN') this.activeQuickChip.set('TRACK_INTERN');
-    else this.activeQuickChip.set('ALL');
-    this.currentPage.set(1);
-    this.loadJobs();
-  }
-
-  loadJobs(): void {
+  fetchJobs(): void {
     this.isLoading.set(true);
-    const params: Record<string, string | number> = {
+
+    const queryParams: Record<string, string | number | boolean | null | undefined> = {
       page: this.currentPage(),
       limit: this.limit,
     };
 
-    if (this.selectedTrack) {
-      params['track'] = this.selectedTrack;
-    }
-    if (this.searchKeyword.trim()) {
-      params['search'] = this.searchKeyword.trim();
-    }
-    if (this.selectedEligibility) {
-      params['eligibility'] = this.selectedEligibility;
-    }
-    if (this.selectedWorkplace) {
-      params['workplace_type'] = this.selectedWorkplace;
-    }
-    if (this.selectedSeniority) {
-      params['seniority'] = this.selectedSeniority;
-    }
-    if (this.minScore > 0) {
-      params['min_score'] = this.minScore;
+    if (this.selectedSegment()) {
+      queryParams['segment'] = this.selectedSegment();
     }
 
-    this.api.getJobs(params).subscribe({
+    if (this.selectedSourceType() === 'SOCIAL') {
+      queryParams['is_social_post'] = true;
+    } else if (this.selectedSourceType() === 'BOARDS') {
+      queryParams['is_social_post'] = false;
+    }
+
+    if (this.selectedWorkplace) {
+      queryParams['workplace_type'] = this.selectedWorkplace;
+    }
+
+    const minScoreNum = parseFloat(this.selectedMinScore);
+    if (minScoreNum > 0) {
+      queryParams['min_score'] = minScoreNum;
+    }
+
+    if (this.searchKeyword.trim()) {
+      queryParams['keyword'] = this.searchKeyword.trim();
+    }
+
+    this.api.getJobs(queryParams).subscribe({
       next: (res) => {
         this.jobs.set(res.items);
-        this.totalCount.set(res.total);
-        this.totalPages.set(Math.ceil(res.total / this.limit) || 1);
+        this.total.set(res.total);
         this.isLoading.set(false);
       },
-      error: (e) => {
-        console.error('Failed to load jobs', e);
+      error: (err) => {
+        console.error('Failed to load opportunities:', err);
+        this.toast.show('Failed to fetch opportunities', 'error');
         this.isLoading.set(false);
       },
     });
   }
 
-  applyFilters(): void {
+  setSegment(seg: string): void {
+    this.telegram.haptic('selection');
+    this.selectedSegment.set(seg);
     this.currentPage.set(1);
-    this.loadJobs();
+    this.fetchJobs();
+  }
+
+  setSourceType(type: 'ALL' | 'SOCIAL' | 'BOARDS'): void {
+    this.telegram.haptic('selection');
+    this.selectedSourceType.set(type);
+    this.currentPage.set(1);
+    this.fetchJobs();
+  }
+
+  applyFilters(): void {
+    this.telegram.haptic('selection');
+    this.currentPage.set(1);
+    this.fetchJobs();
   }
 
   clearSearch(): void {
@@ -1168,73 +1112,38 @@ export class JobsComponent implements OnInit {
     this.applyFilters();
   }
 
-  selectQuickChip(chipId: string): void {
-    this.activeQuickChip.set(chipId);
+  resetFilters(): void {
     this.telegram.haptic('selection');
-
-    if (chipId === 'ALL') {
-      this.selectedTrack = '';
-      this.selectedEligibility = '';
-      this.selectedWorkplace = '';
-      this.selectedSeniority = '';
-      this.minScore = 0;
-    } else if (chipId === 'TRACK_WEB') {
-      this.selectedTrack = 'WEB_ANGULAR';
-    } else if (chipId === 'TRACK_REMOTE') {
-      this.selectedTrack = 'NO_EXP_REMOTE';
-    } else if (chipId === 'TRACK_INTERN') {
-      this.selectedTrack = 'SOFTWARE_INTERN';
-    } else if (chipId === 'TOP_MATCH') {
-      this.minScore = 70;
-    } else if (chipId === 'EGYPT_WORLDWIDE') {
-      this.selectedEligibility = 'EGYPT_ELIGIBLE';
-    } else if (chipId === 'REMOTE') {
-      this.selectedWorkplace = 'REMOTE';
-    } else if (chipId === 'MID_SENIOR') {
-      this.selectedSeniority = 'MID';
-    }
-
-    this.applyFilters();
-  }
-
-  setViewMode(mode: 'grid' | 'list'): void {
-    this.viewMode.set(mode);
-    this.telegram.haptic('selection');
+    this.selectedSegment.set('');
+    this.selectedSourceType.set('ALL');
+    this.selectedWorkplace = '';
+    this.selectedMinScore = '0';
+    this.searchKeyword = '';
+    this.currentPage.set(1);
+    this.fetchJobs();
   }
 
   hasActiveFilters(): boolean {
     return (
-      !!this.searchKeyword ||
-      !!this.selectedTrack ||
-      !!this.selectedEligibility ||
-      !!this.selectedWorkplace ||
-      !!this.selectedSeniority ||
-      this.minScore > 0
+      this.selectedSegment() !== '' ||
+      this.selectedSourceType() !== 'ALL' ||
+      this.selectedWorkplace !== '' ||
+      this.selectedMinScore !== '0' ||
+      this.searchKeyword.trim() !== ''
     );
   }
 
-  resetFilters(): void {
-    this.searchKeyword = '';
-    this.selectedTrack = '';
-    this.selectedEligibility = '';
-    this.selectedWorkplace = '';
-    this.selectedSeniority = '';
-    this.minScore = 0;
-    this.activeQuickChip.set('ALL');
-    this.currentPage.set(1);
-    this.loadJobs();
-    this.toast.show('Filters reset', 'info', 1500);
-  }
-
   goToPage(page: number): void {
-    if (page >= 1 && page <= this.totalPages()) {
-      this.currentPage.set(page);
-      this.loadJobs();
+    if (page < 1 || page > this.totalPages()) return;
+    this.telegram.haptic('selection');
+    this.currentPage.set(page);
+    this.fetchJobs();
+    if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
 
-  inspectJob(job: JobSummary): void {
+  openDrawer(job: JobSummary): void {
     this.telegram.haptic('selection');
     this.selectedJob.set(job);
     this.isDrawerOpen.set(true);
@@ -1242,36 +1151,47 @@ export class JobsComponent implements OnInit {
 
   closeDrawer(): void {
     this.isDrawerOpen.set(false);
+    this.selectedJob.set(null);
   }
 
-  toggleSaveJob(job: JobSummary): void {
+  onStatusUpdated(evt: { jobId: number; status: ApplicationStatus }): void {
+    this.jobs.update((list) =>
+      list.map((j) => (j.id === evt.jobId ? { ...j, tracker_status: evt.status } : j))
+    );
+  }
+
+  toggleSave(job: JobSummary, event: Event): void {
+    event.stopPropagation();
     const newStatus: ApplicationStatus = job.tracker_status === 'SAVED' ? 'DISCOVERED' : 'SAVED';
     this.telegram.haptic('medium');
 
+    this.jobs.update((list) =>
+      list.map((j) => (j.id === job.id ? { ...j, tracker_status: newStatus } : j))
+    );
+
     this.api.updateJobStatus(job.id, newStatus).subscribe({
       next: () => {
-        job.tracker_status = newStatus;
         this.toast.show(
-          newStatus === 'SAVED' ? `Saved: ${job.title}` : `Removed from Saved`,
-          newStatus === 'SAVED' ? 'success' : 'info'
+          newStatus === 'SAVED' ? 'Saved to Tracker' : 'Removed from Saved',
+          'info',
+          1800
         );
       },
-      error: () => this.toast.show('Failed to save status', 'error'),
+      error: () => {
+        // Rollback
+        this.jobs.update((list) =>
+          list.map((j) => (j.id === job.id ? { ...j, tracker_status: job.tracker_status } : j))
+        );
+        this.toast.show('Failed to update bookmark', 'error');
+      },
     });
   }
 
-  onJobStatusUpdated(event: { jobId: number; status: ApplicationStatus }): void {
-    const job = this.jobs().find((j) => j.id === event.jobId);
-    if (job) {
-      job.tracker_status = event.status;
-    }
-  }
-
-  onOpenLink(event: MouseEvent, url: string): void {
-    this.telegram.haptic('selection');
-    if (this.telegram.isTelegram()) {
-      event.preventDefault();
-      this.telegram.openExternalLink(url);
+  onDirectApply(job: JobSummary, event: Event): void {
+    event.stopPropagation();
+    if (job.original_application_url) {
+      this.telegram.haptic('medium');
+      this.telegram.openExternalLink(job.original_application_url);
     }
   }
 
@@ -1279,33 +1199,40 @@ export class JobsComponent implements OnInit {
     return Math.round(score);
   }
 
-  formatEligibility(e?: string): string {
-    switch (e) {
-      case 'EGYPT_ELIGIBLE': return 'Egypt Eligible';
-      case 'REMOTE_WORLDWIDE': return 'Remote Worldwide';
-      case 'REMOTE_REGION_POSSIBLE': return 'Region Possible';
-      case 'RELOCATION_REQUIRED': return 'Relocation Required';
-      default: return e || 'Remote';
-    }
+  getScoreBand(score: number): 'emerald' | 'indigo' | 'amber' | 'muted' {
+    if (score >= 80) return 'emerald';
+    if (score >= 65) return 'indigo';
+    if (score >= 50) return 'amber';
+    return 'muted';
   }
 
-  formatWorkplace(w?: string): string {
+  formatWorkplace(w?: WorkplaceType): string {
     switch (w) {
-      case 'REMOTE': return 'Remote';
-      case 'HYBRID': return 'Hybrid';
-      case 'ON_SITE': return 'On-site';
-      default: return w || 'Remote';
+      case 'REMOTE':
+        return 'Remote';
+      case 'HYBRID':
+        return 'Hybrid';
+      case 'ON_SITE':
+        return 'On-site';
+      default:
+        return 'Remote';
     }
   }
 
-  formatSeniority(s?: string): string {
-    switch (s) {
-      case 'JUNIOR': return 'Junior';
-      case 'MID': return 'Mid-level';
-      case 'SENIOR': return 'Senior';
-      case 'GRADUATE': return 'Graduate';
-      case 'ENTRY': return 'Entry';
-      default: return s || 'Engineer';
+  formatRelativeDate(dateStr?: string | null): string {
+    if (!dateStr) return 'Recently';
+    try {
+      const date = new Date(dateStr);
+      const diffMs = Date.now() - date.getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (diffHours < 1) return 'Just now';
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return 'Recently';
     }
   }
 }

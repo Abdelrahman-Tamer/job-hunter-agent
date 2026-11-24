@@ -1,8 +1,5 @@
-<div class="app-layout" dir="ltr" [class.telegram-app]="telegram.isTelegram()">
-  <!-- Antigravity Interactive Dot Matrix Canvas -->
-  <app-antigravity-canvas></app-antigravity-canvas>
-
-  <!-- Global Glass Toast Notifications Host -->
+<div class="app-shell" dir="ltr" [class.telegram-app]="telegram.isTelegram()">
+  <!-- Global Minimal Toast Notifications HUD -->
   <aside class="toast-container" aria-live="polite" aria-label="System notifications">
     <div
       *ngFor="let toast of toastService.toasts()"
@@ -12,96 +9,135 @@
     >
       <app-icon
         [name]="toast.type === 'success' ? 'check-circle' : toast.type === 'error' ? 'alert-circle' : toast.type === 'warning' ? 'alert-circle' : 'info'"
-        [size]="15"
-        class="toast-icon"
+        [size]="14"
+        class="toast-glyph"
       ></app-icon>
-      <span class="toast-text">{{ toast.message }}</span>
-      <button (click)="toastService.dismiss(toast.id)" class="toast-close" aria-label="Dismiss notification">
+      <span class="toast-message">{{ toast.message }}</span>
+      <button (click)="toastService.dismiss(toast.id)" class="toast-close-btn" aria-label="Dismiss notification">
         <app-icon name="x" [size]="12"></app-icon>
       </button>
     </div>
   </aside>
 
-  <!-- Top Navigation Command Bar Header -->
-  <header class="app-header" role="banner">
-    <div class="header-inner">
-      <div class="header-brand">
-        <a routerLink="/overview" class="brand-link" (click)="onTabClick()">
-          <div class="brand-logo-wrap">
-            <img src="bottajobs-logo.png" alt="BottaJobs Logo" class="brand-logo-img">
-            <span class="brand-pulse-ring"></span>
-          </div>
-          <div class="brand-meta">
-            <span class="brand-title">BottaJobs</span>
-            <span class="brand-status-pill">
-              <span class="status-dot"></span>
-              <span>Cairo 09:00</span>
-            </span>
-          </div>
-        </a>
+  <!-- Desktop Fixed Sidebar Navigation (>= 768px) -->
+  <aside class="desktop-sidebar" role="navigation" aria-label="Main sidebar navigation">
+    <div class="sidebar-top">
+      <a routerLink="/overview" class="brand-block" (click)="onTabClick()">
+        <div class="brand-glyph-box">
+          <app-icon name="radar" [size]="18" class="brand-radar"></app-icon>
+          <span class="live-dot" aria-hidden="true"></span>
+        </div>
+        <div class="brand-copy">
+          <span class="brand-title">Frontend Radar</span>
+          <span class="brand-subtitle">Autonomous Pipeline</span>
+        </div>
+      </a>
+    </div>
+
+    <nav class="sidebar-menu">
+      <div class="menu-section-label">PLATFORM</div>
+      <a
+        *ngFor="let item of navItems"
+        [routerLink]="item.path"
+        routerLinkActive="active"
+        (click)="onTabClick()"
+        class="sidebar-nav-link"
+      >
+        <div class="link-left">
+          <app-icon [name]="item.icon" [size]="15" class="link-icon"></app-icon>
+          <span class="link-title">{{ item.label }}</span>
+        </div>
+        <span class="kbd-badge" *ngIf="item.shortcut">{{ item.shortcut }}</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <!-- Sweep Trigger Action -->
+      <button
+        (click)="triggerQuickScan()"
+        [disabled]="isScanning()"
+        class="sidebar-action-btn sweep-btn"
+        title="Trigger immediate feed sweep"
+        aria-label="Sweep feeds"
+      >
+        <app-icon [name]="isScanning() ? 'refresh' : 'play'" [size]="13" [class.spin]="isScanning()"></app-icon>
+        <span>{{ isScanning() ? 'Sweeping...' : 'Sweep Feeds' }}</span>
+      </button>
+
+      <!-- Theme Toggle -->
+      <button
+        (click)="toggleTheme()"
+        class="sidebar-action-btn theme-btn"
+        [title]="theme.isDark() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+        aria-label="Toggle theme"
+      >
+        <app-icon [name]="theme.isDark() ? 'moon' : 'sun'" [size]="13"></app-icon>
+        <span>{{ theme.isDark() ? 'Dark Canvas' : 'Light Canvas' }}</span>
+      </button>
+
+      <!-- System Status / Version Pill -->
+      <div class="sidebar-status-card">
+        <div class="status-row">
+          <span class="status-pulse-dot"></span>
+          <span class="status-label tabular-nums">Daily Radar • Cairo 09:00</span>
+        </div>
+        <span class="status-ver tabular-nums">v2.5</span>
       </div>
+    </div>
+  </aside>
 
-      <!-- Desktop Navigation Bar -->
-      <nav class="desktop-nav" aria-label="Primary navigation">
-        <a
-          *ngFor="let item of navItems"
-          [routerLink]="item.path"
-          routerLinkActive="active"
-          (click)="onTabClick()"
-          class="nav-item"
-        >
-          <app-icon [name]="item.icon" [size]="15" class="nav-icon"></app-icon>
-          <span>{{ item.label }}</span>
-        </a>
-      </nav>
+  <!-- Mobile Sticky Topbar (< 768px) -->
+  <header class="mobile-topbar" role="banner">
+    <div class="mobile-topbar-inner">
+      <a routerLink="/overview" class="mobile-brand" (click)="onTabClick()">
+        <div class="brand-glyph-box sm">
+          <app-icon name="radar" [size]="16" class="brand-radar"></app-icon>
+          <span class="live-dot" aria-hidden="true"></span>
+        </div>
+        <span class="mobile-brand-title">Frontend Radar</span>
+      </a>
 
-      <!-- Header Actions -->
-      <div class="header-actions">
-        <!-- Quick Sweep Trigger -->
+      <div class="mobile-actions">
         <button
           (click)="triggerQuickScan()"
           [disabled]="isScanning()"
-          class="btn-header-action sweep-btn"
-          title="Trigger immediate feed scan"
-          aria-label="Scan job feeds now"
+          class="mobile-tool-btn sweep"
+          title="Sweep feeds"
+          aria-label="Sweep feeds"
         >
-          <app-icon [name]="isScanning() ? 'refresh' : 'play'" [size]="13" [class.spin]="isScanning()"></app-icon>
-          <span class="sweep-label">{{ isScanning() ? 'Scanning...' : 'Scan Feeds' }}</span>
+          <app-icon [name]="isScanning() ? 'refresh' : 'play'" [size]="14" [class.spin]="isScanning()"></app-icon>
         </button>
-
-        <!-- Theme Toggle -->
         <button
           (click)="toggleTheme()"
-          class="theme-toggle-btn"
+          class="mobile-tool-btn"
           [title]="theme.isDark() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
-          aria-label="Toggle color theme"
+          aria-label="Toggle theme"
         >
           <app-icon [name]="theme.isDark() ? 'moon' : 'sun'" [size]="14"></app-icon>
-          <span class="theme-label">{{ theme.isDark() ? 'Dark' : 'Light' }}</span>
         </button>
       </div>
     </div>
   </header>
 
   <!-- Main View Content Area -->
-  <main class="app-main" id="main-content" role="main">
+  <main class="app-main-content" id="main-content" role="main">
     <router-outlet></router-outlet>
   </main>
 
-  <!-- Mobile Floating Dock Navigation Bar -->
-  <nav class="mobile-floating-dock" aria-label="Mobile navigation">
-    <div class="dock-inner">
+  <!-- Mobile Bottom Navigation Dock (< 768px) -->
+  <nav class="mobile-bottom-dock" aria-label="Mobile navigation">
+    <div class="dock-container">
       <a
         *ngFor="let item of navItems"
         [routerLink]="item.path"
         routerLinkActive="active"
         (click)="onTabClick()"
-        class="dock-item"
+        class="dock-link"
       >
-        <div class="dock-icon-box">
+        <div class="dock-icon-wrap">
           <app-icon [name]="item.icon" [size]="18" class="dock-icon"></app-icon>
         </div>
-        <span class="dock-label">{{ item.label }}</span>
+        <span class="dock-text">{{ item.label }}</span>
       </a>
     </div>
   </nav>

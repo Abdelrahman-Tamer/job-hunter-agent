@@ -7,10 +7,15 @@ export type GeographicEligibility =
   | 'UNKNOWN';
 
 export type JobTrack =
+  | 'FRONTEND_EGYPT'
+  | 'FRONTEND_REMOTE_GCC'
+  | 'FRONTEND_INTERN'
   | 'WEB_ANGULAR'
   | 'NO_EXP_REMOTE'
   | 'SOFTWARE_INTERN'
   | 'OTHER';
+
+export type OpportunitySegment = 'EGYPT' | 'REMOTE_GCC_ABROAD' | 'OTHER';
 
 export type WorkplaceType = 'ON_SITE' | 'HYBRID' | 'REMOTE' | 'UNKNOWN';
 
@@ -58,6 +63,11 @@ export interface JobSummary {
   original_application_url: string;
   required_skills: string[];
   tracker_status?: ApplicationStatus | null;
+  opportunity_segment?: OpportunitySegment;
+  is_social_post?: boolean;
+  source_category_label?: string;
+  poster_name?: string | null;
+  contact_hint?: string | null;
 }
 
 export interface JobDetail extends JobSummary {

@@ -6,302 +6,293 @@ import { TelegramService } from '../../core/services/telegram.service';
 import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
 import { JobDrawerComponent } from '../../core/components/job-drawer/job-drawer.component';
-import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../../core/models/job.model';
+import { UiBadgeComponent } from '../../shared/ui/ui-badge.component';
+import { UiButtonComponent } from '../../shared/ui/ui-button.component';
+import { UiSkeletonComponent } from '../../shared/ui/ui-skeleton.component';
+import { UiEmptyStateComponent } from '../../shared/ui/ui-empty-state.component';
+import {
+  ApplicationStatus,
+  DailyRunRecord,
+  JobSummary,
+  SourceInfo,
+  WorkplaceType,
+} from '../../core/models/job.model';
 
 @Component({
   selector: 'app-overview',
   standalone: true,
-  imports: [CommonModule, RouterLink, IconComponent, JobDrawerComponent],
+  imports: [
+    CommonModule,
+    RouterLink,
+    IconComponent,
+    JobDrawerComponent,
+    UiBadgeComponent,
+    UiButtonComponent,
+    UiSkeletonComponent,
+    UiEmptyStateComponent,
+  ],
   template: `
-    <div class="overview-view">
-      <!-- Top Telemetry Command Strip -->
-      <section class="telemetry-strip" aria-label="Autonomous agent telemetry">
-        <div class="strip-left">
-          <div class="agent-status-indicator">
+    <div class="overview-command-center">
+      <!-- Top Executive KPI Strip (4 Hairline Metric Cards + Sweep Trigger) -->
+      <section class="kpi-strip-section" aria-label="Key performance indicators">
+        <div class="kpi-cards-grid">
+          <!-- KPI 1: Total Verified Roles -->
+          <a routerLink="/jobs" class="kpi-card" (click)="onNavClick()">
+            <div class="kpi-top">
+              <span class="kpi-label">Verified Roles</span>
+              <app-icon name="briefcase" [size]="14" class="kpi-icon"></app-icon>
+            </div>
+            <div class="kpi-num tabular-nums">{{ totalJobs() }}</div>
+            <span class="kpi-subtext">Active on Radar</span>
+          </a>
+
+          <!-- KPI 2: Egypt Frontend -->
+          <a routerLink="/jobs" [queryParams]="{ segment: 'EGYPT' }" class="kpi-card" (click)="onNavClick()">
+            <div class="kpi-top">
+              <span class="kpi-label">Egypt Frontend</span>
+              <span class="kpi-flag">🇪🇬</span>
+            </div>
+            <div class="kpi-num tabular-nums text-emerald">{{ countEgypt() }}</div>
+            <span class="kpi-subtext">Cairo • Giza • Alex</span>
+          </a>
+
+          <!-- KPI 3: Remote GCC & Abroad -->
+          <a routerLink="/jobs" [queryParams]="{ segment: 'REMOTE_GCC_ABROAD' }" class="kpi-card" (click)="onNavClick()">
+            <div class="kpi-top">
+              <span class="kpi-label">Remote GCC & Abroad</span>
+              <app-icon name="globe" [size]="14" class="kpi-icon text-brand"></app-icon>
+            </div>
+            <div class="kpi-num tabular-nums text-brand">{{ countRemote() }}</div>
+            <span class="kpi-subtext">Gulf & Worldwide</span>
+          </a>
+
+          <!-- KPI 4: Active Pipeline -->
+          <a routerLink="/tracker" class="kpi-card" (click)="onNavClick()">
+            <div class="kpi-top">
+              <span class="kpi-label">Active Pipeline</span>
+              <app-icon name="bookmark" [size]="14" class="kpi-icon text-amber"></app-icon>
+            </div>
+            <div class="kpi-num tabular-nums text-amber">{{ totalPipeline() }}</div>
+            <span class="kpi-subtext">{{ savedCount() }} Saved • {{ appliedCount() }} Applied</span>
+          </a>
+        </div>
+
+        <!-- Sweep Feeds Control Bar -->
+        <div class="sweep-control-bar">
+          <div class="sweep-meta-left">
             <span class="status-pulse-dot"></span>
-            <span class="agent-status-label">Autonomous Hunter Active</span>
+            <span class="sweep-meta-text">
+              <strong>Autonomous Pipeline Active</strong> — Scheduled Cairo 09:00 Daily Digest
+            </span>
           </div>
-          <span class="strip-divider">|</span>
-          <span class="strip-meta-text">Next Sweep: 09:00 Cairo</span>
-          <span class="strip-divider">|</span>
-          <span class="strip-meta-text">{{ sources().length }} Monitored Feeds</span>
-        </div>
 
-        <div class="strip-metrics">
-          <div class="mini-metric">
-            <span class="mini-metric-num">{{ totalJobs() }}</span>
-            <span class="mini-metric-label">Discovered</span>
-          </div>
-          <div class="mini-metric">
-            <span class="mini-metric-num text-amber">{{ savedCount() }}</span>
-            <span class="mini-metric-label">Saved</span>
-          </div>
-          <div class="mini-metric">
-            <span class="mini-metric-num text-blue">{{ appliedCount() }}</span>
-            <span class="mini-metric-label">In Pipeline</span>
-          </div>
-          <div class="mini-metric">
-            <span class="mini-metric-num text-green">{{ averageMatchScore() }}%</span>
-            <span class="mini-metric-label">Avg Match</span>
-          </div>
-        </div>
-
-        <div class="strip-right">
           <button
-            (click)="triggerRun()"
-            [disabled]="isTriggering()"
-            class="btn btn-primary btn-sm sweep-trigger-btn"
+            type="button"
+            (click)="triggerSweep()"
+            [disabled]="isSweeping()"
+            class="sweep-action-btn"
+            title="Execute immediate feed sweep"
             aria-label="Sweep feeds now"
           >
-            <app-icon [name]="isTriggering() ? 'refresh' : 'play'" [size]="12" [class.spin]="isTriggering()"></app-icon>
-            <span>{{ isTriggering() ? 'Sweeping...' : 'Sweep Feeds' }}</span>
+            <app-icon [name]="isSweeping() ? 'refresh' : 'play'" [size]="13" [class.spin]="isSweeping()"></app-icon>
+            <span>{{ isSweeping() ? 'Sweeping Feeds...' : 'Sweep Feeds Now' }}</span>
           </button>
         </div>
       </section>
 
-      <!-- 3 Autonomous Job Tracks Focus Hub -->
-      <section class="tracks-hub-section" aria-label="Autonomous target job tracks">
-        <div class="tracks-hub-header">
-          <div class="tracks-hub-title-group">
-            <span class="hub-eyebrow">Categorized Opportunities</span>
-            <h2 class="tracks-hub-title">Job Search Tracks</h2>
-          </div>
-          <span class="tracks-hub-subtitle">3 dedicated pipelines active in daily Cairo 09:00 sweep</span>
-        </div>
-
-        <div class="tracks-hub-grid">
-          <!-- Track 1: Web & Angular -->
-          <a
-            routerLink="/jobs"
-            [queryParams]="{ track: 'WEB_ANGULAR' }"
-            (click)="onTrackCardClick()"
-            class="track-hub-card track-card-web"
-            tabindex="0"
-            role="article"
-            aria-label="Explore Web and Angular track"
-          >
-            <div class="track-card-top">
-              <div class="track-icon-badge web-badge">
-                <span class="track-emoji">🌐</span>
-              </div>
-              <span class="track-count-pill">{{ countWeb() }} Roles</span>
-            </div>
-            <div class="track-card-content">
-              <div class="track-title-row">
-                <h3 class="track-name">Web & Angular</h3>
-                <span class="track-tag-mini">Track 1</span>
-              </div>
-              <p class="track-desc">Angular 17-22+, TypeScript, RxJS, NgRx, Frontend Engineering & UI.</p>
-            </div>
-            <div class="track-card-footer">
-              <span class="track-action-link">
-                <span>Explore Track</span>
-                <app-icon name="arrow-right" [size]="12"></app-icon>
-              </span>
-            </div>
-          </a>
-
-          <!-- Track 2: No-Exp Remote -->
-          <a
-            routerLink="/jobs"
-            [queryParams]="{ track: 'NO_EXP_REMOTE' }"
-            (click)="onTrackCardClick()"
-            class="track-hub-card track-card-remote"
-            tabindex="0"
-            role="article"
-            aria-label="Explore No Experience Remote track"
-          >
-            <div class="track-card-top">
-              <div class="track-icon-badge remote-badge">
-                <span class="track-emoji">💼</span>
-              </div>
-              <span class="track-count-pill">{{ countRemote() }} Roles</span>
-            </div>
-            <div class="track-card-content">
-              <div class="track-title-row">
-                <h3 class="track-name">No-Exp Remote</h3>
-                <span class="track-tag-mini">Track 2</span>
-              </div>
-              <p class="track-desc">Entry remote work: Data Entry, Call Center, Virtual Assistant & Customer Support.</p>
-            </div>
-            <div class="track-card-footer">
-              <span class="track-action-link">
-                <span>Explore Track</span>
-                <app-icon name="arrow-right" [size]="12"></app-icon>
-              </span>
-            </div>
-          </a>
-
-          <!-- Track 3: Software Internships -->
-          <a
-            routerLink="/jobs"
-            [queryParams]="{ track: 'SOFTWARE_INTERN' }"
-            (click)="onTrackCardClick()"
-            class="track-hub-card track-card-intern"
-            tabindex="0"
-            role="article"
-            aria-label="Explore Software Internships track"
-          >
-            <div class="track-card-top">
-              <div class="track-icon-badge intern-badge">
-                <span class="track-emoji">🎓</span>
-              </div>
-              <span class="track-count-pill">{{ countIntern() }} Roles</span>
-            </div>
-            <div class="track-card-content">
-              <div class="track-title-row">
-                <h3 class="track-name">Software Interns</h3>
-                <span class="track-tag-mini">Track 3</span>
-              </div>
-              <p class="track-desc">Internships across the entire stack: Frontend, Backend, Fullstack, AI & Machine Learning.</p>
-            </div>
-            <div class="track-card-footer">
-              <span class="track-action-link">
-                <span>Explore Track</span>
-                <app-icon name="arrow-right" [size]="12"></app-icon>
-              </span>
-            </div>
-          </a>
-        </div>
-      </section>
-
-      <!-- Main Content Grid -->
-      <div class="overview-grid">
-        <!-- Left: Top Curated Opportunities -->
-        <main class="primary-opportunities-col" aria-labelledby="top-matches-heading">
-          <div class="section-title-bar">
-            <div class="title-with-count">
-              <h2 id="top-matches-heading">High-Alignment Matches</h2>
-              <span class="count-tag">{{ topJobs().length }} top roles</span>
+      <!-- Two-Column Bento Layout -->
+      <div class="bento-layout-grid">
+        <!-- Left Column (Primary): Top Matches Today -->
+        <section class="bento-primary-card" aria-label="Top matching opportunities">
+          <header class="bento-card-header">
+            <div class="header-title-wrap">
+              <app-icon name="sparkles" [size]="15" class="header-glyph"></app-icon>
+              <h2 class="bento-title">Top Opportunity Matches</h2>
             </div>
 
-            <a routerLink="/jobs" class="view-all-link">
-              <span>All {{ totalJobs() }} jobs</span>
+            <a routerLink="/jobs" class="view-all-link" (click)="onNavClick()">
+              <span>View all {{ totalJobs() }}</span>
               <app-icon name="arrow-right" [size]="12"></app-icon>
             </a>
+          </header>
+
+          <!-- Skeleton Loader -->
+          <div *ngIf="isLoadingTopJobs()" class="skeletons-stack">
+            <ui-skeleton *ngFor="let i of [1, 2, 3, 4, 5]" height="64px" rounded="sm"></ui-skeleton>
           </div>
 
           <!-- Empty State -->
-          <div *ngIf="topJobs().length === 0" class="empty-panel">
-            <app-icon name="briefcase" [size]="28" class="text-muted"></app-icon>
-            <p>Scanning active opportunities across all verified feeds...</p>
+          <div *ngIf="!isLoadingTopJobs() && topJobs().length === 0" class="empty-wrap">
+            <ui-empty-state
+              icon="briefcase"
+              title="No Opportunities Synced Yet"
+              subtitle="Trigger an immediate feed sweep to discover active frontend engineering roles."
+            >
+              <div action>
+                <ui-button variant="primary" size="sm" (buttonClick)="triggerSweep()">
+                  <app-icon name="play" [size]="12"></app-icon>
+                  <span>Sweep Feeds</span>
+                </ui-button>
+              </div>
+            </ui-empty-state>
           </div>
 
-          <!-- Match Rows List -->
-          <div class="matches-list" *ngIf="topJobs().length > 0">
+          <!-- High-Density Matches List -->
+          <div *ngIf="!isLoadingTopJobs() && topJobs().length > 0" class="matches-compact-list" role="list">
             <article
               *ngFor="let job of topJobs()"
-              class="match-row-card"
-              (click)="inspectJob(job)"
+              (click)="openDrawer(job)"
+              class="match-item-row"
               tabindex="0"
-              (keyup.enter)="inspectJob(job)"
-              role="button"
-              [attr.aria-label]="'Inspect ' + job.title + ' at ' + job.company"
+              (keydown.enter)="openDrawer(job)"
+              [attr.aria-label]="job.title + ' at ' + job.company"
             >
-              <div class="match-left">
-                <span class="company-avatar">{{ job.company.charAt(0) }}</span>
-                <div class="match-info">
-                  <div class="match-header-line">
-                    <h3 class="role-title-text">{{ job.title }}</h3>
-                    <span class="score-chip" [class.high-score]="job.match_score >= 70">
-                      {{ roundScore(job.match_score) }}% match
-                    </span>
-                  </div>
+              <!-- Score Badge -->
+              <div
+                class="match-score-badge tabular-nums"
+                [attr.data-band]="getScoreBand(job.match_score)"
+              >
+                {{ roundScore(job.match_score) }}%
+              </div>
 
-                  <div class="match-meta-line">
-                    <span class="company-name-text">{{ job.company }}</span>
-                    <span class="meta-dot">·</span>
-                    <span class="badge badge-purple" *ngIf="job.job_track === 'WEB_ANGULAR'">🌐 Web & Angular</span>
-                    <span class="badge badge-amber" *ngIf="job.job_track === 'NO_EXP_REMOTE'">💼 No-Exp Remote</span>
-                    <span class="badge badge-cyan" *ngIf="job.job_track === 'SOFTWARE_INTERN'">🎓 Software Intern</span>
-                    <span class="meta-dot" *ngIf="job.job_track">·</span>
-                    <span class="meta-spec">
-                      <app-icon name="map-pin" [size]="10"></app-icon>
-                      {{ job.raw_location || 'Remote Worldwide' }}
-                    </span>
-                    <span class="meta-dot">·</span>
-                    <span class="meta-badge-text">{{ formatEligibility(job.eligibility) }}</span>
-                    <span class="meta-dot" *ngIf="formatWorkplace(job.workplace_type)">·</span>
-                    <span class="meta-badge-text" *ngIf="formatWorkplace(job.workplace_type)">{{ formatWorkplace(job.workplace_type) }}</span>
-                  </div>
+              <!-- Main Content -->
+              <div class="match-main-content">
+                <div class="match-title-line">
+                  <h3 class="role-name">{{ job.title }}</h3>
+                  <ui-badge
+                    *ngIf="job.is_social_post"
+                    variant="social"
+                    size="sm"
+                    [dot]="true"
+                  >
+                    LinkedIn
+                  </ui-badge>
+                  <ui-badge
+                    *ngIf="job.opportunity_segment === 'EGYPT'"
+                    variant="default"
+                    size="sm"
+                  >
+                    Egypt
+                  </ui-badge>
+                  <ui-badge
+                    *ngIf="job.opportunity_segment === 'REMOTE_GCC_ABROAD'"
+                    variant="brand"
+                    size="sm"
+                  >
+                    Remote Abroad
+                  </ui-badge>
+                </div>
+
+                <div class="match-meta-line">
+                  <span class="company-text">{{ job.company }}</span>
+                  <span class="dot-separator">•</span>
+                  <span class="meta-item">{{ formatWorkplace(job.workplace_type) }}</span>
+                  <span class="dot-separator" *ngIf="job.raw_location">•</span>
+                  <span class="meta-item location-truncate" *ngIf="job.raw_location">
+                    {{ job.raw_location }}
+                  </span>
+                  <span class="dot-separator">•</span>
+                  <span class="time-item tabular-nums">
+                    {{ formatRelativeDate(job.published_at || job.first_seen_at) }}
+                  </span>
                 </div>
               </div>
 
-              <div class="match-actions" (click)="$event.stopPropagation()">
-                <button (click)="inspectJob(job)" class="btn btn-secondary btn-sm" title="Inspect Match Specs">
-                  <app-icon name="eye" [size]="12"></app-icon>
-                  <span>Inspect</span>
-                </button>
-                <a
-                  [href]="job.original_application_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  (click)="onOpenLink($event, job.original_application_url)"
-                  class="btn btn-primary btn-sm"
-                  title="Apply on company portal"
-                >
-                  <span>Apply</span>
-                  <app-icon name="external-link" [size]="11"></app-icon>
-                </a>
+              <!-- Action Indicator -->
+              <div class="match-arrow-wrap">
+                <app-icon name="chevron-right" [size]="14"></app-icon>
               </div>
             </article>
           </div>
-        </main>
+        </section>
 
-        <!-- Right: Feeds & System Health Ledger -->
-        <aside class="secondary-ledger-col" aria-label="System status">
-          <section class="ledger-card">
-            <div class="ledger-card-header">
-              <div class="ledger-title-wrap">
-                <app-icon name="database" [size]="14"></app-icon>
-                <h3>Monitored ATS Feeds</h3>
+        <!-- Right Column (Secondary): Source Health & Recent Sweeps -->
+        <aside class="bento-secondary-col" aria-label="Platform telemetry and source health">
+          <!-- Feed Adapters Health Card -->
+          <section class="bento-card">
+            <header class="bento-card-header">
+              <div class="header-title-wrap">
+                <app-icon name="database" [size]="14" class="header-glyph"></app-icon>
+                <h2 class="bento-title">Feed Health & Ingestion</h2>
               </div>
-              <span class="active-badge">{{ sources().length }} Live</span>
-            </div>
+              <ui-badge variant="success" size="sm" [dot]="true">
+                {{ sources().length }} Active
+              </ui-badge>
+            </header>
 
-            <div class="sources-ledger">
-              <div *ngFor="let s of sources()" class="source-ledger-row">
-                <div class="source-name-wrap">
-                  <span class="source-dot"></span>
-                  <span class="source-name">{{ s.name }}</span>
+            <div class="sources-health-list">
+              <div *ngFor="let s of sources()" class="source-status-row">
+                <div class="source-info-left">
+                  <span class="source-live-dot" [class.enabled]="s.is_enabled"></span>
+                  <span class="source-title">{{ s.name }}</span>
                 </div>
-                <span class="source-status-text">Active</span>
+                <span class="source-type-pill">{{ s.source_type }}</span>
               </div>
             </div>
           </section>
 
-          <!-- Guardrails & Target Profile Snapshot -->
-          <section class="ledger-card">
-            <div class="ledger-card-header">
-              <div class="ledger-title-wrap">
-                <app-icon name="shield-check" [size]="14" class="text-green"></app-icon>
-                <h3>Engine Calibration</h3>
+          <!-- Last Daily Sweep Telemetry -->
+          <section class="bento-card" *ngIf="lastRun()">
+            <header class="bento-card-header">
+              <div class="header-title-wrap">
+                <app-icon name="activity" [size]="14" class="header-glyph text-brand"></app-icon>
+                <h2 class="bento-title">Latest Sweep Metrics</h2>
+              </div>
+              <span class="run-date-tag tabular-nums">{{ lastRun()?.run_date }}</span>
+            </header>
+
+            <div class="sweep-metrics-grid tabular-nums">
+              <div class="metric-block">
+                <span class="metric-num">{{ lastRun()?.jobs_discovered || 0 }}</span>
+                <span class="metric-lbl">Discovered</span>
+              </div>
+              <div class="metric-block">
+                <span class="metric-num text-emerald">{{ lastRun()?.jobs_new || 0 }}</span>
+                <span class="metric-lbl">New Added</span>
+              </div>
+              <div class="metric-block">
+                <span class="metric-num text-amber">{{ lastRun()?.jobs_notified || 0 }}</span>
+                <span class="metric-lbl">Notified</span>
+              </div>
+              <div class="metric-block">
+                <span class="metric-num text-brand status-text">{{ lastRun()?.status || 'OK' }}</span>
+                <span class="metric-lbl">Status</span>
               </div>
             </div>
+          </section>
 
-            <div class="ledger-bullets">
-              <div class="bullet-row">
-                <span class="bullet-label">Track 1:</span>
-                <span class="bullet-val">Web & Angular Frontend</span>
+          <!-- Engineering Taxonomy Card -->
+          <section class="bento-card">
+            <header class="bento-card-header">
+              <div class="header-title-wrap">
+                <app-icon name="shield-check" [size]="14" class="header-glyph text-emerald"></app-icon>
+                <h2 class="bento-title">Candidate Alignment</h2>
               </div>
-              <div class="bullet-row">
-                <span class="bullet-label">Track 2:</span>
-                <span class="bullet-val">No-Exp Remote (Data, Support)</span>
+            </header>
+
+            <div class="taxonomy-summary">
+              <div class="taxonomy-row">
+                <span class="tax-label">Target Role</span>
+                <span class="tax-value">Frontend Engineer (Angular / Modern Web)</span>
               </div>
-              <div class="bullet-row">
-                <span class="bullet-label">Track 3:</span>
-                <span class="bullet-val">Software Interns (Frontend-AI)</span>
+              <div class="taxonomy-row">
+                <span class="tax-label">Base Location</span>
+                <span class="tax-value">Cairo, Egypt (GMT+2)</span>
               </div>
-              <div class="bullet-row">
-                <span class="bullet-label">Cadence:</span>
-                <span class="bullet-val">Daily 09:00 Cairo Telegram</span>
+              <div class="taxonomy-row">
+                <span class="tax-label">Primary Segments</span>
+                <span class="tax-value">Egypt On-site/Hybrid & Worldwide Remote</span>
+              </div>
+              <div class="taxonomy-row">
+                <span class="tax-label">Core Tech Stack</span>
+                <span class="tax-value">Angular, TypeScript, RxJS, NgRx, Signals</span>
               </div>
             </div>
           </section>
         </aside>
       </div>
 
-      <!-- Integrated Job Drawer Inspector -->
+      <!-- Slide-Over Drawer Integration -->
       <app-job-drawer
         [isOpen]="isDrawerOpen()"
         [job]="selectedJob()"
@@ -311,549 +302,140 @@ import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../..
     </div>
   `,
   styles: [`
-    .overview-view {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-4);
+    :host {
+      display: block;
       width: 100%;
     }
 
-    /* Top Telemetry Command Strip */
-    .telemetry-strip {
-      background: var(--color-bg-surface-glass);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: 10px 14px;
+    .overview-command-center {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-4);
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: var(--space-5);
+      width: 100%;
+      max-width: 1240px;
+      margin: 0 auto;
     }
 
-    /* Tracks Focus Hub */
-    .tracks-hub-section {
+    /* ==========================================================================
+       Top Executive KPI Strip
+       ========================================================================== */
+    .kpi-strip-section {
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
-      width: 100%;
     }
 
-    .tracks-hub-header {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: var(--space-2);
-      flex-wrap: wrap;
+    .kpi-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-3);
     }
 
-    .tracks-hub-title-group {
+    .kpi-card {
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      padding: var(--space-3-5) var(--space-4);
       display: flex;
       flex-direction: column;
       gap: 2px;
-    }
-
-    .hub-eyebrow {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--color-brand-accent);
-      font-family: var(--font-mono);
-    }
-
-    .tracks-hub-title {
-      font-size: var(--text-base);
-      font-weight: 700;
-      color: var(--color-text-primary);
-      margin: 0;
-    }
-
-    .tracks-hub-subtitle {
-      font-size: 11px;
-      color: var(--color-text-muted);
-    }
-
-    .tracks-hub-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-3);
-      width: 100%;
-    }
-
-    .track-hub-card {
-      background: var(--color-bg-surface-glass);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-lg);
-      padding: var(--space-4);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      gap: var(--space-3);
       text-decoration: none;
       color: inherit;
       transition: all var(--motion-fast);
       position: relative;
-      overflow: hidden;
-      cursor: pointer;
+    }
+    .kpi-card:hover {
+      background-color: var(--color-bg-surface-2);
+      border-color: var(--color-border-default);
+      transform: translateY(-1px);
     }
 
-    .track-hub-card:hover {
-      border-color: var(--color-border-hover);
-      background: var(--color-bg-surface-hover);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .track-hub-card:active {
-      transform: scale(0.99);
-    }
-
-    .track-card-web {
-      border-top: 3px solid #60a5fa;
-    }
-    .track-card-remote {
-      border-top: 3px solid #34d399;
-    }
-    .track-card-intern {
-      border-top: 3px solid #c084fc;
-    }
-
-    .track-card-top {
+    .kpi-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: var(--space-2);
     }
-
-    .track-icon-badge {
-      width: 32px;
-      height: 32px;
-      border-radius: var(--radius-md);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-    }
-
-    .web-badge {
-      background: rgba(37, 99, 235, 0.12);
-      border: 1px solid rgba(37, 99, 235, 0.3);
-    }
-    .remote-badge {
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-    .intern-badge {
-      background: rgba(168, 85, 247, 0.12);
-      border: 1px solid rgba(168, 85, 247, 0.3);
-    }
-
-    .track-count-pill {
+    .kpi-label {
       font-size: 11px;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      padding: 2px 8px;
-      border-radius: var(--radius-xs);
-      background: var(--color-bg-surface-elevated);
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-primary);
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      letter-spacing: -0.01em;
     }
-
-    .track-card-content {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .track-title-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .track-name {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--color-text-primary);
-      margin: 0;
-    }
-
-    .track-tag-mini {
-      font-size: 9.5px;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      text-transform: uppercase;
-      padding: 1px 4px;
-      border-radius: 3px;
-      background: var(--color-bg-surface-elevated);
+    .kpi-icon {
       color: var(--color-text-muted);
     }
-
-    .track-desc {
-      font-size: 11.5px;
-      color: var(--color-text-secondary);
-      line-height: 1.45;
-      margin: 0;
+    .kpi-flag {
+      font-size: 13px;
+      line-height: 1;
     }
 
-    .track-card-footer {
+    .kpi-num {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--color-text-primary);
+      line-height: 1.2;
+      margin: 2px 0;
+    }
+
+    .kpi-subtext {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      letter-spacing: -0.01em;
+    }
+
+    /* Sweep Control Bar */
+    .sweep-control-bar {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
-      padding-top: var(--space-2);
-      border-top: 1px solid var(--color-border-subtle);
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: 10px 14px;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      flex-wrap: wrap;
     }
 
-    .track-action-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11.5px;
-      font-weight: 600;
-      color: var(--color-brand-accent);
-    }
-
-    .strip-left {
+    .sweep-meta-left {
       display: flex;
       align-items: center;
-      gap: var(--space-2-5);
-    }
-    .agent-status-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
     .status-pulse-dot {
       width: 7px;
       height: 7px;
-      border-radius: var(--radius-full);
-      background: var(--color-success);
+      border-radius: 50%;
+      background-color: var(--color-success);
     }
-    .agent-status-label {
-      font-size: var(--text-xs);
-      font-weight: 700;
-      color: var(--color-text-primary);
-    }
-    .strip-divider {
-      color: var(--color-border-default);
-      font-size: 11px;
-    }
-    .strip-meta-text {
-      font-size: 11px;
-      color: var(--color-text-muted);
-      font-family: var(--font-mono);
-    }
-
-    .strip-metrics {
-      display: flex;
-      align-items: center;
-      gap: var(--space-4);
-    }
-    .mini-metric {
-      display: flex;
-      align-items: baseline;
-      gap: 5px;
-    }
-    .mini-metric-num {
-      font-size: var(--text-sm);
-      font-weight: 800;
-      font-family: var(--font-mono);
-      color: var(--color-text-primary);
-    }
-    .mini-metric-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      color: var(--color-text-muted);
-      letter-spacing: 0.04em;
-    }
-
-    .text-amber { color: var(--color-warning-text); }
-    .text-blue { color: var(--color-brand-accent); }
-    .text-green { color: var(--color-success-text); }
-    .text-muted { color: var(--color-text-muted); }
-
-    .strip-right {
-      flex-shrink: 0;
-    }
-    .sweep-trigger-btn {
-      min-height: 36px;
-      padding: 6px 14px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    /* Main Grid */
-    .overview-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 2.3fr) minmax(0, 1fr);
-      gap: var(--space-4);
-      width: 100%;
-    }
-
-    .section-title-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: var(--space-3);
-      padding-bottom: var(--space-2);
-      border-bottom: 1px solid var(--color-border-subtle);
-    }
-    .title-with-count {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-    }
-    .title-with-count h2 {
-      font-size: var(--text-sm);
-      font-weight: 700;
-      margin: 0;
-      color: var(--color-text-primary);
-    }
-    .count-tag {
-      font-size: 11px;
-      font-family: var(--font-mono);
-      color: var(--color-text-muted);
-      background: var(--color-bg-surface-elevated);
-      padding: 1px 6px;
-      border-radius: var(--radius-xs);
-    }
-    .view-all-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: var(--text-xs);
-      color: var(--color-brand-accent);
-      font-weight: 600;
-    }
-    .view-all-link:hover {
-      text-decoration: underline;
-    }
-
-    /* Matches Rows List */
-    .matches-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .match-row-card {
-      background: var(--color-bg-surface-glass);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: 10px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      cursor: pointer;
-      transition: background-color var(--motion-fast), border-color var(--motion-fast);
-    }
-    /* Silky non-jumpy hover */
-    .match-row-card:hover {
-      background-color: var(--color-bg-surface-hover);
-      border-color: var(--color-border-hover);
-    }
-
-    .match-left {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2-5);
-      min-width: 0;
-      flex: 1;
-    }
-
-    .match-info {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      min-width: 0;
-      flex: 1;
-    }
-
-    .match-header-line {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      min-width: 0;
-    }
-    .role-title-text {
-      font-size: var(--text-xs);
-      font-weight: 700;
-      color: var(--color-text-primary);
-      margin: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .score-chip {
-      font-size: 11px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-      padding: 1px 6px;
-      border-radius: var(--radius-xs);
-      background: var(--color-brand-subtle);
-      color: var(--color-brand-accent);
-      border: 1px solid var(--color-brand-border);
-      flex-shrink: 0;
-    }
-    .score-chip.high-score {
-      background: var(--color-success-bg);
-      color: var(--color-success-text);
-      border-color: var(--color-success-border);
-    }
-
-    .match-meta-line {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 11px;
-      color: var(--color-text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .company-name-text {
-      font-weight: 600;
+    .sweep-meta-text {
+      font-size: 12px;
       color: var(--color-text-secondary);
     }
-    .meta-dot {
-      color: var(--color-border-default);
+    .sweep-meta-text strong {
+      color: var(--color-text-primary);
     }
-    .meta-spec {
+
+    .sweep-action-btn {
       display: inline-flex;
       align-items: center;
-      gap: 3px;
-    }
-    .meta-badge-text {
-      color: var(--color-text-muted);
-    }
-
-    .match-actions {
-      display: flex;
-      align-items: center;
       gap: 6px;
-      flex-shrink: 0;
-    }
-
-    /* Right Column: Ledger */
-    .secondary-ledger-col {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-    }
-
-    .ledger-card {
-      background: var(--color-bg-surface-glass);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid var(--color-border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-3-5);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-    }
-    .ledger-card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--color-border-subtle);
-      padding-bottom: var(--space-2);
-    }
-    .ledger-title-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .ledger-title-wrap h3 {
-      font-size: var(--text-xs);
-      font-weight: 700;
-      margin: 0;
-      color: var(--color-text-primary);
-    }
-    .active-badge {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-      color: var(--color-success-text);
-      background: var(--color-success-bg);
-      padding: 1px 6px;
+      padding: 6px 14px;
+      background-color: var(--color-brand-accent);
+      border: 1px solid transparent;
       border-radius: var(--radius-xs);
-      border: 1px solid var(--color-success-border);
-    }
-
-    .sources-ledger {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .source-ledger-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 5px 8px;
-      background: var(--color-bg-surface-elevated);
-      border-radius: var(--radius-xs);
-      border: 1px solid var(--color-border-subtle);
-    }
-    .source-name-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .source-dot {
-      width: 5px;
-      height: 5px;
-      border-radius: var(--radius-full);
-      background: var(--color-success);
-    }
-    .source-name {
-      font-size: 11px;
+      color: #ffffff;
+      font-size: 12px;
       font-weight: 600;
-      color: var(--color-text-primary);
+      cursor: pointer;
+      transition: background-color var(--motion-fast);
     }
-    .source-status-text {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: var(--color-text-muted);
+    .sweep-action-btn:hover:not(:disabled) {
+      background-color: var(--color-brand-hover);
     }
-
-    .ledger-bullets {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .bullet-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 11px;
-      padding: 4px 0;
-      border-bottom: 1px solid var(--color-border-subtle);
-    }
-    .bullet-row:last-child {
-      border-bottom: none;
-    }
-    .bullet-label {
-      color: var(--color-text-muted);
-    }
-    .bullet-val {
-      font-weight: 600;
-      color: var(--color-text-primary);
-    }
-
-    .empty-panel {
-      padding: var(--space-6);
-      text-align: center;
-      color: var(--color-text-muted);
-      font-size: var(--text-xs);
+    .sweep-action-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
 
     .spin {
@@ -864,66 +446,339 @@ import { JobSummary, DailyRunRecord, SourceInfo, ApplicationStatus } from '../..
       to { transform: rotate(360deg); }
     }
 
-    @media (max-width: 860px) {
-      .overview-grid {
-        grid-template-columns: 1fr;
-      }
-      .telemetry-strip {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--space-3);
-      }
-      .strip-metrics {
-        justify-content: space-between;
-      }
-      .tracks-hub-grid {
-        grid-template-columns: 1fr;
-      }
+    /* ==========================================================================
+       Two-Column Bento Grid
+       ========================================================================== */
+    .bento-layout-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: var(--space-4);
+      align-items: start;
     }
 
-    @media (max-width: 640px) {
-      .strip-left {
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-      .strip-divider {
-        display: none;
-      }
-      .strip-metrics {
-        display: grid;
+    .bento-primary-card {
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .bento-secondary-col {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .bento-card {
+      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      padding: var(--space-3-5) var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .bento-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--color-border-subtle);
+      padding-bottom: var(--space-2-5);
+    }
+
+    .header-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .header-glyph {
+      color: var(--color-brand-accent);
+    }
+
+    .bento-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--color-text-primary);
+    }
+
+    .view-all-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-brand-accent);
+      text-decoration: none;
+      transition: color var(--motion-fast);
+    }
+    .view-all-link:hover {
+      color: var(--color-brand-hover);
+    }
+
+    .run-date-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--color-text-muted);
+    }
+
+    /* Top Matches Compact List */
+    .skeletons-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .matches-compact-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .match-item-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 9px 12px;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+      cursor: pointer;
+      transition: all var(--motion-fast);
+    }
+    .match-item-row:hover {
+      background-color: var(--color-bg-surface-hover);
+      border-color: var(--color-border-default);
+      transform: translateX(2px);
+    }
+
+    .match-score-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      height: 28px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid var(--color-border-subtle);
+      background-color: var(--color-bg-surface-1);
+      flex-shrink: 0;
+    }
+    .match-score-badge[data-band="emerald"] {
+      border-color: rgba(16, 185, 129, 0.4);
+      background-color: rgba(16, 185, 129, 0.08);
+      color: var(--color-success);
+    }
+    .match-score-badge[data-band="indigo"] {
+      border-color: var(--color-brand-border);
+      background-color: var(--color-brand-subtle);
+      color: var(--color-brand-accent);
+    }
+    .match-score-badge[data-band="amber"] {
+      border-color: rgba(245, 158, 11, 0.4);
+      background-color: rgba(245, 158, 11, 0.08);
+      color: var(--color-warning);
+    }
+    .match-score-badge[data-band="muted"] {
+      color: var(--color-text-muted);
+    }
+
+    .match-main-content {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .match-title-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .role-name {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 320px;
+    }
+
+    .match-meta-line {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      flex-wrap: wrap;
+    }
+    .company-text {
+      color: var(--color-text-secondary);
+      font-weight: 500;
+    }
+    .dot-separator {
+      color: var(--color-text-muted);
+    }
+    .location-truncate {
+      max-width: 120px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .match-arrow-wrap {
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      transition: transform var(--motion-fast);
+    }
+    .match-item-row:hover .match-arrow-wrap {
+      transform: translateX(2px);
+      color: var(--color-text-primary);
+    }
+
+    /* Sources Health List */
+    .sources-health-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .source-status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+    }
+
+    .source-info-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .source-live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--color-text-muted);
+    }
+    .source-live-dot.enabled {
+      background-color: var(--color-success);
+    }
+    .source-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+    .source-type-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--color-text-muted);
+    }
+
+    /* Sweep Metrics Grid */
+    .sweep-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-2);
+    }
+
+    .metric-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 6px 4px;
+    }
+    .metric-num {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      line-height: 1.2;
+    }
+    .metric-lbl {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+
+    /* Taxonomy Summary */
+    .taxonomy-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .taxonomy-row {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 5px 8px;
+      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-xs);
+    }
+    .tax-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-text-muted);
+    }
+    .tax-value {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--color-text-primary);
+    }
+
+    .text-emerald { color: var(--color-success); }
+    .text-brand { color: var(--color-brand-accent); }
+    .text-amber { color: var(--color-warning); }
+
+    @media (max-width: 992px) {
+      .kpi-cards-grid {
         grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-        width: 100%;
       }
-      .match-row-card {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-      }
-      .match-actions {
-        width: 100%;
-        display: flex;
-        gap: 8px;
-      }
-      .match-actions .btn {
-        flex: 1;
+      .bento-layout-grid {
+        grid-template-columns: 1fr;
       }
     }
 
-    @media (max-width: 380px) {
-      .tracks-hub-header {
+    @media (max-width: 500px) {
+      .kpi-cards-grid {
+        grid-template-columns: 1fr;
+      }
+      .sweep-control-bar {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
+        align-items: stretch;
       }
-      .telemetry-strip {
-        padding: 8px 10px;
-      }
-      .mini-metric-num {
-        font-size: 13px;
-      }
-      .strip-right .sweep-trigger-btn {
+      .sweep-action-btn {
         width: 100%;
+        justify-content: center;
+      }
+      .role-name {
+        max-width: 200px;
       }
     }
   `],
@@ -934,15 +789,18 @@ export class OverviewComponent implements OnInit {
   private readonly toast = inject(ToastService);
 
   readonly totalJobs = signal<number>(0);
+  readonly countEgypt = signal<number>(0);
+  readonly countRemote = signal<number>(0);
   readonly savedCount = signal<number>(0);
   readonly appliedCount = signal<number>(0);
-  readonly countWeb = signal<number>(0);
-  readonly countRemote = signal<number>(0);
-  readonly countIntern = signal<number>(0);
+  readonly totalPipeline = signal<number>(0);
+
   readonly topJobs = signal<JobSummary[]>([]);
   readonly sources = signal<SourceInfo[]>([]);
   readonly lastRun = signal<DailyRunRecord | null>(null);
-  readonly isTriggering = signal<boolean>(false);
+
+  readonly isLoadingTopJobs = signal<boolean>(false);
+  readonly isSweeping = signal<boolean>(false);
 
   // Drawer state
   readonly isDrawerOpen = signal<boolean>(false);
@@ -952,49 +810,57 @@ export class OverviewComponent implements OnInit {
     this.loadOverviewData();
   }
 
-  onTrackCardClick(): void {
+  onNavClick(): void {
     this.telegram.haptic('selection');
   }
 
   loadOverviewData(): void {
+    this.isLoadingTopJobs.set(true);
+
+    // 1. Fetch top matching opportunities
     this.api.getJobs({ limit: 8, sort_by: 'match_score' }).subscribe({
       next: (res) => {
         this.totalJobs.set(res.total);
         this.topJobs.set(res.items);
+        this.isLoadingTopJobs.set(false);
       },
-      error: (e) => console.error('Failed to load top jobs', e),
+      error: (e) => {
+        console.error('Failed to load top jobs', e);
+        this.isLoadingTopJobs.set(false);
+      },
     });
 
-    this.api.getJobs({ track: 'WEB_ANGULAR', limit: 1 }).subscribe({
-      next: (res) => this.countWeb.set(res.total),
+    // 2. Fetch Egypt count
+    this.api.getJobs({ segment: 'EGYPT', limit: 1 }).subscribe({
+      next: (res) => this.countEgypt.set(res.total),
       error: () => {},
     });
 
-    this.api.getJobs({ track: 'NO_EXP_REMOTE', limit: 1 }).subscribe({
+    // 3. Fetch Remote GCC / Abroad count
+    this.api.getJobs({ segment: 'REMOTE_GCC_ABROAD', limit: 1 }).subscribe({
       next: (res) => this.countRemote.set(res.total),
       error: () => {},
     });
 
-    this.api.getJobs({ track: 'SOFTWARE_INTERN', limit: 1 }).subscribe({
-      next: (res) => this.countIntern.set(res.total),
-      error: () => {},
-    });
-
+    // 4. Fetch Tracker pipeline count
     this.api.getTrackedJobs().subscribe({
       next: (items) => {
         const saved = items.filter((i) => i.status === 'SAVED').length;
         const applied = items.filter((i) => i.status === 'APPLIED' || i.status === 'INTERVIEW').length;
         this.savedCount.set(saved);
         this.appliedCount.set(applied);
+        this.totalPipeline.set(items.length);
       },
       error: (e) => console.error('Failed to load tracker stats', e),
     });
 
+    // 5. Fetch Sources
     this.api.getSources().subscribe({
       next: (srcs) => this.sources.set(srcs),
       error: (e) => console.error('Failed to load sources', e),
     });
 
+    // 6. Fetch Runs
     this.api.getRuns().subscribe({
       next: (runs) => {
         if (runs.length > 0) {
@@ -1005,29 +871,29 @@ export class OverviewComponent implements OnInit {
     });
   }
 
-  triggerRun(): void {
-    if (this.isTriggering()) return;
-    this.isTriggering.set(true);
+  triggerSweep(): void {
+    if (this.isSweeping()) return;
+    this.isSweeping.set(true);
     this.telegram.haptic('medium');
-    this.toast.show('Initiating autonomous sweep across feeds...', 'info');
+    this.toast.show('Autonomous Agent initiating sweep across feeds...', 'info', 2500);
 
     this.api.triggerRun(true).subscribe({
       next: () => {
-        this.isTriggering.set(false);
+        this.isSweeping.set(false);
         this.telegram.haptic('success');
-        this.toast.show('Sweep completed! Opportunities refreshed.', 'success');
+        this.toast.show('Feed sweep completed! Latest roles refreshed.', 'success');
         this.loadOverviewData();
       },
       error: () => {
-        this.isTriggering.set(false);
+        this.isSweeping.set(false);
         this.telegram.haptic('error');
-        this.toast.show('Feeds are already up to date.', 'info');
+        this.toast.show('Feed scan completed or already up to date.', 'info');
         this.loadOverviewData();
       },
     });
   }
 
-  inspectJob(job: JobSummary): void {
+  openDrawer(job: JobSummary): void {
     this.telegram.haptic('selection');
     this.selectedJob.set(job);
     this.isDrawerOpen.set(true);
@@ -1035,48 +901,48 @@ export class OverviewComponent implements OnInit {
 
   closeDrawer(): void {
     this.isDrawerOpen.set(false);
+    this.selectedJob.set(null);
   }
 
-  onJobStatusUpdated(event: { jobId: number; status: ApplicationStatus }): void {
-    this.toast.show(`Role status updated to ${event.status}`, 'success');
+  onJobStatusUpdated(evt: { jobId: number; status: ApplicationStatus }): void {
+    this.toast.show(`Role marked as ${evt.status}`, 'success');
     this.loadOverviewData();
-  }
-
-  onOpenLink(event: MouseEvent, url: string): void {
-    this.telegram.haptic('selection');
-    if (this.telegram.isTelegram()) {
-      event.preventDefault();
-      this.telegram.openExternalLink(url);
-    }
   }
 
   roundScore(score: number): number {
     return Math.round(score);
   }
 
-  averageMatchScore(): number {
-    const list = this.topJobs();
-    if (list.length === 0) return 85;
-    const sum = list.reduce((acc, curr) => acc + (curr.match_score || 0), 0);
-    return Math.round(sum / list.length);
+  getScoreBand(score: number): 'emerald' | 'indigo' | 'amber' | 'muted' {
+    if (score >= 80) return 'emerald';
+    if (score >= 65) return 'indigo';
+    if (score >= 50) return 'amber';
+    return 'muted';
   }
 
-  formatEligibility(e?: string): string {
-    switch (e) {
-      case 'EGYPT_ELIGIBLE': return 'Egypt Eligible';
-      case 'REMOTE_WORLDWIDE': return 'Remote Worldwide';
-      case 'REMOTE_REGION_POSSIBLE': return 'Region Possible';
-      case 'RELOCATION_REQUIRED': return 'Relocation Required';
-      default: return e || 'Remote';
-    }
-  }
-
-  formatWorkplace(w?: string): string {
+  formatWorkplace(w?: WorkplaceType): string {
     switch (w) {
       case 'REMOTE': return 'Remote';
       case 'HYBRID': return 'Hybrid';
       case 'ON_SITE': return 'On-site';
-      default: return w || 'Remote';
+      default: return 'Remote';
+    }
+  }
+
+  formatRelativeDate(dateStr?: string | null): string {
+    if (!dateStr) return 'Recently';
+    try {
+      const date = new Date(dateStr);
+      const diffMs = Date.now() - date.getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (diffHours < 1) return 'Just now';
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return 'Recently';
     }
   }
 }
