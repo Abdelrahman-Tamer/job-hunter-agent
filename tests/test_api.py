@@ -88,6 +88,24 @@ async def test_jobs_list_and_detail(db_session):
         assert data["items"][0]["source_category_label"] == "Job Board"
         assert data["items"][0]["opportunity_segment"] in ("EGYPT", "REMOTE_GCC_ABROAD", "OTHER")
 
+        # Test segment filter
+        resp_seg = await ac.get("/api/v1/jobs?segment=REMOTE_GCC_ABROAD")
+        assert resp_seg.status_code == 200
+        assert resp_seg.json()["total"] == 1
+
+        resp_seg_eg = await ac.get("/api/v1/jobs?segment=EGYPT")
+        assert resp_seg_eg.status_code == 200
+        assert resp_seg_eg.json()["total"] == 0
+
+        # Test is_social_post filter
+        resp_soc_true = await ac.get("/api/v1/jobs?is_social_post=true")
+        assert resp_soc_true.status_code == 200
+        assert resp_soc_true.json()["total"] == 0
+
+        resp_soc_false = await ac.get("/api/v1/jobs?is_social_post=false")
+        assert resp_soc_false.status_code == 200
+        assert resp_soc_false.json()["total"] == 1
+
         # Test listing with different track returns 0
         resp_other = await ac.get("/api/v1/jobs?track=NO_EXP_REMOTE")
         assert resp_other.status_code == 200

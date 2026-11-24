@@ -1,12 +1,11 @@
 """Jobs discovery, search, filter, and detail endpoints."""
 
-import io
 import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import select, and_, or_, delete, func
+from sqlalchemy import select, and_, or_, delete, func, not_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -51,6 +50,8 @@ class JobSummaryDTO(BaseModel):
     opportunity_segment: Optional[str] = None
     is_social_post: bool = False
     source_category_label: str = "Job Board"
+    poster_name: Optional[str] = None
+    contact_hint: Optional[str] = None
 
 
 class JobDetailDTO(JobSummaryDTO):
@@ -73,6 +74,8 @@ async def list_jobs(
     limit: int = Query(20, ge=1, le=100),
     keyword: Optional[str] = None,
     track: Optional[JobTrack] = None,
+    segment: Optional[str] = None,
+    is_social_post: Optional[bool] = None,
     workplace_type: Optional[WorkplaceType] = None,
     eligibility: Optional[GeographicEligibility] = None,
     seniority: Optional[SeniorityLevel] = None,
@@ -84,6 +87,59 @@ async def list_jobs(
 
     if track:
         filters.append(Job.job_track == track)
+    if segment:
+        seg_upper = segment.strip().upper()
+        if seg_upper == "EGYPT":
+            filters.append(
+                or_(
+                    Job.raw_payload["opportunity_segment"].as_string() == "EGYPT",
+                    Job.job_track == JobTrack.FRONTEND_EGYPT,
+                    Job.raw_location.ilike("%egypt%"),
+                    Job.raw_location.ilike("%cairo%"),
+                    Job.raw_location.ilike("%alexandria%"),
+                    Job.raw_location.ilike("%giza%"),
+                )
+            )
+        elif seg_upper in ("REMOTE_GCC_ABROAD", "GCC", "REMOTE_GCC", "REMOTE_ABROAD"):
+            filters.append(
+                or_(
+                    Job.raw_payload["opportunity_segment"].as_string() == "REMOTE_GCC_ABROAD",
+                    Job.job_track == JobTrack.FRONTEND_REMOTE_GCC,
+                    and_(
+                        Job.workplace_type == WorkplaceType.REMOTE,
+                        Job.eligibility.in_([
+                            GeographicEligibility.REMOTE_WORLDWIDE,
+                            GeographicEligibility.REMOTE_REGION_POSSIBLE,
+                        ]),
+                        not_(Job.raw_location.ilike("%egypt%")),
+                        not_(Job.raw_location.ilike("%cairo%")),
+                    ),
+                )
+            )
+        else:
+            filters.append(Job.raw_payload["opportunity_segment"].as_string() == seg_upper)
+    if is_social_post is not None:
+        if is_social_post:
+            filters.append(
+                or_(
+                    Job.source_name.ilike("%social%"),
+                    Job.source_name.ilike("%linkedin%"),
+                    Job.raw_payload["is_social_post"].as_string().in_(["true", "True", "1"]),
+                    Job.raw_payload["is_social_post"].as_boolean() == True,
+                )
+            )
+        else:
+            filters.append(
+                and_(
+                    not_(Job.source_name.ilike("%social%")),
+                    not_(Job.source_name.ilike("%linkedin%")),
+                    or_(
+                        Job.raw_payload == None,
+                        Job.raw_payload["is_social_post"].as_string().is_(None),
+                        Job.raw_payload["is_social_post"].as_string().not_in(["true", "True", "1"]),
+                    ),
+                )
+            )
     if keyword:
         filters.append(
             or_(
@@ -143,6 +199,8 @@ async def list_jobs(
                 opportunity_segment=j.opportunity_segment,
                 is_social_post=j.is_social_post,
                 source_category_label=j.source_category_label,
+                poster_name=(j.raw_payload or {}).get("poster_name"),
+                contact_hint=(j.raw_payload or {}).get("contact_hint"),
             )
         )
 
@@ -196,6 +254,8 @@ async def get_job_detail(
         opportunity_segment=j.opportunity_segment,
         is_social_post=j.is_social_post,
         source_category_label=j.source_category_label,
+        poster_name=(j.raw_payload or {}).get("poster_name"),
+        contact_hint=(j.raw_payload or {}).get("contact_hint"),
     )
 
 
