@@ -1,7 +1,8 @@
 """Unit tests for the daily scheduler, idempotency lock, and failure handling."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,7 +13,12 @@ from src.models import (
     RunStatus,
 )
 from src.scheduler.runner import DailyPipelineRunner
-from src.sources.base import BaseSourceAdapter, NormalizedJobData, RawJobData, SourceMetadata
+from src.sources.base import (
+    BaseSourceAdapter,
+    NormalizedJobData,
+    RawJobData,
+    SourceMetadata,
+)
 from src.sources.registry import SourceRegistry
 
 
@@ -93,7 +99,7 @@ class MockHealthySourceAdapter(BaseSourceAdapter):
             raw_location="Worldwide",
             remote_scope="Worldwide",
             required_skills=["Angular", "TypeScript"],
-            published_at=datetime.now(timezone.utc),
+            published_at=datetime.now(UTC),
         )
 
 
@@ -164,7 +170,7 @@ async def test_zero_results_truthful_summary(db_session):
 
     assert run.jobs_notified == 0
     mock_telegram.send_message.assert_called_once()
-    args, kwargs = mock_telegram.send_message.call_args
+    _args, kwargs = mock_telegram.send_message.call_args
     assert "No new job opportunities met your matching threshold today" in kwargs["text"]
     assert "Daily Job Digest" in kwargs["text"]
 
@@ -215,7 +221,7 @@ class MockMultiJobSourceAdapter(BaseSourceAdapter):
             description_text="Angular and TypeScript web application development.",
             raw_location="Cairo, Egypt",
             required_skills=["Angular", "TypeScript"],
-            published_at=datetime.now(timezone.utc),
+            published_at=datetime.now(UTC),
         )
 
 

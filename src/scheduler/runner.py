@@ -1,9 +1,10 @@
 """Daily ingestion, scoring, and notification pipeline runner."""
 
 import asyncio
-from datetime import datetime, timezone
 import zoneinfo
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,11 +15,11 @@ from src.core.config import settings
 from src.core.logging import logger
 from src.engine.deduplication import DeduplicationEngine, compute_url_hash
 from src.engine.eligibility import GeographicEligibilityEngine
-from src.engine.gemini_extractor import GeminiJobExtractor
 from src.engine.frontend_filter import (
     is_frontend_opportunity,
     is_hiring_intent_social_post,
 )
+from src.engine.gemini_extractor import GeminiJobExtractor
 from src.engine.matching import MatchingEngine
 from src.engine.track_classifier import classify_job_track
 from src.models import (
@@ -27,10 +28,10 @@ from src.models import (
     Job,
     JobStatusTracker,
     JobTrack,
-    OpportunitySegment,
     NotificationLog,
     NotificationStatus,
     NotificationType,
+    OpportunitySegment,
     RunStatus,
     SeniorityLevel,
     Source,
@@ -44,7 +45,7 @@ from src.sources.base import BaseSourceAdapter, NormalizedJobData
 from src.sources.registry import SourceRegistry, create_default_registry
 
 
-def _clamp(val: Optional[str], limit: int) -> Optional[str]:
+def _clamp(val: str | None, limit: int) -> str | None:
     """Clamp string value to maximum allowed column length for SQL persistence."""
     return val[:limit] if val is not None else None
 
@@ -54,9 +55,9 @@ class DailyPipelineRunner:
 
     def __init__(
         self,
-        registry: Optional[SourceRegistry] = None,
-        telegram_client: Optional[TelegramClient] = None,
-        gemini_extractor: Optional[GeminiJobExtractor] = None,
+        registry: SourceRegistry | None = None,
+        telegram_client: TelegramClient | None = None,
+        gemini_extractor: GeminiJobExtractor | None = None,
     ):
         self.registry = registry or create_default_registry()
         self.telegram = telegram_client or TelegramClient()
@@ -74,8 +75,8 @@ class DailyPipelineRunner:
         self,
         session: AsyncSession,
         force: bool = False,
-        target_chat_id: Optional[int] = None,
-        progress_callback: Optional[Any] = None,
+        target_chat_id: int | None = None,
+        progress_callback: Any | None = None,
     ) -> DailyRun:
         """
         Execute all 11 steps of the daily job discovery and notification pipeline.
@@ -83,7 +84,7 @@ class DailyPipelineRunner:
         """
         date_str = self.get_cairo_date_key()
         run_key = f"daily-digest-{date_str}"
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         GeminiJobExtractor.reset_quota_status()
 
         # -------------------------------------------------------------
@@ -123,18 +124,18 @@ class DailyPipelineRunner:
         profile = await get_or_create_candidate_profile(session)
         recipient_chat_id = target_chat_id or settings.TELEGRAM_OWNER_ID
 
-        metrics: Dict[str, Any] = {"sources": {}}
+        metrics: dict[str, Any] = {"sources": {}}
         total_discovered = 0
         total_new = 0
         gemini_requests_count = 0
-        newly_saved_jobs: List[Job] = []
+        newly_saved_jobs: list[Job] = []
 
         # -------------------------------------------------------------
         # Step 3 & 4: Fetch enabled sources concurrently with isolation
         # -------------------------------------------------------------
         adapters = self.registry.list_adapters()
-        source_records: Dict[str, Source] = {}
-        enabled_adapters: List[BaseSourceAdapter] = []
+        source_records: dict[str, Source] = {}
+        enabled_adapters: list[BaseSourceAdapter] = []
 
         for adapter in adapters:
             meta = adapter.source_metadata()
@@ -169,14 +170,14 @@ class DailyPipelineRunner:
         async def _fetch_single_source(adapter: BaseSourceAdapter):
             meta = adapter.source_metadata()
             s_name = meta.name
-            s_start = datetime.now(timezone.utc)
+            s_start = datetime.now(UTC)
             try:
                 # 35-second timeout per source so a slow provider never hangs the runner
                 raw_jobs = await asyncio.wait_for(adapter.fetch_jobs(), timeout=35.0)
-                dur = int((datetime.now(timezone.utc) - s_start).total_seconds())
+                dur = int((datetime.now(UTC) - s_start).total_seconds())
                 return (adapter, raw_jobs, "SUCCESS", None, dur)
-            except Exception as exc:
-                dur = int((datetime.now(timezone.utc) - s_start).total_seconds())
+            except Exception as exc:  # noqa: BLE001
+                dur = int((datetime.now(UTC) - s_start).total_seconds())
                 logger.error(f"Source {s_name} failed during daily run: {exc}")
                 return (adapter, [], "FAILED", str(exc), dur)
 
@@ -202,8 +203,8 @@ class DailyPipelineRunner:
                     # Freshness filter: Drop stale jobs older than MAX_JOB_AGE_DAYS (30 days)
                     if normalized.published_at:
                         if normalized.published_at.tzinfo is None:
-                            normalized.published_at = normalized.published_at.replace(tzinfo=timezone.utc)
-                        job_age_days = (datetime.now(timezone.utc) - normalized.published_at).days
+                            normalized.published_at = normalized.published_at.replace(tzinfo=UTC)
+                        job_age_days = (datetime.now(UTC) - normalized.published_at).days
                         if job_age_days > settings.MAX_JOB_AGE_DAYS:
                             logger.debug(
                                 f"Skipping stale job: '{normalized.title}' at {normalized.company} "
@@ -249,10 +250,10 @@ class DailyPipelineRunner:
                         continue
 
                     # Deduplication check
-                    existing, match_type = await DeduplicationEngine.find_existing_job(session, normalized)
+                    existing, _match_type = await DeduplicationEngine.find_existing_job(session, normalized)
                     if existing:
                         # Update last_seen_at
-                        existing.last_seen_at = datetime.now(timezone.utc)
+                        existing.last_seen_at = datetime.now(UTC)
                         continue
 
                     # Step 5: Gemini extraction for missing attributes if budget permits
@@ -281,7 +282,7 @@ class DailyPipelineRunner:
                                 normalized.required_skills = ai_attrs.required_skills
                             if ai_attrs.required_experience_years is not None:
                                 normalized.required_experience_years = ai_attrs.required_experience_years
-                        except Exception as ai_exc:
+                        except Exception as ai_exc:  # noqa: BLE001
                             logger.warning(f"Gemini extraction skipped for {normalized.title}: {ai_exc}")
 
                     # Step 6: Geographic Eligibility Classification & Regional Segmentation
@@ -354,8 +355,8 @@ class DailyPipelineRunner:
                         preferred_skills=normalized.preferred_skills,
                         required_experience_years=normalized.required_experience_years,
                         published_at=normalized.published_at,
-                        first_seen_at=datetime.now(timezone.utc),
-                        last_seen_at=datetime.now(timezone.utc),
+                        first_seen_at=datetime.now(UTC),
+                        last_seen_at=datetime.now(UTC),
                         is_active=(
                             eligibility != GeographicEligibility.NOT_ELIGIBLE
                             and match_result.score >= settings.MATCH_THRESHOLD_STORE
@@ -391,7 +392,7 @@ class DailyPipelineRunner:
                     newly_saved_jobs.append(job_record)
 
             # Record source sync log
-            source_rec.last_sync_at = datetime.now(timezone.utc)
+            source_rec.last_sync_at = datetime.now(UTC)
             source_rec.last_sync_status = status_str
             source_rec.last_sync_error = error_str
 
@@ -421,7 +422,7 @@ class DailyPipelineRunner:
         try:
             exp_metrics = await scan_and_mark_expired_jobs(session, limit=30)
             metrics["expiry_scan"] = exp_metrics
-        except Exception as exp_exc:
+        except Exception as exp_exc:  # noqa: BLE001
             logger.warning(f"Background link expiry scan skipped: {exp_exc}")
 
         if progress_callback:
@@ -454,8 +455,8 @@ class DailyPipelineRunner:
             # Cleanly segment opportunities into the two top-level buckets:
             # 1. Egypt: Cairo, Giza, Alexandria, Egypt Remote (On-site, Hybrid, Remote + Internships)
             # 2. Remote Abroad / GCC: Saudi, UAE, Qatar, Kuwait, Bahrain, Oman & International (Remote ONLY)
-            sec_egypt: List[Job] = []
-            sec_remote_gcc: List[Job] = []
+            sec_egypt: list[Job] = []
+            sec_remote_gcc: list[Job] = []
 
             for j in eligible_for_digest:
                 if j.job_track == JobTrack.OTHER:
@@ -515,7 +516,7 @@ Discovered <b>{total_digest_jobs}</b> new verified Frontend opportunities:
                 await self.telegram.send_message(chat_id=recipient_chat_id, text=intro_text)
 
                 # Function to send section cards
-                async def dispatch_section(title_banner: str, job_list: List[Job]):
+                async def dispatch_section(title_banner: str, job_list: list[Job]):
                     if not job_list:
                         return
                     await self.telegram.send_message(chat_id=recipient_chat_id, text=title_banner)
@@ -569,14 +570,14 @@ Discovered <b>{total_digest_jobs}</b> new verified Frontend opportunities:
                 target_chat_id=recipient_chat_id,
             )
             metrics["followup_reminders_sent"] = reminders_sent
-        except Exception as f_exc:
+        except Exception as f_exc:  # noqa: BLE001
             logger.warning(f"Follow-up reminder dispatch skipped: {f_exc}")
 
         # -------------------------------------------------------------
         # Step 11: Record run metrics, counts, and completion
         # -------------------------------------------------------------
         daily_run.status = RunStatus.COMPLETED
-        daily_run.completed_at = datetime.now(timezone.utc)
+        daily_run.completed_at = datetime.now(UTC)
         daily_run.jobs_discovered = total_discovered
         daily_run.jobs_new = total_new
         daily_run.jobs_notified = notified_count

@@ -1147,7 +1147,7 @@ def test_job_persistence_column_clamping_and_eligibility_classification():
     assert long_location.find("Egypt") > 255
 
     # 1. Classification works on full untruncated string
-    elig, reason = engine.classify(raw_location=long_location, workplace_type=WorkplaceType.REMOTE)
+    elig, _reason = engine.classify(raw_location=long_location, workplace_type=WorkplaceType.REMOTE)
     assert elig == GeographicEligibility.EGYPT_ELIGIBLE
     segment = engine.classify_segment(raw_location=long_location, workplace_type=WorkplaceType.REMOTE, eligibility=elig)
     assert segment == OpportunitySegment.EGYPT
