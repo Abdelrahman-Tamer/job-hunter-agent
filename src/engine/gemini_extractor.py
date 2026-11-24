@@ -1,6 +1,7 @@
 """Gemini AI structured attribute extractor with prompt injection defense and schema validation."""
 
 import asyncio
+from html import escape
 import json
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field

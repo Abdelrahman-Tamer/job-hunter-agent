@@ -25,6 +25,7 @@ from src.core.logging import logger
 from src.engine.gemini_extractor import GeminiJobExtractor
 from src.models.enums import (
     ApplicationStatus,
+    EmploymentType,
     GeographicEligibility,
     JobTrack,
     SeniorityLevel,

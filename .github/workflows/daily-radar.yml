@@ -49,7 +49,7 @@ jobs:
           SOCIAL_SEARCH_API_KEY: ${{ secrets.SOCIAL_SEARCH_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TZ: "Africa/Cairo"
-          FORCE_RUN: ${{ inputs.force }}
+          FORCE_RUN: ${{ inputs.force || 'false' }}
           LINKEDIN_SOCIAL_ENABLED: "true"
           EGYPT_COMMUNITY_ENABLED: "true"
           JOBICY_ENABLED: "true"
@@ -61,11 +61,23 @@ jobs:
           import asyncio
           import os
           import sys
+          from src.models.enums import RunStatus
           from src.scheduler.cron import JobSchedulerService
 
-          force_input = os.getenv('FORCE_RUN', '${{ inputs.force }}').lower() == 'true'
+          force_input = os.getenv('FORCE_RUN', 'false').lower() == 'true'
           print(f'Starting daily radar run (force={force_input})...')
           scheduler = JobSchedulerService()
-          asyncio.run(scheduler.run_daily_job(force=force_input))
+
+          try:
+              run = asyncio.run(scheduler.run_daily_job(force=force_input))
+          except Exception as exc:
+              print(f'Daily radar run raised an exception: {exc}', file=sys.stderr)
+              sys.exit(1)
+
+          if run is not None and getattr(run, 'status', None) == RunStatus.FAILED:
+              print(f'Daily radar run failed with status: {run.status}', file=sys.stderr)
+              sys.exit(1)
+
           print('Daily radar completed successfully.')
+          sys.exit(0)
           "
