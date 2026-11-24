@@ -226,7 +226,7 @@ import {
             subtitle="No roles match your current regional segment, search keywords, or fit criteria."
           >
             <div action>
-              <ui-button variant="secondary" size="sm" (buttonClick)="resetFilters()">
+              <ui-button variant="secondary" size="sm" (clicked)="resetFilters()">
                 <app-icon name="refresh" [size]="13"></app-icon>
                 <span>Reset Filters</span>
               </ui-button>

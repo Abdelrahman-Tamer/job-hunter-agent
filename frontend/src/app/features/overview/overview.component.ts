@@ -129,7 +129,7 @@ import {
               subtitle="Trigger an immediate feed sweep to discover active frontend engineering roles."
             >
               <div action>
-                <ui-button variant="primary" size="sm" (buttonClick)="triggerSweep()">
+                <ui-button variant="primary" size="sm" (clicked)="triggerSweep()">
                   <app-icon name="play" [size]="12"></app-icon>
                   <span>Sweep Feeds</span>
                 </ui-button>
