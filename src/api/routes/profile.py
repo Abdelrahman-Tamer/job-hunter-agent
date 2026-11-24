@@ -1,5 +1,7 @@
 """Candidate profile management endpoints."""
 
+import asyncio
+from pathlib import Path
 import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -21,6 +23,11 @@ from src.services.profile_service import (
 )
 
 router = APIRouter(prefix="/api/v1/profile", tags=["Profile"])
+
+MAX_CV_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_CV_TEXT_CHARS = 100_000
+ALLOWED_CV_EXTENSIONS = {".pdf", ".docx", ".txt"}
+CV_READ_CHUNK_SIZE = 65536
 
 
 class ProfileUpdateDTO(BaseModel):
@@ -116,7 +123,7 @@ async def get_profile(db: AsyncSession = Depends(get_db_session)) -> Dict[str, A
         logger.error(f"Error retrieving candidate profile: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not load candidate profile: {exc}",
+            detail="Could not load candidate profile.",
         )
 
 
@@ -160,12 +167,42 @@ async def upload_cv_for_parsing(
     """
     raw_text = ""
     if file:
-        content = await file.read()
-        if len(content) > 10 * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
-        raw_text = CVParserService.extract_text(content, file.filename or "cv.pdf")
+        filename = (file.filename or "").strip()
+        ext = Path(filename).suffix.lower()
+        if ext not in ALLOWED_CV_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file type. Allowed extensions: .pdf, .docx, .txt",
+            )
+
+        chunks: List[bytes] = []
+        total_bytes = 0
+        while True:
+            chunk = await file.read(CV_READ_CHUNK_SIZE)
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            if total_bytes > MAX_CV_UPLOAD_BYTES:
+                raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+            chunks.append(chunk)
+        content = b"".join(chunks)
+
+        if ext == ".pdf" and not content.startswith(b"%PDF-"):
+            raise HTTPException(status_code=400, detail="Invalid PDF file header.")
+        if ext == ".docx" and not content.startswith(b"PK\x03\x04"):
+            raise HTTPException(status_code=400, detail="Invalid DOCX file header.")
+        if ext == ".txt" and b"\x00" in content:
+            raise HTTPException(status_code=400, detail="Invalid plain text CV file.")
+
+        try:
+            raw_text = await asyncio.to_thread(CVParserService.extract_text, content, filename)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        raw_text = raw_text[:MAX_CV_TEXT_CHARS]
     elif cv_raw_text or cv_text:
         raw_text = cv_raw_text or cv_text
+        if len(raw_text) > MAX_CV_TEXT_CHARS:
+            raise HTTPException(status_code=400, detail="CV text exceeds 100,000 character limit")
     else:
         raise HTTPException(status_code=400, detail="Either a CV file or raw text must be provided.")
 
@@ -241,6 +278,8 @@ async def import_cv_legacy(
     req: CVParseRequestDTO,
 ) -> Dict[str, Any]:
     """Legacy helper for plain text parsing preview."""
+    if len(req.cv_raw_text) > MAX_CV_TEXT_CHARS:
+        raise HTTPException(status_code=400, detail="CV text exceeds 100,000 character limit")
     clean_text = sanitize_pii(req.cv_raw_text)
     parsed = CVParserService.parse_cv(clean_text)
     return {

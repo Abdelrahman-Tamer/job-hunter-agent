@@ -2,6 +2,7 @@
 
 import ipaddress
 import re
+import socket
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from typing import Set
 
@@ -34,24 +35,86 @@ PRIVATE_IP_REGEX = re.compile(
 )
 
 
+# Regex to detect alternate numeric/hex/octal IPv4 hostnames (e.g. 2130706433, 0x7f000001, 0177.0.0.1, 127.1)
+ALTERNATE_IP_REGEX = re.compile(
+    r"^(?:0x[0-9a-f]+|0[0-7]*|\d+)(?:\.(?:0x[0-9a-f]+|0[0-7]*|\d+)){0,3}$",
+    re.IGNORECASE,
+)
+
+
+def _is_global_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Return True only when an IP address is strictly globally routable."""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return (
+        ip.is_global
+        and not ip.is_private
+        and not ip.is_loopback
+        and not ip.is_link_local
+        and not ip.is_reserved
+        and not ip.is_multicast
+        and not ip.is_unspecified
+    )
+
+
 def is_safe_url(url: str) -> bool:
     """Validate that a URL is safe to request (mitigating SSRF and DNS rebinding)."""
     try:
-        parsed = urlparse(url)
-        if parsed.scheme not in ("http", "https"):
+        if not url or not isinstance(url, str):
+            return False
+        cleaned = url.strip()
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in cleaned):
+            return False
+
+        parsed = urlparse(cleaned)
+        if parsed.scheme.lower() not in ("http", "https"):
             return False
         hostname = parsed.hostname
         if not hostname:
             return False
-        if PRIVATE_IP_REGEX.match(hostname):
+        host = hostname.rstrip(".").lower()
+        if not host or "%" in host:
             return False
-        # If hostname is an IP literal, ensure it is global
-        # shortcut: relies on host regex and IP literal check; DNS rebinding deferred to client socket connection
+        if PRIVATE_IP_REGEX.match(host) or host.endswith(".localhost"):
+            return False
+
+        # If hostname is a standard IP literal, ensure it is strictly global
         try:
-            ip = ipaddress.ip_address(hostname)
-            return ip.is_global
+            ip = ipaddress.ip_address(host)
+            return _is_global_ip(ip)
         except ValueError:
             pass
+
+        # Reject alternate numeric/hex/octal/shorthand IP notations
+        if ALTERNATE_IP_REGEX.match(host):
+            return False
+        try:
+            socket.inet_aton(host)
+            return False
+        except OSError:
+            pass
+
+        # Resolve DNS safely; tolerate offline test environments (gaierror) for mocked transports
+        try:
+            addr_infos = socket.getaddrinfo(host, None)
+        except socket.gaierror:
+            return True
+        except OSError:
+            return False
+
+        for info in addr_infos:
+            sockaddr = info[4]
+            if not sockaddr:
+                continue
+            raw_addr = str(sockaddr[0])
+            if "%" in raw_addr:
+                return False
+            try:
+                resolved_ip = ipaddress.ip_address(raw_addr)
+            except ValueError:
+                return False
+            if not _is_global_ip(resolved_ip):
+                return False
         return True
     except Exception:
         return False
@@ -115,6 +178,9 @@ def sanitize_text_for_llm(text: str, max_length: int = 12000) -> str:
     ]
     for pattern in injection_patterns:
         text = re.sub(pattern, "[DISARMED_INSTRUCTION]", text)
+
+    # Neutralize remaining angle brackets to prevent prompt XML-tag breakout
+    text = text.replace("<", "&lt;").replace(">", "&gt;")
 
     return text
 

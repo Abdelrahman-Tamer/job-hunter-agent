@@ -97,10 +97,12 @@ class GeminiJobExtractor:
             return ExtractedJobAttributes()
 
         # Sanitize untrusted input to defend against prompt injection
+        safe_company = sanitize_text_for_llm(company, max_length=200)
+        safe_title = sanitize_text_for_llm(title, max_length=300)
         safe_desc = sanitize_text_for_llm(description, max_length=10000)
         user_prompt = f"""Extract structured job details for:
-Company: {company}
-Title: {title}
+Company: {safe_company}
+Title: {safe_title}
 
 <untrusted_job_posting>
 {safe_desc}
@@ -178,17 +180,23 @@ I am particularly drawn to {company}'s work and would welcome the opportunity to
 Best regards,
 {candidate_name}"""
 
+        safe_name = sanitize_text_for_llm(candidate_name, max_length=200)
+        safe_cand_title = sanitize_text_for_llm(candidate_title, max_length=200)
+        safe_skills = sanitize_text_for_llm(skills_str, max_length=1000)
+        safe_proj = sanitize_text_for_llm(proj_summary, max_length=1000)
+        safe_company = sanitize_text_for_llm(company, max_length=200)
+        safe_job_title = sanitize_text_for_llm(job_title, max_length=300)
         safe_desc = sanitize_text_for_llm(job_description, max_length=5000)
         prompt = f"""You are a professional career coach and expert technical copywriter.
 Write an authentic, compelling, 3-paragraph English cover letter for this candidate:
-- Candidate Name: {candidate_name}
-- Candidate Target: {candidate_title}
-- Confirmed Skills: {skills_str}
-- {proj_summary}
+- Candidate Name: {safe_name}
+- Candidate Target: {safe_cand_title}
+- Confirmed Skills: {safe_skills}
+- {safe_proj}
 
 Target Job:
-- Company: {company}
-- Role: {job_title}
+- Company: {safe_company}
+- Role: {safe_job_title}
 - Job Description:
 <job_description>
 {safe_desc}
@@ -257,10 +265,13 @@ Warm regards,
 • <i>Question:</i> How do you ensure high-performance, pixel-perfect responsive layouts across diverse screen sizes?
 • <i>Recommended Answer:</i> Mention mobile-first layout strategy using Tailwind CSS, CSS Grid, and responsive UI components."""
 
+        safe_company = sanitize_text_for_llm(company, max_length=200)
+        safe_job_title = sanitize_text_for_llm(job_title, max_length=300)
+        safe_skills = sanitize_text_for_llm(top_skills, max_length=1000)
         safe_desc = sanitize_text_for_llm(job_description, max_length=5000)
         prompt = f"""You are an engineering hiring manager.
-Predict the top 4 technical & situational interview questions {company} will ask for the {job_title} role.
-Candidate verified skills: {top_skills}.
+Predict the top 4 technical & situational interview questions {safe_company} will ask for the {safe_job_title} role.
+Candidate verified skills: {safe_skills}.
 
 Job Description snippet:
 <job_description>
@@ -343,12 +354,17 @@ Output HTML-compatible Telegram formatted text (bold <b>, italic <i>, code <code
                 "follow_up_note": fallback_followup,
             }
 
+        safe_name = sanitize_text_for_llm(candidate_name, max_length=200)
+        safe_cand_title = sanitize_text_for_llm(candidate_title, max_length=200)
+        safe_skills = sanitize_text_for_llm(top_skills, max_length=1000)
+        safe_job_title = sanitize_text_for_llm(job_title, max_length=300)
+        safe_company = sanitize_text_for_llm(company, max_length=200)
         safe_desc = sanitize_text_for_llm(job_description, max_length=4000)
         prompt = f"""You are an elite tech recruitment and career advisor.
 Generate 3 distinct, high-impact LinkedIn outreach messages for:
-Candidate: {candidate_name} ({candidate_title})
-Key Skills: {top_skills}
-Target Job: {job_title} at {company}
+Candidate: {safe_name} ({safe_cand_title})
+Key Skills: {safe_skills}
+Target Job: {safe_job_title} at {safe_company}
 
 Job snippet:
 <job>

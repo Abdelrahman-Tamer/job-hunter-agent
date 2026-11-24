@@ -428,6 +428,10 @@
     display: none;
   }
 
+  .app-shell {
+    flex-direction: column;
+  }
+
   .mobile-topbar {
     display: flex;
     position: sticky;
@@ -506,8 +510,9 @@
 
   .app-main-content {
     margin-left: 0;
-    padding: var(--space-4) var(--space-4) calc(76px + env(safe-area-inset-bottom, 0px)) var(--space-4);
+    padding: var(--space-4) var(--space-4) calc(88px + env(safe-area-inset-bottom, 0px)) var(--space-4);
     width: 100%;
+    min-width: 0;
   }
 
   .toast-container {
@@ -590,7 +595,7 @@
     padding: 0 var(--space-3);
   }
   .app-main-content {
-    padding: var(--space-3) var(--space-3) calc(74px + env(safe-area-inset-bottom, 0px)) var(--space-3);
+    padding: var(--space-3) var(--space-3) calc(88px + env(safe-area-inset-bottom, 0px)) var(--space-3);
   }
   .dock-link {
     padding: 4px 8px;

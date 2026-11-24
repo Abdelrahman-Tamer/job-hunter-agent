@@ -191,9 +191,10 @@ async def test_manual_user_alert_ingestion(db_session):
 
 
 @pytest.mark.asyncio
-async def test_wipe_and_reset_requires_admin_authorization(db_session):
+async def test_wipe_and_reset_requires_admin_authorization(db_session, monkeypatch):
     """Verify /wipe-and-reset rejects unauthenticated calls and requires X-Admin-Key."""
     from src.core.config import settings
+    monkeypatch.setattr(settings, "SECRET_KEY", "test-api-admin-secret-key")
     app.dependency_overrides[get_db_session] = lambda: db_session
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -227,11 +228,12 @@ async def test_add_note_404_when_job_missing(db_session):
 
 
 @pytest.mark.asyncio
-async def test_wipe_and_reset_clears_application_notes(db_session):
+async def test_wipe_and_reset_clears_application_notes(db_session, monkeypatch):
     """Verify wipe succeeds without foreign key violation even when jobs have notes."""
     from src.core.config import settings
     from src.models import ApplicationNote
 
+    monkeypatch.setattr(settings, "SECRET_KEY", "test-api-admin-secret-key")
     app.dependency_overrides[get_db_session] = lambda: db_session
 
     # Create dummy job with attached note

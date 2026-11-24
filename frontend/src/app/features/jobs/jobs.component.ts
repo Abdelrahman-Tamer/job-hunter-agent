@@ -1035,6 +1035,12 @@ import {
         padding-right: 76px;
       }
     }
+
+    @media (max-width: 767px) {
+      .radar-command-bar {
+        position: static;
+      }
+    }
   `],
 })
 export class JobsComponent implements OnInit {

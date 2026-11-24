@@ -166,7 +166,8 @@ def format_job_card(job: Job) -> str:
 
     date_label = format_date_label(job.published_at, job.first_seen_at)
     app_url = job.original_application_url or job.source_url
-    lines.append(f"{date_label} • <a href=\"{app_url}\">Direct Link ↗</a>")
+    safe_app_url = html.escape(app_url or "", quote=True)
+    lines.append(f"{date_label} • <a href=\"{safe_app_url}\">Direct Link ↗</a>")
 
     skills = (job.required_skills or [])[:6]
     if skills:

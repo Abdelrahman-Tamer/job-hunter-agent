@@ -1,6 +1,7 @@
 """Jobs discovery, search, filter, and detail endpoints."""
 
 import re
+import secrets
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import Response
@@ -372,9 +373,18 @@ async def wipe_all_jobs(
 ) -> Dict[str, Any]:
     """
     Wipe all existing jobs, application trackers, and notification records.
-    Requires X-Admin-Key matching settings.SECRET_KEY.
+    Requires X-Admin-Key matching a configured non-default settings.SECRET_KEY.
     """
-    if not x_admin_key or x_admin_key != settings.SECRET_KEY:
+    configured_secret = (settings.SECRET_KEY or "").strip()
+    if (
+        not configured_secret
+        or configured_secret == "insecure-default-key-for-dev-only-change-in-production"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin reset endpoint is disabled until a non-default SECRET_KEY is configured.",
+        )
+    if not x_admin_key or not secrets.compare_digest(x_admin_key, configured_secret):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin authorization required to reset database.",

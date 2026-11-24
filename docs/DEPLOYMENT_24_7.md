@@ -26,8 +26,8 @@
 4. اربط مستودع GitHub الخاص بـ `job-hunter-agent`.
 5. سيتعرف Render تلقائياً على ملف `render.yaml` والـ `Dockerfile` المرفقين في المشروع.
 6. في إعدادات البيئة (Environment Variables)، أدخل القيم السرية الخاصة بك:
-   - `TELEGRAM_BOT_TOKEN`: `9193514449:AAFWKI1s-eE8dcSBVtevXZi_1Wqpc0JrYno`
-   - `TELEGRAM_OWNER_ID`: `5753164422`
+   - `TELEGRAM_BOT_TOKEN`: `your_bot_token_here`
+   - `TELEGRAM_OWNER_ID`: `your_telegram_user_id`
    - `GEMINI_API_KEY`: مفتاح الـ API الخاص بك
    - `TELEGRAM_POLLING`: `true`
    - `TIMEZONE`: `Africa/Cairo`
@@ -48,8 +48,8 @@
 3. اختر مستودع `job-hunter-agent`.
 4. اذهب إلى **Variables** وأضف:
    ```env
-   TELEGRAM_BOT_TOKEN=9193514449:AAFWKI1s-eE8dcSBVtevXZi_1Wqpc0JrYno
-   TELEGRAM_OWNER_ID=5753164422
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
+   TELEGRAM_OWNER_ID=your_telegram_user_id
    TELEGRAM_POLLING=true
    GEMINI_API_KEY=your_key_here
    TIMEZONE=Africa/Cairo

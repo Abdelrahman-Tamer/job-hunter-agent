@@ -4,7 +4,7 @@ import asyncio
 import pathlib
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -66,14 +66,18 @@ def create_app() -> FastAPI:
     )
 
     # CORS configuration for Angular frontend
-    allowed_origins = [
-        "http://localhost:4200",
-        "http://localhost:8000",
-        "http://127.0.0.1:4200",
-        "http://127.0.0.1:8000",
-    ]
+    allowed_origins: list[str] = []
+    if settings.APP_ENV == "development":
+        allowed_origins.extend([
+            "http://localhost:4200",
+            "http://localhost:8000",
+            "http://127.0.0.1:4200",
+            "http://127.0.0.1:8000",
+        ])
     if settings.FRONTEND_ORIGIN:
-        allowed_origins.append(settings.FRONTEND_ORIGIN.rstrip("/"))
+        origin = settings.FRONTEND_ORIGIN.rstrip("/")
+        if origin not in allowed_origins:
+            allowed_origins.append(origin)
 
     app.add_middleware(
         CORSMiddleware,
@@ -82,6 +86,12 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        return response
 
     # Register routers
     app.include_router(health.router)
@@ -94,6 +104,7 @@ def create_app() -> FastAPI:
     # Mount Angular production SPA when built
     dist_dir = pathlib.Path("frontend/dist/frontend/browser")
     if dist_dir.exists():
+        dist_root = dist_dir.resolve()
         no_cache_headers = {
             "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
             "Pragma": "no-cache",
@@ -105,14 +116,19 @@ def create_app() -> FastAPI:
 
         @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
         async def serve_spa(full_path: str):
-            candidate = dist_dir / full_path
+            try:
+                candidate = (dist_dir / full_path).resolve()
+            except (OSError, ValueError):
+                raise HTTPException(status_code=404, detail="Not found")
+            if not candidate.is_relative_to(dist_root):
+                raise HTTPException(status_code=404, detail="Not found")
             if candidate.is_file() and candidate.name != "index.html":
                 # Static hashed assets (.js, .css, images, fonts) are safe to cache forever
                 if candidate.suffix in {".js", ".css", ".woff2", ".png", ".jpg", ".jpeg", ".svg", ".ico"}:
                     return FileResponse(candidate, headers=immutable_headers)
                 return FileResponse(candidate)
             # index.html MUST never be cached so Telegram & browsers pick up new deploys immediately
-            return FileResponse(dist_dir / "index.html", headers=no_cache_headers)
+            return FileResponse(dist_root / "index.html", headers=no_cache_headers)
 
     return app
 

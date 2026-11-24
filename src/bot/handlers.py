@@ -40,6 +40,44 @@ from src.services.profile_service import (
 )
 
 
+def _sanitize_telegram_html(text: Optional[str]) -> str:
+    """Escape untrusted HTML while preserving balanced attribute-free <b>, <i>, and <code> tags."""
+    if not text:
+        return ""
+    escaped = html.escape(str(text))
+    tag_map = {
+        "&lt;b&gt;": "<b>",
+        "&lt;/b&gt;": "</b>",
+        "&lt;i&gt;": "<i>",
+        "&lt;/i&gt;": "</i>",
+        "&lt;code&gt;": "<code>",
+        "&lt;/code&gt;": "</code>",
+    }
+    token_re = re.compile(r"&lt;(/?(?:b|i|code))&gt;")
+    parts: List[str] = []
+    open_stack: List[str] = []
+    last_idx = 0
+    for match in token_re.finditer(escaped):
+        parts.append(escaped[last_idx:match.start()])
+        tag_token = match.group(0)
+        tag_name = match.group(1)
+        if not tag_name.startswith("/"):
+            open_stack.append(tag_name)
+            parts.append(tag_map[tag_token])
+        else:
+            bare = tag_name[1:]
+            if open_stack and open_stack[-1] == bare:
+                open_stack.pop()
+                parts.append(tag_map[tag_token])
+            else:
+                parts.append(tag_token)
+        last_idx = match.end()
+    parts.append(escaped[last_idx:])
+    while open_stack:
+        parts.append(f"</{open_stack.pop()}>")
+    return "".join(parts)
+
+
 class TelegramBotDispatcher:
     """Dispatches incoming Telegram updates to specialized handlers with executive English UX."""
 
@@ -579,11 +617,12 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
         for idx, job in enumerate(jobs[:8], 1):
             applied_date = job.tracker.applied_at.strftime("%Y-%m-%d") if job.tracker and job.tracker.applied_at else "Recently"
             app_url = job.original_application_url or job.source_url
+            safe_app_url = html.escape(app_url or "", quote=True)
             applied_lines.append(
                 f"{idx}. 💼 <b>{escape(job.title)}</b>\n"
                 f"   🏢 {escape(job.company)} | 🎯 {job.match_score:.0f}%\n"
                 f"   📅 Applied: <code>{applied_date}</code>\n"
-                f"   🔗 <a href=\"{app_url}\">Direct Application Link</a>\n"
+                f"   🔗 <a href=\"{safe_app_url}\">Direct Application Link</a>\n"
             )
 
         applied_markup = {
@@ -1100,10 +1139,11 @@ All previous listings have been purged.
                 job_description=job.description_text or "",
             )
 
+            safe_prep = _sanitize_telegram_html(prep_content)
             msg = f"""🎯 <b>Technical Interview Preparation Guide</b>
 💼 <b>{escape(job.title)}</b> — <i>{escape(job.company)}</i>
 ─────────────────────────
-{prep_content}
+{safe_prep}
 ─────────────────────────
 🌟 <i>Review these targeted questions and focus on your concrete Angular projects!</i>"""
             interview_markup = {

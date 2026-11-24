@@ -4,11 +4,13 @@ import asyncio
 from datetime import datetime, timezone
 import re
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urljoin
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logging import logger
+from src.core.security import is_safe_url
 from src.models.job import Job
 
 
@@ -40,44 +42,63 @@ COMMON_HEADERS = {
 async def check_job_url(url: str, client: httpx.AsyncClient) -> Tuple[bool, str]:
     """
     Verify if a job posting URL is still live and actively accepting candidates.
+    Validates initial URL and each redirect hop against SSRF rules.
     Returns (is_expired, reason).
     """
-    if not url or not url.startswith("http"):
-        return False, "Invalid or missing URL"
+    if not url or not is_safe_url(url):
+        return False, "Blocked unsafe or invalid URL"
+
+    max_redirects = 3
+    current_url = url
 
     try:
-        # Use GET with stream to safely read initial HTML chunk without downloading large assets
-        async with client.stream("GET", url, headers=COMMON_HEADERS, follow_redirects=True, timeout=7.0) as resp:
-            # Direct dead status codes
-            if resp.status_code in (404, 410):
-                return True, f"HTTP {resp.status_code} Page Not Found"
-            if resp.status_code >= 500:
-                # Temporary server error; do not expire prematurely
-                return False, f"Server HTTP {resp.status_code}"
-            if resp.status_code >= 400:
-                return True, f"HTTP {resp.status_code} Client Error"
+        for hop in range(max_redirects + 1):
+            # Disable automatic redirects so each Location target is validated with is_safe_url()
+            async with client.stream("GET", current_url, headers=COMMON_HEADERS, follow_redirects=False, timeout=7.0) as resp:
+                if resp.status_code in (301, 302, 303, 307, 308):
+                    location = resp.headers.get("location")
+                    if not location:
+                        return False, f"HTTP {resp.status_code} redirect missing Location"
+                    next_url = urljoin(current_url, location)
+                    if not is_safe_url(next_url):
+                        return False, "Blocked unsafe redirect target"
+                    if hop >= max_redirects:
+                        return False, "Too many redirects (max 3 hops)"
+                    current_url = next_url
+                    continue
 
-            # Inspect redirect target (e.g. redirected to careers homepage)
-            final_url = str(resp.url).lower()
-            if final_url.rstrip("/") in ("https://remoteok.com", "https://himalayas.app/jobs", "https://remotive.com"):
-                return True, "Redirected to generic job directory homepage"
+                # Direct dead status codes
+                if resp.status_code in (404, 410):
+                    return True, f"HTTP {resp.status_code} Page Not Found"
+                if resp.status_code >= 500:
+                    # Temporary server error; do not expire prematurely
+                    return False, f"Server HTTP {resp.status_code}"
+                if resp.status_code >= 400:
+                    return True, f"HTTP {resp.status_code} Client Error"
 
-            # Read first 30KB of content to scan for dead job keywords
-            body_chunks = []
-            bytes_read = 0
-            async for chunk in resp.aiter_bytes():
-                body_chunks.append(chunk)
-                bytes_read += len(chunk)
-                if bytes_read >= 30000:
-                    break
+                # Inspect redirect target (e.g. redirected to careers homepage)
+                final_url = str(resp.url).lower()
+                if final_url.rstrip("/") in ("https://remoteok.com", "https://himalayas.app/jobs", "https://remotive.com"):
+                    return True, "Redirected to generic job directory homepage"
 
-            content_text = b"".join(body_chunks).decode("utf-8", errors="ignore").lower()
+                # Read first 30KB of content to scan for dead job keywords
+                body_chunks = []
+                bytes_read = 0
+                async for chunk in resp.aiter_bytes():
+                    body_chunks.append(chunk)
+                    bytes_read += len(chunk)
+                    if bytes_read >= 30000:
+                        break
 
-            for phrase in DEAD_JOB_PHRASES:
-                if phrase in content_text:
-                    return True, f"Dead posting marker detected: '{phrase}'"
+                content_text = b"".join(body_chunks).decode("utf-8", errors="ignore").lower()
 
-            return False, "Active (200 OK)"
+                for phrase in DEAD_JOB_PHRASES:
+                    if phrase in content_text:
+                        return True, f"Dead posting marker detected: '{phrase}'"
+
+                return False, "Active (200 OK)"
+
+        return False, "Too many redirects (max 3 hops)"
 
     except httpx.TimeoutException:
         # Do not expire jobs on transient timeout

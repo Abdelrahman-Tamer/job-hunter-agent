@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db_session
 from src.core.logging import logger
-from src.core.security import canonicalize_url
+from src.core.security import canonicalize_url, is_safe_url
 from src.engine.deduplication import DeduplicationEngine, compute_url_hash
 from src.engine.eligibility import GeographicEligibilityEngine
 from src.engine.matching import MatchingEngine
@@ -82,6 +82,11 @@ async def ingest_user_alert(
     Ingest a job alert forwarded from official emails or manual entry.
     Complies with Rule 5 by offering an authorized ingestion path for boards without public APIs.
     """
+    if not is_safe_url(dto.application_url):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsafe or invalid application_url.",
+        )
     profile = await get_or_create_candidate_profile(db)
     canonical = canonicalize_url(dto.application_url)
     url_hash = compute_url_hash(canonical)

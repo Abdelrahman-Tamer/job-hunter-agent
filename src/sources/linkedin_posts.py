@@ -162,7 +162,7 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
                 organic = data.get("organic", [])
                 for entry in organic:
                     link = entry.get("link", "")
-                    if "linkedin.com/posts" in link or "linkedin.com/feed/update" in link:
+                    if self._is_linkedin_url(link, require_post_path=True):
                         snippet = entry.get("snippet", "")
                         title = entry.get("title", "")
                         date_val = entry.get("date", "")
@@ -208,7 +208,7 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
                     raw_href = a_tag.get("href", "")
                     # DuckDuckGo wraps URLs in /l/?kh=-1&uddg=<actual_url>
                     actual_url = self._extract_ddg_target_url(raw_href)
-                    if not actual_url or ("linkedin.com/posts" not in actual_url and "linkedin.com/feed/update" not in actual_url):
+                    if not actual_url or not self._is_linkedin_url(actual_url, require_post_path=True):
                         continue
 
                     title_text = a_tag.get_text(strip=True)
@@ -245,7 +245,7 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
                 parsed = feedparser.parse(resp.text)
                 for entry in parsed.entries:
                     link = entry.get("link", "")
-                    if "linkedin.com" in link:
+                    if self._is_linkedin_url(link, require_post_path=False):
                         results.append(
                             RawJobData(
                                 source_name="linkedin_social",
@@ -339,6 +339,24 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
                 "extracted_company": company,
             },
         )
+
+    @staticmethod
+    def _is_linkedin_url(url: str, require_post_path: bool = True) -> bool:
+        """Validate LinkedIn URLs via parsed scheme and hostname instead of substring checks."""
+        if not url:
+            return False
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return False
+        if parsed.scheme.lower() not in ("http", "https"):
+            return False
+        hostname = (parsed.hostname or "").lower()
+        if not (hostname == "linkedin.com" or hostname.endswith(".linkedin.com")):
+            return False
+        if require_post_path:
+            return parsed.path.startswith("/posts") or parsed.path.startswith("/feed/update")
+        return True
 
     def _extract_linkedin_post_id(self, url: str) -> str:
         """Extract deterministic ID from LinkedIn post URL."""

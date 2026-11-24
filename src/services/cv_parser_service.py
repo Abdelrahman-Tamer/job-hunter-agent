@@ -8,6 +8,7 @@ from datetime import datetime
 import io
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
+import zipfile
 from pydantic import BaseModel, Field
 
 from src.core.logging import logger
@@ -127,6 +128,10 @@ KNOWN_TECH_MAP = {
 class CVParserService:
     """Local, offline CV parser for PDF, DOCX, and plain text."""
 
+    MAX_PDF_PAGES = 50
+    MAX_DOCX_ENTRIES = 200
+    MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+
     @staticmethod
     def extract_text(file_bytes: bytes, filename: str) -> str:
         """Extract text locally from PDF, DOCX, or text files."""
@@ -155,7 +160,7 @@ class CVParserService:
         try:
             import pypdf
             reader = pypdf.PdfReader(io.BytesIO(file_bytes))
-            for page in reader.pages:
+            for page in reader.pages[:CVParserService.MAX_PDF_PAGES]:
                 extracted = page.extract_text()
                 if extracted:
                     text_parts.append(extracted)
@@ -166,7 +171,7 @@ class CVParserService:
             try:
                 import pdfplumber
                 with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                    for page in pdf.pages:
+                    for page in pdf.pages[:CVParserService.MAX_PDF_PAGES]:
                         extracted = page.extract_text()
                         if extracted:
                             text_parts.append(extracted)
@@ -178,6 +183,17 @@ class CVParserService:
     @staticmethod
     def _extract_docx(file_bytes: bytes) -> str:
         try:
+            with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+                entries = zf.infolist()
+                if len(entries) > CVParserService.MAX_DOCX_ENTRIES:
+                    raise ValueError(
+                        f"DOCX archive exceeds maximum entry limit ({len(entries)} > {CVParserService.MAX_DOCX_ENTRIES})"
+                    )
+                total_uncompressed = sum(info.file_size for info in entries)
+                if total_uncompressed > CVParserService.MAX_DOCX_UNCOMPRESSED_BYTES:
+                    raise ValueError(
+                        f"DOCX archive uncompressed size exceeds limit ({total_uncompressed} bytes)"
+                    )
             import docx
             doc = docx.Document(io.BytesIO(file_bytes))
             paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
@@ -187,6 +203,8 @@ class CVParserService:
                         if cell.text.strip():
                             paragraphs.append(cell.text.strip())
             return "\n".join(paragraphs)
+        except ValueError:
+            raise
         except Exception as exc:
             logger.error(f"docx extraction error: {exc}")
             return ""
@@ -236,7 +254,8 @@ class CVParserService:
         # 10. Languages
         languages = CVParserService._extract_languages(sections.get("languages", ""), clean_text)
 
-        preview = clean_text[:600] + ("..." if len(clean_text) > 600 else "")
+        redacted_text = sanitize_pii(clean_text)
+        preview = redacted_text[:600] + ("..." if len(redacted_text) > 600 else "")
 
         return ParsedCVResult(
             personal_info=personal,

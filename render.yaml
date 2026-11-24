@@ -7,8 +7,10 @@ services:
     region: frankfurt
     healthCheckPath: /health
     envVars:
-      - key: ENVIRONMENT
+      - key: APP_ENV
         value: production
+      - key: SECRET_KEY
+        generateValue: true
       - key: TIMEZONE
         value: Africa/Cairo
       - key: TELEGRAM_POLLING
