@@ -158,7 +158,7 @@ import {
               <!-- Main Content -->
               <div class="match-main-content">
                 <div class="match-title-line">
-                  <h3 class="role-name">{{ job.title }}</h3>
+                  <h3 class="role-name" dir="auto">{{ job.title }}</h3>
                   <ui-badge
                     *ngIf="job.is_social_post"
                     variant="social"
@@ -184,11 +184,11 @@ import {
                 </div>
 
                 <div class="match-meta-line">
-                  <span class="company-text">{{ job.company }}</span>
+                  <span class="company-text" dir="auto">{{ job.company }}</span>
                   <span class="dot-separator">•</span>
                   <span class="meta-item">{{ formatWorkplace(job.workplace_type) }}</span>
                   <span class="dot-separator" *ngIf="job.raw_location">•</span>
-                  <span class="meta-item location-truncate" *ngIf="job.raw_location">
+                  <span class="meta-item location-truncate" dir="auto" *ngIf="job.raw_location">
                     {{ job.raw_location }}
                   </span>
                   <span class="dot-separator">•</span>
@@ -332,8 +332,9 @@ import {
     }
 
     .kpi-card {
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight), var(--shadow-xs);
       border-radius: var(--radius-sm);
       padding: var(--space-3-5) var(--space-4);
       display: flex;
@@ -343,11 +344,17 @@ import {
       color: inherit;
       transition: all var(--motion-fast);
       position: relative;
+      outline: none;
     }
     .kpi-card:hover {
-      background-color: var(--color-bg-surface-2);
-      border-color: var(--color-border-default);
-      transform: translateY(-1px);
+      background-color: var(--bg-surface-2);
+      border-color: var(--border-strong);
+      box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
+      transform: translateY(-2px);
+    }
+    .kpi-card:focus-visible {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px var(--brand-focus-ring);
     }
 
     .kpi-top {
@@ -358,11 +365,11 @@ import {
     .kpi-label {
       font-size: 11px;
       font-weight: 600;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       letter-spacing: -0.01em;
     }
     .kpi-icon {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
     .kpi-flag {
       font-size: 13px;
@@ -370,17 +377,17 @@ import {
     }
 
     .kpi-num {
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 800;
-      letter-spacing: -0.02em;
-      color: var(--color-text-primary);
-      line-height: 1.2;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      line-height: 1.15;
       margin: 2px 0;
     }
 
     .kpi-subtext {
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
       letter-spacing: -0.01em;
     }
 
@@ -391,8 +398,9 @@ import {
       justify-content: space-between;
       gap: var(--space-3);
       padding: 10px 14px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-sm);
       flex-wrap: wrap;
     }
@@ -406,14 +414,15 @@ import {
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background-color: var(--color-success);
+      background-color: var(--emerald-500);
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
     }
     .sweep-meta-text {
       font-size: 12px;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
     }
     .sweep-meta-text strong {
-      color: var(--color-text-primary);
+      color: var(--text-primary);
     }
 
     .sweep-action-btn {
@@ -421,17 +430,23 @@ import {
       align-items: center;
       gap: 6px;
       padding: 6px 14px;
-      background-color: var(--color-brand-accent);
-      border: 1px solid transparent;
+      background-color: var(--brand-primary);
+      border: 1px solid var(--brand-primary);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
       color: #ffffff;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
-      transition: background-color var(--motion-fast);
+      transition: all var(--motion-fast);
+      outline: none;
     }
     .sweep-action-btn:hover:not(:disabled) {
-      background-color: var(--color-brand-hover);
+      background-color: var(--brand-primary-hover);
+      box-shadow: var(--shadow-glow-brand);
+    }
+    .sweep-action-btn:active:not(:disabled) {
+      transform: scale(0.97);
     }
     .sweep-action-btn:disabled {
       opacity: 0.6;
@@ -457,8 +472,9 @@ import {
     }
 
     .bento-primary-card {
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight), var(--shadow-xs);
       border-radius: var(--radius-sm);
       padding: var(--space-4);
       display: flex;
@@ -473,8 +489,9 @@ import {
     }
 
     .bento-card {
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight), var(--shadow-xs);
       border-radius: var(--radius-sm);
       padding: var(--space-3-5) var(--space-4);
       display: flex;
@@ -486,7 +503,7 @@ import {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid var(--color-border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
       padding-bottom: var(--space-2-5);
     }
 
@@ -496,15 +513,15 @@ import {
       gap: var(--space-2);
     }
     .header-glyph {
-      color: var(--color-brand-accent);
+      color: var(--brand-accent);
     }
 
     .bento-title {
       margin: 0;
       font-size: 13px;
       font-weight: 700;
-      letter-spacing: -0.01em;
-      color: var(--color-text-primary);
+      letter-spacing: -0.015em;
+      color: var(--text-primary);
     }
 
     .view-all-link {
@@ -513,18 +530,18 @@ import {
       gap: 4px;
       font-size: 11px;
       font-weight: 600;
-      color: var(--color-brand-accent);
+      color: var(--brand-accent);
       text-decoration: none;
       transition: color var(--motion-fast);
     }
     .view-all-link:hover {
-      color: var(--color-brand-hover);
+      color: var(--brand-primary);
     }
 
     .run-date-tag {
       font-family: var(--font-mono);
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     /* Top Matches Compact List */
@@ -545,16 +562,22 @@ import {
       align-items: center;
       gap: var(--space-3);
       padding: 9px 12px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
       cursor: pointer;
       transition: all var(--motion-fast);
+      outline: none;
     }
     .match-item-row:hover {
-      background-color: var(--color-bg-surface-hover);
-      border-color: var(--color-border-default);
+      background-color: var(--bg-surface-3);
+      border-color: var(--border-strong);
       transform: translateX(2px);
+    }
+    .match-item-row:focus-visible {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px var(--brand-focus-ring);
     }
 
     .match-score-badge {
@@ -566,27 +589,28 @@ import {
       border-radius: 3px;
       font-size: 11px;
       font-weight: 700;
-      border: 1px solid var(--color-border-subtle);
-      background-color: var(--color-bg-surface-1);
+      border: 1px solid var(--border-default);
+      background-color: var(--bg-surface-1);
+      box-shadow: var(--surface-highlight-sm);
       flex-shrink: 0;
     }
     .match-score-badge[data-band="emerald"] {
-      border-color: rgba(16, 185, 129, 0.4);
-      background-color: rgba(16, 185, 129, 0.08);
-      color: var(--color-success);
+      border-color: var(--emerald-border);
+      background-color: var(--emerald-bg);
+      color: var(--emerald-400);
     }
     .match-score-badge[data-band="indigo"] {
-      border-color: var(--color-brand-border);
-      background-color: var(--color-brand-subtle);
-      color: var(--color-brand-accent);
+      border-color: var(--brand-border-subtle);
+      background-color: var(--brand-bg-subtle);
+      color: var(--brand-accent);
     }
     .match-score-badge[data-band="amber"] {
-      border-color: rgba(245, 158, 11, 0.4);
-      background-color: rgba(245, 158, 11, 0.08);
-      color: var(--color-warning);
+      border-color: var(--amber-border);
+      background-color: var(--amber-bg);
+      color: var(--amber-400);
     }
     .match-score-badge[data-band="muted"] {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     .match-main-content {
@@ -608,7 +632,7 @@ import {
       margin: 0;
       font-size: 13px;
       font-weight: 600;
-      color: var(--color-text-primary);
+      color: var(--text-primary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -620,15 +644,15 @@ import {
       align-items: center;
       gap: 4px;
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
       flex-wrap: wrap;
     }
     .company-text {
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       font-weight: 500;
     }
     .dot-separator {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
     .location-truncate {
       max-width: 120px;
@@ -638,15 +662,15 @@ import {
     }
 
     .match-arrow-wrap {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
       display: flex;
       align-items: center;
       flex-shrink: 0;
-      transition: transform var(--motion-fast);
+      transition: transform var(--motion-fast), color var(--motion-fast);
     }
     .match-item-row:hover .match-arrow-wrap {
       transform: translateX(2px);
-      color: var(--color-text-primary);
+      color: var(--text-primary);
     }
 
     /* Sources Health List */
@@ -661,8 +685,9 @@ import {
       align-items: center;
       justify-content: space-between;
       padding: 6px 8px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
     }
 
@@ -675,20 +700,21 @@ import {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background-color: var(--color-text-muted);
+      background-color: var(--text-tertiary);
     }
     .source-live-dot.enabled {
-      background-color: var(--color-success);
+      background-color: var(--emerald-500);
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
     }
     .source-title {
       font-size: 12px;
       font-weight: 500;
-      color: var(--color-text-primary);
+      color: var(--text-primary);
     }
     .source-type-pill {
       font-family: var(--font-mono);
       font-size: 10px;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     /* Sweep Metrics Grid */
@@ -703,15 +729,16 @@ import {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
       padding: 6px 4px;
     }
     .metric-num {
       font-size: 16px;
       font-weight: 700;
-      color: var(--color-text-primary);
+      color: var(--text-primary);
       line-height: 1.2;
     }
     .metric-lbl {
@@ -719,7 +746,7 @@ import {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
       margin-top: 2px;
     }
 
@@ -735,8 +762,9 @@ import {
       flex-direction: column;
       gap: 1px;
       padding: 5px 8px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
     }
     .tax-label {
@@ -744,17 +772,17 @@ import {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
     .tax-value {
       font-size: 11px;
       font-weight: 500;
-      color: var(--color-text-primary);
+      color: var(--text-primary);
     }
 
-    .text-emerald { color: var(--color-success); }
-    .text-brand { color: var(--color-brand-accent); }
-    .text-amber { color: var(--color-warning); }
+    .text-emerald { color: var(--emerald-400); }
+    .text-brand { color: var(--brand-accent); }
+    .text-amber { color: var(--amber-400); }
 
     @media (max-width: 992px) {
       .kpi-cards-grid {

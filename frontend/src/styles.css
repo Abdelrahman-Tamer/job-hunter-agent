@@ -49,6 +49,14 @@ body.in-telegram {
   overscroll-behavior-y: none;
 }
 
+/* Arabic / RTL Text Polish */
+[dir="auto"],
+[dir="rtl"],
+:lang(ar) {
+  line-height: 1.62;
+  letter-spacing: normal;
+}
+
 /* =========================================================================
    2. Typography & Text Hierarchy
    ========================================================================= */
@@ -57,13 +65,13 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-primary);
   font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 
-h1 { font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.025em; }
-h2 { font-size: var(--text-xl); font-weight: 600; }
-h3 { font-size: var(--text-lg); font-weight: 600; }
-h4 { font-size: var(--text-md); font-weight: 600; }
+h1 { font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.03em; }
+h2 { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.025em; }
+h3 { font-size: var(--text-lg); font-weight: 600; letter-spacing: -0.02em; }
+h4 { font-size: var(--text-md); font-weight: 600; letter-spacing: -0.015em; }
 
 p {
   color: var(--text-secondary);
@@ -114,8 +122,21 @@ code, kbd, samp, pre {
   background: var(--border-strong);
 }
 
+/* Custom Scrollbar Utility */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: var(--radius-full);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--border-default);
+}
+
 /* =========================================================================
-   5. Reusable Utility Classes
+   5. Reusable Precision Cards & Surface Utilities
    ========================================================================= */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
@@ -138,27 +159,33 @@ code, kbd, samp, pre {
   overflow: hidden;
 }
 
-/* Subtle Cards & Panels */
+/* Architectural Tactile Surface Card */
+.surface-card,
 .card {
   background-color: var(--bg-surface-1);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--surface-highlight), var(--shadow-xs);
   border-radius: var(--radius-md);
-  transition: border-color var(--motion-fast), background-color var(--motion-fast), transform var(--motion-fast);
+  transition: border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
 }
 
+.surface-card:hover,
 .card:hover {
-  border-color: var(--border-default);
+  border-color: var(--border-strong);
+  box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
 }
 
 .glass-panel {
   background-color: var(--bg-glass-1);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--surface-highlight-sm);
 }
 
 /* Live Status Pulse Dot */
-.status-dot {
+.status-dot,
+.status-pulse-dot {
   display: inline-block;
   width: 7px;
   height: 7px;
@@ -166,15 +193,17 @@ code, kbd, samp, pre {
   background-color: var(--emerald-500);
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
   position: relative;
+  flex-shrink: 0;
 }
 
-.status-dot.pulse::after {
+.status-dot.pulse::after,
+.status-pulse-dot::after {
   content: '';
   position: absolute;
   inset: -2px;
   border-radius: 50%;
   border: 1px solid var(--emerald-500);
-  animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+  animation: pulse-ring 2.4s cubic-bezier(0.24, 0, 0.38, 1) infinite;
 }
 
 @keyframes pulse-ring {
@@ -200,7 +229,9 @@ code, kbd, samp, pre {
   animation: shimmer 1.6s ease-in-out infinite;
 }
 
-/* Core Buttons Base */
+/* =========================================================================
+   6. Core Buttons Base & Tactile Micro-Interactions
+   ========================================================================= */
 button {
   font-family: inherit;
   cursor: pointer;
@@ -222,24 +253,31 @@ button {
   text-decoration: none;
   user-select: none;
   white-space: nowrap;
+  outline: none;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .btn-primary {
   background-color: var(--brand-primary);
   color: #ffffff;
   border-color: var(--brand-primary);
+  box-shadow: var(--surface-highlight-sm);
 }
 
 .btn-primary:hover:not(:disabled) {
   background-color: var(--brand-primary-hover);
   border-color: var(--brand-primary-hover);
-  box-shadow: var(--shadow-glow-brand);
+  box-shadow: var(--shadow-glow-brand), var(--surface-highlight-sm);
 }
 
 .btn-secondary {
   background-color: var(--bg-surface-2);
   color: var(--text-primary);
   border-color: var(--border-default);
+  box-shadow: var(--surface-highlight-sm);
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -265,6 +303,7 @@ button {
 
 .btn-danger:hover:not(:disabled) {
   background-color: rgba(244, 63, 94, 0.2);
+  border-color: rgba(244, 63, 94, 0.4);
 }
 
 .btn-sm {
@@ -277,19 +316,65 @@ button {
   opacity: 0.45;
   cursor: not-allowed;
   pointer-events: none;
+  transform: none;
 }
 
 /* Keyboard Shortcut Hint Tag */
-.kbd-hint {
+.kbd-hint,
+.kbd-badge {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 4px;
+  padding: 1px 5px;
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--text-tertiary);
   background-color: var(--bg-surface-2);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xs);
+  box-shadow: var(--surface-highlight-sm);
+  letter-spacing: 0.03em;
+}
+
+/* =========================================================================
+   7. Form Inputs & Select Controls
+   ========================================================================= */
+.form-input,
+.filter-select {
+  font-family: inherit;
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  background-color: var(--bg-surface-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
+}
+
+.form-input:hover,
+.filter-select:hover {
+  border-color: var(--border-strong);
+}
+
+.form-input:focus,
+.filter-select:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px var(--brand-focus-ring);
+  background-color: var(--bg-surface-1);
+}
+
+/* =========================================================================
+   8. Reduced Motion Safety Guardrail
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

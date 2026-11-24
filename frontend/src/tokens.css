@@ -1,7 +1,7 @@
 /**
  * Frontend Opportunity Radar — Precision Architectural Design Tokens
- * Tier: Linear / Vercel / Raycast Enterprise
- * Theme: Dark-first default (#09090B) with high-fidelity Light Mode parity.
+ * Tier: Linear / Vercel / Raycast Flagship Craft
+ * Theme: Dark-first default (#09090B) with high-contrast Light Titanium parity.
  */
 
 :root,
@@ -11,29 +11,31 @@
      ========================================================================= */
   --bg-canvas: #09090b;
   --bg-surface-1: #111114;
-  --bg-surface-2: #18181c;
-  --bg-surface-3: #202026;
-  --bg-surface-hover: rgba(255, 255, 255, 0.04);
+  --bg-surface-2: #16161a;
+  --bg-surface-3: #1f1f25;
+  --bg-surface-hover: rgba(255, 255, 255, 0.045);
   --bg-surface-active: rgba(255, 255, 255, 0.08);
 
-  --bg-glass-1: rgba(17, 17, 20, 0.85);
-  --bg-glass-2: rgba(24, 24, 28, 0.9);
-  --bg-dock: rgba(15, 15, 18, 0.92);
+  --bg-glass-1: rgba(17, 17, 20, 0.82);
+  --bg-glass-2: rgba(22, 22, 26, 0.88);
+  --bg-dock: rgba(14, 14, 18, 0.92);
 
   /* Legacy alias mappings for backward compatibility */
   --color-bg-canvas: var(--bg-canvas);
   --color-bg-surface: var(--bg-surface-1);
+  --color-bg-surface-1: var(--bg-surface-1);
+  --color-bg-surface-2: var(--bg-surface-2);
   --color-bg-surface-elevated: var(--bg-surface-2);
   --color-bg-surface-muted: var(--bg-surface-2);
   --color-bg-surface-hover: var(--bg-surface-hover);
   --color-bg-glass: var(--bg-glass-1);
 
   /* =========================================================================
-     2. Architectural Hairline Borders
+     2. Architectural Hairlines & Top-Edge Highlights
      ========================================================================= */
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-default: rgba(255, 255, 255, 0.12);
-  --border-strong: rgba(255, 255, 255, 0.2);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.19);
   --border-focus: #6366f1;
 
   --color-border-subtle: var(--border-subtle);
@@ -41,12 +43,18 @@
   --color-border-hover: var(--border-strong);
   --color-border-focus: var(--border-focus);
 
+  /* Tactical Top-Edge Specular Inset (Linear style) */
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.065);
+  --surface-highlight-sm: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.08);
+  --surface-highlight-hover: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+
   /* =========================================================================
      3. Optical Text Hierarchy
      ========================================================================= */
   --text-primary: #fafafa;
   --text-secondary: #a1a1aa;
   --text-tertiary: #71717a;
+  --text-muted: #52525b;
   --text-inverse: #09090b;
 
   --color-text-primary: var(--text-primary);
@@ -57,12 +65,14 @@
   /* =========================================================================
      4. Semantic Brand & Functional Accents
      ========================================================================= */
-  /* Brand Indigo / Violet */
+  /* Brand Indigo / Electric Accent */
   --brand-primary: #6366f1;
   --brand-primary-hover: #4f46e5;
+  --brand-primary-active: #4338ca;
   --brand-accent: #818cf8;
   --brand-bg-subtle: rgba(99, 102, 241, 0.12);
-  --brand-border-subtle: rgba(99, 102, 241, 0.3);
+  --brand-border-subtle: rgba(99, 102, 241, 0.28);
+  --brand-focus-ring: rgba(99, 102, 241, 0.35);
 
   --color-brand-primary: var(--brand-primary);
   --color-brand-primary-hover: var(--brand-primary-hover);
@@ -99,6 +109,7 @@
   --color-error-bg: var(--rose-bg);
   --color-error-text: var(--rose-400);
   --color-error-border: var(--rose-border);
+  --color-danger: var(--rose-500);
 
   /* Sky (LinkedIn Social Post Accent) */
   --sky-500: #0ea5e9;
@@ -110,41 +121,50 @@
   --color-info-text: var(--sky-400);
   --color-info-border: var(--sky-border);
 
+  /* Cyan (Radar Pulse / Active Tracking) */
+  --cyan-500: #06b6d4;
+  --cyan-400: #22d3ee;
+  --cyan-bg: rgba(34, 211, 238, 0.12);
+  --cyan-border: rgba(34, 211, 238, 0.28);
+
   /* Elevation Shadows & Lighting */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.65);
-  --shadow-glow-brand: 0 0 20px rgba(99, 102, 241, 0.25);
-  --shadow-glow-emerald: 0 0 20px rgba(16, 185, 129, 0.22);
-  --shadow-dock: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--border-default);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.75), 0 2px 6px rgba(0, 0, 0, 0.5);
+  --shadow-glow-brand: 0 0 24px rgba(99, 102, 241, 0.25);
+  --shadow-glow-emerald: 0 0 24px rgba(16, 185, 129, 0.22);
+  --shadow-dock: 0 12px 36px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--border-default);
 }
 
 [data-theme="light"] {
   /* =========================================================================
-     1. Surface & Background Geometry (Light Mode)
+     1. Surface & Background Geometry (Light Titanium Canvas)
      ========================================================================= */
-  --bg-canvas: #fafafa;
+  --bg-canvas: #f8fafc;
   --bg-surface-1: #ffffff;
-  --bg-surface-2: #f4f4f5;
-  --bg-surface-3: #e4e4e7;
-  --bg-surface-hover: rgba(0, 0, 0, 0.04);
-  --bg-surface-active: rgba(0, 0, 0, 0.08);
+  --bg-surface-2: #f1f5f9;
+  --bg-surface-3: #e2e8f0;
+  --bg-surface-hover: rgba(15, 23, 42, 0.04);
+  --bg-surface-active: rgba(15, 23, 42, 0.08);
 
   --bg-glass-1: rgba(255, 255, 255, 0.88);
-  --bg-glass-2: rgba(244, 244, 245, 0.92);
-  --bg-dock: rgba(255, 255, 255, 0.92);
+  --bg-glass-2: rgba(241, 245, 249, 0.92);
+  --bg-dock: rgba(255, 255, 255, 0.94);
 
   --color-bg-canvas: var(--bg-canvas);
   --color-bg-surface: var(--bg-surface-1);
+  --color-bg-surface-1: var(--bg-surface-1);
+  --color-bg-surface-2: var(--bg-surface-2);
   --color-bg-surface-elevated: var(--bg-surface-2);
   --color-bg-surface-muted: var(--bg-surface-2);
   --color-bg-surface-hover: var(--bg-surface-hover);
   --color-bg-glass: var(--bg-glass-1);
 
   /* Borders */
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-default: rgba(0, 0, 0, 0.1);
-  --border-strong: rgba(0, 0, 0, 0.18);
+  --border-subtle: rgba(15, 23, 42, 0.07);
+  --border-default: rgba(15, 23, 42, 0.12);
+  --border-strong: rgba(15, 23, 42, 0.22);
   --border-focus: #4f46e5;
 
   --color-border-subtle: var(--border-subtle);
@@ -152,11 +172,17 @@
   --color-border-hover: var(--border-strong);
   --color-border-focus: var(--border-focus);
 
+  /* Specular Highlight for Crisp Clean Depth */
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+  --surface-highlight-sm: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.9);
+  --surface-highlight-hover: inset 0 1px 0 0 rgba(255, 255, 255, 1);
+
   /* Text */
-  --text-primary: #09090b;
-  --text-secondary: #52525b;
-  --text-tertiary: #a1a1aa;
-  --text-inverse: #fafafa;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
 
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
@@ -166,9 +192,11 @@
   /* Brand */
   --brand-primary: #4f46e5;
   --brand-primary-hover: #4338ca;
+  --brand-primary-active: #3730a3;
   --brand-accent: #6366f1;
   --brand-bg-subtle: rgba(79, 70, 229, 0.08);
   --brand-border-subtle: rgba(79, 70, 229, 0.22);
+  --brand-focus-ring: rgba(79, 70, 229, 0.3);
 
   --color-brand-primary: var(--brand-primary);
   --color-brand-primary-hover: var(--brand-primary-hover);
@@ -179,30 +207,53 @@
   /* Semantics */
   --emerald-500: #059669;
   --emerald-400: #10b981;
-  --emerald-bg: rgba(16, 185, 129, 0.09);
-  --emerald-border: rgba(16, 185, 129, 0.24);
+  --emerald-bg: rgba(16, 185, 129, 0.1);
+  --emerald-border: rgba(16, 185, 129, 0.25);
+  --color-success: var(--emerald-500);
+  --color-success-bg: var(--emerald-bg);
+  --color-success-text: var(--emerald-500);
+  --color-success-border: var(--emerald-border);
 
   --amber-500: #d97706;
-  --amber-400: #f59e0b;
-  --amber-bg: rgba(245, 158, 11, 0.09);
-  --amber-border: rgba(245, 158, 11, 0.24);
+  --amber-400: #b45309;
+  --amber-bg: rgba(245, 158, 11, 0.1);
+  --amber-border: rgba(245, 158, 11, 0.25);
+  --color-warning: var(--amber-500);
+  --color-warning-bg: var(--amber-bg);
+  --color-warning-text: var(--amber-500);
+  --color-warning-border: var(--amber-border);
 
   --rose-500: #e11d48;
-  --rose-400: #f43f5e;
-  --rose-bg: rgba(244, 63, 94, 0.09);
-  --rose-border: rgba(244, 63, 94, 0.24);
+  --rose-400: #be123c;
+  --rose-bg: rgba(244, 63, 94, 0.1);
+  --rose-border: rgba(244, 63, 94, 0.25);
+  --color-error: var(--rose-500);
+  --color-error-bg: var(--rose-bg);
+  --color-error-text: var(--rose-500);
+  --color-error-border: var(--rose-border);
+  --color-danger: var(--rose-500);
 
   --sky-500: #0284c7;
-  --sky-400: #0ea5e9;
-  --sky-bg: rgba(14, 165, 233, 0.09);
-  --sky-border: rgba(14, 165, 233, 0.24);
+  --sky-400: #0369a1;
+  --sky-bg: rgba(14, 165, 233, 0.1);
+  --sky-border: rgba(14, 165, 233, 0.25);
+  --color-info: var(--sky-500);
+  --color-info-bg: var(--sky-bg);
+  --color-info-text: var(--sky-500);
+  --color-info-border: var(--sky-border);
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.12);
-  --shadow-glow-brand: 0 0 18px rgba(79, 70, 229, 0.18);
-  --shadow-glow-emerald: 0 0 18px rgba(16, 185, 129, 0.15);
-  --shadow-dock: 0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--border-default);
+  --cyan-500: #0891b2;
+  --cyan-400: #0e7490;
+  --cyan-bg: rgba(6, 182, 212, 0.1);
+  --cyan-border: rgba(6, 182, 212, 0.25);
+
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.09), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 14px 32px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-glow-brand: 0 0 20px rgba(79, 70, 229, 0.18);
+  --shadow-glow-emerald: 0 0 20px rgba(16, 185, 129, 0.15);
+  --shadow-dock: 0 10px 30px rgba(15, 23, 42, 0.12), 0 0 0 1px var(--border-default);
 }
 
 /* =========================================================================
@@ -231,6 +282,7 @@
   --space-2: 8px;
   --space-2-5: 10px;
   --space-3: 12px;
+  --space-3-5: 14px;
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
@@ -247,9 +299,10 @@
   --radius-xl: 18px;
   --radius-full: 9999px;
 
-  /* Motion & Easing Curves */
+  /* Motion & Easing Curves (Hardware Accelerated) */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-smooth: 320ms;

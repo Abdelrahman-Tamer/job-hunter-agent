@@ -259,7 +259,7 @@ import {
             <div class="card-main-col">
               <!-- Title & Header Row -->
               <div class="card-title-row">
-                <h3 class="role-title">{{ job.title }}</h3>
+                <h3 class="role-title" dir="auto">{{ job.title }}</h3>
 
                 <div class="badges-row">
                   <ui-badge
@@ -289,9 +289,10 @@ import {
 
               <!-- Company & Poster Row -->
               <div class="card-company-row">
-                <span class="company-name">{{ job.company }}</span>
+                <span class="company-name" dir="auto">{{ job.company }}</span>
                 <span *ngIf="job.poster_name" class="poster-tag">
-                  • Shared by <strong>{{ job.poster_name }}</strong>
+                  <app-icon name="user" [size]="10"></app-icon>
+                  <span>Shared by <strong>{{ job.poster_name }}</strong></span>
                 </span>
                 <span class="time-relative tabular-nums">
                   • {{ formatRelativeDate(job.published_at || job.first_seen_at) }}
@@ -308,7 +309,7 @@ import {
 
                   <span class="meta-tag location" *ngIf="job.raw_location">
                     <app-icon name="map-pin" [size]="11"></app-icon>
-                    <span class="location-text">{{ job.raw_location }}</span>
+                    <span class="location-text" dir="auto">{{ job.raw_location }}</span>
                   </span>
                 </div>
 
@@ -429,16 +430,16 @@ import {
       position: sticky;
       top: 0;
       z-index: 50;
-      background-color: var(--color-bg-glass);
+      background-color: var(--bg-glass-1);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
-      border: 1px solid var(--color-border-subtle);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-sm);
       padding: var(--space-3) var(--space-4);
       display: flex;
       flex-direction: column;
       gap: var(--space-2-5);
-      box-shadow: var(--shadow-xs);
+      box-shadow: var(--surface-highlight), var(--shadow-sm);
     }
 
     .command-row-top {
@@ -454,10 +455,11 @@ import {
       display: inline-flex;
       align-items: center;
       gap: 2px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-sm);
-      padding: 2px;
+      padding: 3px;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
     }
 
     .segment-tab-btn {
@@ -470,24 +472,29 @@ import {
       border-radius: var(--radius-xs);
       font-size: 12px;
       font-weight: 500;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       cursor: pointer;
       user-select: none;
       transition: all var(--motion-fast);
       white-space: nowrap;
+      outline: none;
     }
 
     .segment-tab-btn:hover {
-      color: var(--color-text-primary);
-      background-color: var(--color-bg-surface-hover);
+      color: var(--text-primary);
+      background-color: var(--bg-surface-hover);
+    }
+
+    .segment-tab-btn:active {
+      transform: scale(0.98);
     }
 
     .segment-tab-btn.active {
-      background-color: var(--color-bg-surface-1);
-      color: var(--color-text-primary);
-      border-color: var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      color: var(--text-primary);
+      border-color: var(--border-default);
       font-weight: 600;
-      box-shadow: var(--shadow-xs);
+      box-shadow: var(--surface-highlight-sm), var(--shadow-xs);
     }
 
     .segment-tab-btn.sm {
@@ -496,7 +503,7 @@ import {
     }
 
     .segment-tab-btn.social-tab.active {
-      color: var(--color-brand-accent);
+      color: var(--sky-400);
     }
 
     .region-flag {
@@ -523,28 +530,29 @@ import {
     .search-lens {
       position: absolute;
       left: 10px;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
       pointer-events: none;
     }
 
     .search-input {
       width: 100%;
       height: 34px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-xs);
       padding: 0 32px 0 32px;
       font-size: 13px;
-      color: var(--color-text-primary);
-      transition: border-color var(--motion-fast), background-color var(--motion-fast);
+      color: var(--text-primary);
+      transition: border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
     }
     .search-input:focus {
       outline: none;
-      border-color: var(--color-brand-accent);
-      background-color: var(--color-bg-surface-1);
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 2px var(--brand-focus-ring);
+      background-color: var(--bg-surface-1);
     }
     .search-input::placeholder {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     .search-clear-btn {
@@ -552,13 +560,14 @@ import {
       right: 8px;
       background: transparent;
       border: none;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
       cursor: pointer;
       display: flex;
       padding: 2px;
+      border-radius: var(--radius-xs);
     }
     .search-clear-btn:hover {
-      color: var(--color-text-primary);
+      color: var(--text-primary);
     }
 
     .kbd-shortcut-hint {
@@ -567,9 +576,10 @@ import {
       font-family: var(--font-mono);
       font-size: 10px;
       font-weight: 600;
-      color: var(--color-text-muted);
-      background: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      color: var(--text-tertiary);
+      background: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: 3px;
       padding: 1px 5px;
       pointer-events: none;
@@ -587,23 +597,24 @@ import {
 
     .filter-select {
       height: 34px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-xs);
       padding: 0 10px;
       font-size: 12px;
       font-weight: 500;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       cursor: pointer;
-      transition: border-color var(--motion-fast);
+      transition: all var(--motion-fast);
     }
     .filter-select:hover {
-      border-color: var(--color-border-default);
-      color: var(--color-text-primary);
+      border-color: var(--border-strong);
+      color: var(--text-primary);
     }
     .filter-select:focus {
       outline: none;
-      border-color: var(--color-brand-accent);
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 2px var(--brand-focus-ring);
     }
 
     .reset-filters-btn {
@@ -612,19 +623,23 @@ import {
       gap: 4px;
       height: 34px;
       padding: 0 10px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-xs);
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       transition: all var(--motion-fast);
     }
     .reset-filters-btn:hover {
-      background-color: var(--color-bg-surface-hover);
-      color: var(--color-text-primary);
-      border-color: var(--color-border-default);
+      background-color: var(--bg-surface-3);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+    .reset-filters-btn:active {
+      transform: scale(0.98);
     }
 
     /* Telemetry Sub-Bar */
@@ -633,9 +648,9 @@ import {
       align-items: center;
       justify-content: space-between;
       padding-top: var(--space-2);
-      border-top: 1px solid var(--color-border-subtle);
+      border-top: 1px solid var(--border-subtle);
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     .telemetry-left {
@@ -644,10 +659,10 @@ import {
       gap: 6px;
     }
     .results-count strong {
-      color: var(--color-text-primary);
+      color: var(--text-primary);
     }
     .telemetry-dot {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     .live-status-pill {
@@ -657,13 +672,14 @@ import {
       font-family: var(--font-mono);
       font-size: 10px;
       font-weight: 600;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
     }
     .live-dot-green {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background-color: var(--color-success);
+      background-color: var(--emerald-500);
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
     }
 
     /* ==========================================================================
@@ -694,18 +710,26 @@ import {
       align-items: center;
       gap: var(--space-3);
       padding: var(--space-3) var(--space-4);
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight), var(--shadow-xs);
       border-radius: var(--radius-sm);
       cursor: pointer;
-      transition: transform var(--motion-fast), border-color var(--motion-fast), background-color var(--motion-fast);
+      transition: transform var(--motion-fast), border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
       position: relative;
+      outline: none;
     }
 
     .opportunity-row-card:hover {
-      background-color: var(--color-bg-surface-2);
-      border-color: var(--color-border-default);
+      background-color: var(--bg-surface-2);
+      border-color: var(--border-strong);
+      box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
       transform: translateY(-1px);
+    }
+
+    .opportunity-row-card:focus-visible {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px var(--brand-focus-ring);
     }
 
     /* Score Column */
@@ -722,27 +746,28 @@ import {
       border-radius: var(--radius-xs);
       font-size: 12px;
       font-weight: 700;
-      border: 1px solid var(--color-border-subtle);
-      background-color: var(--color-bg-surface-2);
+      border: 1px solid var(--border-default);
+      background-color: var(--bg-surface-2);
+      box-shadow: var(--surface-highlight-sm);
     }
 
     .score-badge[data-band="emerald"] {
-      border-color: rgba(16, 185, 129, 0.4);
-      background-color: rgba(16, 185, 129, 0.08);
-      color: var(--color-success);
+      border-color: var(--emerald-border);
+      background-color: var(--emerald-bg);
+      color: var(--emerald-400);
     }
     .score-badge[data-band="indigo"] {
-      border-color: var(--color-brand-border);
-      background-color: var(--color-brand-subtle);
-      color: var(--color-brand-accent);
+      border-color: var(--brand-border-subtle);
+      background-color: var(--brand-bg-subtle);
+      color: var(--brand-accent);
     }
     .score-badge[data-band="amber"] {
-      border-color: rgba(245, 158, 11, 0.4);
-      background-color: rgba(245, 158, 11, 0.08);
-      color: var(--color-warning);
+      border-color: var(--amber-border);
+      background-color: var(--amber-bg);
+      color: var(--amber-400);
     }
     .score-badge[data-band="muted"] {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     /* Main Info Column */
@@ -765,9 +790,9 @@ import {
       margin: 0;
       font-size: 14px;
       font-weight: 600;
-      color: var(--color-text-primary);
-      letter-spacing: -0.01em;
-      line-height: 1.3;
+      color: var(--text-primary);
+      letter-spacing: -0.015em;
+      line-height: 1.35;
     }
 
     .badges-row {
@@ -778,21 +803,32 @@ import {
 
     .card-company-row {
       font-size: 12px;
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       flex-wrap: wrap;
     }
     .company-name {
       font-weight: 500;
-      color: var(--color-text-primary);
+      color: var(--text-primary);
+    }
+    .poster-tag {
+      background: var(--sky-bg);
+      border: 1px solid var(--sky-border);
+      color: var(--sky-400);
+      border-radius: var(--radius-xs);
+      padding: 1px 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
     }
     .poster-tag strong {
-      color: var(--color-text-primary);
+      color: var(--text-primary);
     }
     .time-relative {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     /* Meta & Skills Row */
@@ -816,15 +852,15 @@ import {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
     .meta-tag.workplace[data-workplace="REMOTE"] {
-      color: var(--color-brand-accent);
+      color: var(--brand-accent);
       font-weight: 500;
     }
 
     .location-text {
-      max-width: 140px;
+      max-width: 160px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -842,15 +878,15 @@ import {
       font-size: 10px;
       font-family: var(--font-mono);
       font-weight: 500;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-subtle);
       border-radius: 3px;
-      padding: 1px 5px;
-      color: var(--color-text-secondary);
+      padding: 1px 6px;
+      color: var(--text-secondary);
     }
 
     .skill-chip.overflow {
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
       border-style: dashed;
     }
 
@@ -866,31 +902,38 @@ import {
       width: 32px;
       height: 32px;
       border-radius: var(--radius-xs);
-      background-color: transparent;
-      border: 1px solid var(--color-border-subtle);
-      color: var(--color-text-secondary);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
+      color: var(--text-secondary);
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       text-decoration: none;
       transition: all var(--motion-fast);
+      outline: none;
     }
 
     .quick-action-btn:hover {
-      background-color: var(--color-bg-surface-hover);
-      color: var(--color-text-primary);
-      border-color: var(--color-border-default);
+      background-color: var(--bg-surface-3);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+      transform: scale(1.05);
+    }
+
+    .quick-action-btn:active {
+      transform: scale(0.95);
     }
 
     .quick-action-btn.bookmark-btn.saved {
-      color: var(--color-brand-accent);
-      background-color: var(--color-brand-subtle);
-      border-color: var(--color-brand-border);
+      color: var(--emerald-400);
+      background-color: var(--emerald-bg);
+      border-color: var(--emerald-border);
     }
 
     .quick-action-btn.apply-btn:hover {
-      color: var(--color-brand-accent);
+      color: var(--brand-accent);
     }
 
     /* ==========================================================================
@@ -901,15 +944,16 @@ import {
       align-items: center;
       justify-content: space-between;
       padding: var(--space-3) var(--space-4);
-      background-color: var(--color-bg-surface-1);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-1);
+      border: 1px solid var(--border-default);
+      box-shadow: var(--surface-highlight-sm);
       border-radius: var(--radius-sm);
       margin-top: var(--space-2);
     }
 
     .pagination-info {
       font-size: 12px;
-      color: var(--color-text-muted);
+      color: var(--text-tertiary);
     }
 
     .pagination-buttons {
@@ -924,19 +968,23 @@ import {
       gap: 4px;
       height: 30px;
       padding: 0 10px;
-      background-color: var(--color-bg-surface-2);
-      border: 1px solid var(--color-border-subtle);
+      background-color: var(--bg-surface-2);
+      border: 1px solid var(--border-default);
       border-radius: var(--radius-xs);
-      color: var(--color-text-secondary);
+      color: var(--text-secondary);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       transition: all var(--motion-fast);
+      outline: none;
     }
     .page-nav-btn:hover:not(:disabled) {
-      background-color: var(--color-bg-surface-hover);
-      color: var(--color-text-primary);
-      border-color: var(--color-border-default);
+      background-color: var(--bg-surface-3);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+    .page-nav-btn:active:not(:disabled) {
+      transform: scale(0.98);
     }
     .page-nav-btn:disabled {
       opacity: 0.4;
@@ -946,7 +994,7 @@ import {
     .page-indicator {
       font-size: 12px;
       font-weight: 600;
-      color: var(--color-text-primary);
+      color: var(--text-primary);
       padding: 0 4px;
     }
 
