@@ -1178,6 +1178,31 @@ def test_job_persistence_column_clamping_and_eligibility_classification():
     assert job.remote_scope is not None and len(job.remote_scope) <= 255
 
 
+def test_ux_ui_design_variants_and_engineering_management_rejected():
+    """Verify rejection of UX/UI design variants and engineering management/executive roles."""
+    rejected_cases = [
+        ("UI/UX Designer", "Design web wireframes, component systems, and prototypes in Figma."),
+        ("UX/UI Designer", "User experience and interface design for our core web application."),
+        ("Senior UI / UX Designer - Web", "Designing web components, user flows, and mockups in Figma."),
+        ("Head of Software Engineering (Hands-on)", "Leading frontend and backend squads building Angular web applications."),
+        ("Engineering Manager (Frontend)", "Managing the frontend engineering team using React, Next.js, and TypeScript."),
+    ]
+    for title, desc in rejected_cases:
+        is_fe, reason = is_frontend_opportunity(title=title, description=desc)
+        assert is_fe is False, f"Expected '{title}' to be rejected, but passed: {reason}"
+
+    # Accept controls
+    accepted_controls = [
+        ("UI Engineer", "Building web applications using Angular, TypeScript, HTML and CSS."),
+        ("Frontend Engineer", "Developing modern client-side interfaces with React and TypeScript."),
+        ("Lead Frontend Engineer", "Leading frontend architecture in Angular and TypeScript."),
+    ]
+    for title, desc in accepted_controls:
+        is_fe, reason = is_frontend_opportunity(title=title, description=desc)
+        assert is_fe is True, f"Expected control '{title}' to be accepted, but failed: {reason}"
+
+
+
 
 
 

@@ -70,8 +70,13 @@ HARD_REJECT_TITLE_PATTERNS = [
     r"\b(data scientist|data engineer|data analyst|machine learning|deep learning|ai engineer|artificial intelligence|nlp engineer|computer vision|bi developer|big data|analytics engineer)\b",
     r"(ذكاء\s*اصطناعي|علم\s*البيانات|تحليل\s*البيانات|مهندس\s*بيانات|تعلم\s*الآلة|بيانات\s*ضخمة)",
     # Graphic / UI-UX Design Only (Without Frontend Coding)
-    r"\b(ui/ux designer|ux designer|ui designer|product designer|graphic designer|visual designer|ux researcher|figma designer|motion designer|brand designer|web designer)\b",
+    r"\b(?:ui\s*[/&]\s*ux|ux\s*[/&]\s*ui)(?:\s+(?:designer|researcher|specialist|lead|architect))?\b",
+    r"\b(?:ui|ux)\s+(?:designer|researcher)\b",
+    r"\b(?:product designer|graphic designer|visual designer|figma designer|motion designer|brand designer|web designer)\b",
     r"(مصمم\s*واجهات|مصمم\s*جرافيك|تصميم\s*واجهات|مصمم\s*منتجات|يو\s*اي\s*يو\s*اكس)",
+    # Engineering Management & Executive Leadership (Non-IC)
+    r"\b(?:head\s+of\s+(?:[\w\s]+\s+)?engineering|(?:[\w-]+\s+)?engineering\s+manager|vp\s+of\s+engineering|vice\s+president\s+of\s+engineering|director\s+of\s+(?:[\w\s]+\s+)?engineering|engineering\s+director|cto|chief\s+technology\s+officer)\b",
+    r"(مدير\s*هندسي|مدير\s*تطوير|رئيس\s*قسم|مدير\s*فريق)",
     # Non-Tech Operations, Support & Data Entry
     r"\b(data entry|call center|customer support|customer care|customer service|help desk|virtual assistant|moderator|clerk|typist)\b",
     r"\b(sales|marketing|accountant|human resources|recruiter|talent acquisition|business analyst|project manager|product manager|scrum master)\b",
@@ -157,6 +162,11 @@ INTERNSHIP_TITLE_REGEX = re.compile(
 
 FRONTEND_INTERNSHIP_KEYWORD_REGEX = re.compile(
     r"\b(frontend|front-end|web|angular|react|vue|ui)\b|واجهات",
+    re.IGNORECASE,
+)
+
+GENERIC_DEV_REGEX = re.compile(
+    r"\b(developer|engineer|programmer)\b|مطور|مهندس",
     re.IGNORECASE,
 )
 
@@ -291,7 +301,7 @@ def is_frontend_opportunity(
         return False, "Non-frontend internship (general software/AI/backend/mobile intern is excluded)."
 
     # --- Step 4: Title is generic ("Software Engineer", "Developer") -> Inspect description & skills ---
-    is_generic_dev = any(g in title_lower for g in ["developer", "engineer", "programmer", "مطور", "مهندس"])
+    is_generic_dev = bool(GENERIC_DEV_REGEX.search(title_lower))
     if is_generic_dev and not has_reject_title:
         fe_matches = [k for k in ["angular", "frontend", "react", "vue", "typescript", "front-end"] if k in desc_clean[:1200]]
         if len(fe_matches) >= 2 or "angular" in desc_clean[:800] or "frontend" in desc_clean[:800]:
