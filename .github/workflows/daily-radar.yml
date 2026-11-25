@@ -52,6 +52,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
           SOCIAL_SEARCH_API_KEY: ${{ secrets.SOCIAL_SEARCH_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TZ: "Africa/Cairo"

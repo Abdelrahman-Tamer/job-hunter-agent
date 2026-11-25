@@ -54,6 +54,7 @@ jobs:
           TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          SOCIAL_SEARCH_API_KEY: ${{ secrets.SOCIAL_SEARCH_API_KEY }}
           TZ: "Africa/Cairo"
           FORCE_RUN: ${{ inputs.force || 'false' }}
         run: |
