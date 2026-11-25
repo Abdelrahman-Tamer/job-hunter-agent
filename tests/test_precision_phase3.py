@@ -611,6 +611,7 @@ async def test_fast_radar_run_distinct_key_fast_sources_silent_empty_and_alerts_
     )
     monkeypatch.setattr(settings, "FAST_RADAR_MIN_SCORE", 78)
     monkeypatch.setattr(settings, "GEMINI_EXTRACTION_ENABLED", False)
+    monkeypatch.setattr(settings, "TELEGRAM_OWNER_ID", None)
 
     profile = _junior_angular_profile(experience_years=1.0)
     db_session.add(profile)
@@ -631,7 +632,7 @@ async def test_fast_radar_run_distinct_key_fast_sources_silent_empty_and_alerts_
         raw_location="Cairo, Egypt",
         workplace_type=WorkplaceType.HYBRID,
         seniority=SeniorityLevel.UNKNOWN,
-        required_skills=["JavaScript"],
+        required_skills=["JavaScript", "Docker", "Python"],
         published_at=now,
     )
     heavy_ats = _RecordingAdapter("ats_dork", "ats_dork", [])
@@ -657,6 +658,11 @@ async def test_fast_radar_run_distinct_key_fast_sources_silent_empty_and_alerts_
 
     daily_run = await runner.execute_daily_run(db_session, force=True, target_chat_id=None)
     assert daily_run.run_key.startswith("daily-digest-")
+
+    warm_saved = (
+        await db_session.execute(select(Job).where(Job.source_job_id == "wuzzuf-warm-1"))
+    ).scalar_one()
+    assert 50.0 <= warm_saved.match_score < 78.0
 
     # Reset call recorders before Fast-Radar pulse
     for a in (wuzzuf_adapter, li_jobs_adapter, li_social_adapter, heavy_ats, heavy_boards):
