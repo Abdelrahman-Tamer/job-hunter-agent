@@ -282,7 +282,7 @@ class DailyPipelineRunner:
             s_name = meta.name
             s_start = datetime.now(UTC)
             try:
-                if fast_mode and s_name == "linkedin_social":
+                if fast_mode and s_name in ("linkedin_social", "wuzzuf"):
                     coro = adapter.fetch_jobs(query_config={"fast_mode": True, "freshness_tbs": "qdr:d"})
                 else:
                     coro = adapter.fetch_jobs()

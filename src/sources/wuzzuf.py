@@ -4,6 +4,7 @@ Fetches fresh Frontend and Angular roles in Egypt from Wuzzuf's public SSR
 browse endpoints (with JSON:API support) using ResilientHttpClient.
 """
 
+import hashlib
 import json
 import re
 import zoneinfo
@@ -15,9 +16,18 @@ import httpx
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
 
+from src.core.config import settings
 from src.core.logging import logger
-from src.core.security import canonicalize_url, is_safe_url
+from src.core.security import canonicalize_url
 from src.models.enums import EmploymentType, SeniorityLevel, WorkplaceType
+from src.sources._parsing import (
+    extract_location,
+    extract_published_at,
+    extract_seniority,
+    extract_skills,
+    extract_workplace_type,
+    is_allowed_domain_url,
+)
 from src.sources.base import (
     BaseSourceAdapter,
     NormalizedJobData,
@@ -33,11 +43,16 @@ class WuzzufAdapter(BaseSourceAdapter):
     """Adapter for discovering fresh Frontend & Angular roles on Wuzzuf Egypt."""
 
     BASE_URL: ClassVar[str] = "https://wuzzuf.net"
+    SERPER_URL: ClassVar[str] = "https://google.serper.dev/search"
     DEFAULT_QUERIES: ClassVar[tuple[str, ...]] = ("frontend", "angular")
     QUERY_PATHS: ClassVar[dict[str, str]] = {
         "frontend": "/a/Frontend-Jobs-in-Egypt",
         "angular": "/a/Angular-Jobs-in-Egypt",
     }
+    SERPER_FALLBACK_QUERIES: ClassVar[tuple[str, ...]] = (
+        'site:wuzzuf.net/jobs/p ("frontend" OR "front-end" OR "angular") ("egypt" OR "cairo" OR "alexandria" OR "remote")',
+        'site:wuzzuf.net/jobs/p ("angular" OR "react" OR "typescript") ("frontend" OR "web developer")',
+    )
     MAX_PAGES_PER_QUERY: ClassVar[int] = 2
     MAX_JOBS_PER_QUERY: ClassVar[int] = 40
     PAGE_SIZE: ClassVar[int] = 20
@@ -46,9 +61,11 @@ class WuzzufAdapter(BaseSourceAdapter):
         self,
         http_client: ResilientHttpClient | None = None,
         queries: list[str] | tuple[str, ...] | None = None,
+        fast_mode: bool = False,
     ):
         self.http_client = http_client or ResilientHttpClient()
         self.queries = list(queries) if queries else list(self.DEFAULT_QUERIES)
+        self.fast_mode = fast_mode
 
     def source_metadata(self) -> SourceMetadata:
         return SourceMetadata(
@@ -91,15 +108,21 @@ class WuzzufAdapter(BaseSourceAdapter):
         self,
         since: datetime | None = None,
         query_config: dict[str, Any] | None = None,
+        fast_mode: bool = False,
     ) -> list[RawJobData]:
-        """Fetch fresh Frontend & Angular roles in Egypt (max 2 pages / 40 jobs per query)."""
+        """Fetch fresh Frontend & Angular roles in Egypt (max 2 pages / 40 jobs per query), falling back to Serper on Cloudflare/403."""
+        cfg = query_config if isinstance(query_config, dict) else {}
+        effective_fast = bool(fast_mode or self.fast_mode or cfg.get("fast_mode"))
+        override_tbs = str(cfg.get("freshness_tbs")).strip() if cfg.get("freshness_tbs") else None
+
         active_queries = self.queries
-        if query_config and isinstance(query_config.get("queries"), (list, tuple)):
-            active_queries = [str(q).strip() for q in query_config["queries"] if str(q).strip()]
+        if isinstance(cfg.get("queries"), (list, tuple)):
+            active_queries = [str(q).strip() for q in cfg["queries"] if str(q).strip()]
 
         raw_jobs: list[RawJobData] = []
         seen_ids: set[str] = set()
         seen_urls: set[str] = set()
+        waf_blocked = False
 
         for query in active_queries:
             path = self._query_to_path(query)
@@ -119,13 +142,20 @@ class WuzzufAdapter(BaseSourceAdapter):
                     )
                     break
 
+                has_cf_header = "cf-mitigated" in {k.lower() for k in resp.headers}
+                if resp.status_code == 403 or has_cf_header:
+                    waf_blocked = True
+
                 if resp.status_code != 200:
+                    if self._is_blocked_response(resp.text):
+                        waf_blocked = True
                     logger.warning(
                         f"Wuzzuf returned HTTP {resp.status_code} for query={query!r} page={page_idx}. Skipping gracefully."
                     )
                     break
 
                 if self._is_blocked_response(resp.text):
+                    waf_blocked = True
                     logger.warning(
                         f"Wuzzuf returned anti-bot/Cloudflare challenge for query={query!r} page={page_idx}. Skipping gracefully."
                     )
@@ -171,12 +201,31 @@ class WuzzufAdapter(BaseSourceAdapter):
                 if total_count is not None and (page_idx + 1) * self.PAGE_SIZE >= total_count:
                     break
 
+        if not raw_jobs and waf_blocked:
+            api_key = str(getattr(settings, "SERPER_API_KEY", None) or "").strip()
+            if api_key:
+                fallback_jobs = await self._fetch_via_serper_fallback(
+                    api_key=api_key,
+                    fast_mode=effective_fast,
+                    freshness_tbs=override_tbs,
+                    seen_ids=seen_ids,
+                    seen_urls=seen_urls,
+                )
+                raw_jobs.extend(fallback_jobs)
+            else:
+                logger.warning(
+                    "Wuzzuf direct SSR was blocked (403/WAF) and SERPER_API_KEY is missing; skipping fallback."
+                )
+
         logger.info(f"WuzzufAdapter fetched {len(raw_jobs)} unique Egypt listings.")
         return raw_jobs
 
     def normalize(self, raw_job: RawJobData) -> NormalizedJobData:
-        """Transform a Wuzzuf JSON:API / SSR store job item into NormalizedJobData."""
+        """Transform a Wuzzuf SSR or Serper-fallback item into NormalizedJobData."""
         item = raw_job.payload
+        if item.get("_fetch_via") == "serper_fallback":
+            return self._normalize_serper_fallback(raw_job)
+
         attrs = item.get("attributes") or {}
 
         job_url = item.get("_resolved_url") or self._build_job_url(attrs) or raw_job.source_url
@@ -264,18 +313,215 @@ class WuzzufAdapter(BaseSourceAdapter):
             or "cf-chl-" in sample
         )
 
+    async def _fetch_via_serper_fallback(
+        self,
+        *,
+        api_key: str,
+        fast_mode: bool,
+        freshness_tbs: str | None,
+        seen_ids: set[str],
+        seen_urls: set[str],
+    ) -> list[RawJobData]:
+        """Discover indexed Wuzzuf job postings via Serper when direct SSR is WAF-blocked."""
+        headers = {
+            "X-API-KEY": api_key,
+            "Content-Type": "application/json",
+        }
+        max_queries = 1 if fast_mode else 2
+        active_queries = self.SERPER_FALLBACK_QUERIES[:max_queries]
+        tbs = freshness_tbs or ("qdr:d" if fast_mode else getattr(settings, "SERPER_FRESHNESS_TBS", "qdr:d3"))
+
+        fallback_items: list[RawJobData] = []
+        for query in active_queries:
+            payload_json: dict[str, Any] = {"q": query, "num": 10}
+            if tbs:
+                payload_json["tbs"] = tbs
+
+            try:
+                resp = await self.http_client.post(
+                    self.SERPER_URL,
+                    headers=headers,
+                    json=payload_json,
+                )
+            except (httpx.HTTPError, TimeoutError, ValueError) as exc:
+                logger.warning(f"Wuzzuf Serper fallback error for query: {exc}")
+                continue
+
+            if resp.status_code != 200:
+                logger.warning(
+                    f"Wuzzuf Serper fallback returned HTTP {resp.status_code}: {resp.text[:200]}"
+                )
+                continue
+
+            try:
+                data = resp.json()
+            except json.JSONDecodeError as exc:
+                logger.warning(f"Wuzzuf Serper fallback returned invalid JSON: {exc}")
+                continue
+
+            for entry in data.get("organic", []):
+                if not isinstance(entry, dict):
+                    continue
+                link = str(entry.get("link") or "").strip()
+                if not self._is_valid_wuzzuf_job_url(link):
+                    continue
+
+                canonical = canonicalize_url(link)
+                dedup_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                if dedup_id in seen_ids or canonical in seen_urls:
+                    continue
+
+                seen_ids.add(dedup_id)
+                seen_urls.add(canonical)
+                fallback_items.append(
+                    RawJobData(
+                        source_name="wuzzuf",
+                        source_job_id=dedup_id,
+                        source_url=link,
+                        payload={
+                            "_fetch_via": "serper_fallback",
+                            "_resolved_url": canonical,
+                            "_query": query,
+                            "title": str(entry.get("title") or "").strip(),
+                            "snippet": str(entry.get("snippet") or "").strip(),
+                            "link": link,
+                            "date": str(entry.get("date") or "").strip(),
+                        },
+                    )
+                )
+
+        logger.info(
+            f"WuzzufAdapter Serper fallback discovered {len(fallback_items)} verified listings "
+            f"(fast_mode={fast_mode}, queries={len(active_queries)})."
+        )
+        return fallback_items
+
+    def _normalize_serper_fallback(self, raw_job: RawJobData) -> NormalizedJobData:
+        """Normalize a Serper-discovered Wuzzuf job listing into NormalizedJobData."""
+        payload = raw_job.payload
+        job_url = str(payload.get("link") or raw_job.source_url).strip()
+        canonical = str(payload.get("_resolved_url") or canonicalize_url(job_url)).strip()
+
+        raw_title = str(payload.get("title") or "").strip()
+        snippet = str(payload.get("snippet") or "").strip()
+        title, company, parsed_loc = self._parse_serper_title(raw_title)
+
+        combined_text = "\n".join(p for p in (raw_title, snippet) if p).strip()
+        lower_text = f"{parsed_loc or ''} {combined_text}".lower()
+
+        workplace_type = extract_workplace_type(lower_text)
+        raw_location = parsed_loc or extract_location(lower_text) or "Egypt"
+        remote_scope = raw_location if workplace_type == WorkplaceType.REMOTE else None
+
+        loc_check = f"{raw_location} {lower_text}".lower()
+        has_egypt = any(
+            h in loc_check
+            for h in (
+                "egypt",
+                "cairo",
+                "giza",
+                "alexandria",
+                "maadi",
+                "nasr city",
+                "new cairo",
+                "smart village",
+                "mansoura",
+                "tanta",
+                "مصر",
+                "القاهرة",
+            )
+        )
+        is_us_alexandria = "alexandria" in loc_check and any(
+            us in loc_check for us in ("virginia", ", va", "usa", "united states")
+        )
+        country_codes = ["EG"] if (has_egypt and not is_us_alexandria) else []
+
+        seniority = extract_seniority(title, lower_text)
+        employment_type = (
+            EmploymentType.INTERNSHIP if seniority == SeniorityLevel.INTERNSHIP else EmploymentType.FULL_TIME
+        )
+        required_skills = extract_skills(lower_text)
+        published_at = extract_published_at(payload.get("date"), snippet)
+
+        return NormalizedJobData(
+            source_name="wuzzuf",
+            source_job_id=raw_job.source_job_id,
+            source_url=job_url,
+            canonical_url=canonical,
+            original_application_url=job_url,
+            company=company,
+            title=title,
+            description_text=combined_text or title,
+            description_html=f"<p>{combined_text}</p>" if combined_text else None,
+            raw_location=raw_location,
+            country_codes=country_codes,
+            workplace_type=workplace_type,
+            remote_scope=remote_scope,
+            eligible_countries=["EG"] if "EG" in country_codes else [],
+            seniority=seniority,
+            employment_type=employment_type,
+            required_skills=required_skills,
+            published_at=published_at,
+            is_social_post=False,
+            raw_payload={
+                "origin_board": "Wuzzuf",
+                "fetch_via": "serper_fallback",
+                "query": payload.get("_query"),
+                "company": company,
+                "is_social_post": False,
+            },
+        )
+
+    @staticmethod
+    def _parse_serper_title(raw_title: str) -> tuple[str, str, str | None]:
+        """Parse (title, company, raw_location) from Wuzzuf Google search titles."""
+        clean = re.sub(r"\s*[|\-–]\s*wuzzuf(?:\.net)?\s*$", "", raw_title or "", flags=re.IGNORECASE).strip()
+
+        match_at_in = re.match(
+            r"^(.+?)(?:\s+jobs?)?\s+at\s+(.+?)\s+in\s+(.+)$",
+            clean,
+            flags=re.IGNORECASE,
+        )
+        if match_at_in:
+            title = match_at_in.group(1).strip() or "Frontend Engineer"
+            company = match_at_in.group(2).strip() or "Wuzzuf Employer"
+            loc = match_at_in.group(3).strip() or None
+            return title, company, loc
+
+        match_at = re.match(r"^(.+?)(?:\s+jobs?)?\s+at\s+(.+)$", clean, flags=re.IGNORECASE)
+        if match_at:
+            return (
+                match_at.group(1).strip() or "Frontend Engineer",
+                match_at.group(2).strip() or "Wuzzuf Employer",
+                None,
+            )
+
+        match_in = re.match(r"^(.+?)\s+jobs?\s+in\s+(.+)$", clean, flags=re.IGNORECASE)
+        if match_in:
+            return (
+                match_in.group(1).strip() or "Frontend Engineer",
+                "Wuzzuf Employer",
+                match_in.group(2).strip() or None,
+            )
+
+        parts = [p.strip() for p in re.split(r"\s+[-–]\s+", clean) if p.strip()]
+        if len(parts) >= 3:
+            return parts[0] or "Frontend Engineer", parts[1] or "Wuzzuf Employer", parts[-1] or None
+        if len(parts) == 2:
+            return parts[0] or "Frontend Engineer", parts[1] or "Wuzzuf Employer", None
+
+        return clean or "Frontend Engineer", "Wuzzuf Employer", None
+
     @staticmethod
     def _is_valid_wuzzuf_url(url: str) -> bool:
-        if not url or not is_safe_url(url):
+        return is_allowed_domain_url(url, ("wuzzuf.net",))
+
+    @classmethod
+    def _is_valid_wuzzuf_job_url(cls, url: str) -> bool:
+        if not cls._is_valid_wuzzuf_url(url):
             return False
-        try:
-            parsed = urlparse(url)
-        except ValueError:
-            return False
-        if parsed.scheme.lower() not in ("http", "https"):
-            return False
-        host = (parsed.hostname or "").lower()
-        return host == "wuzzuf.net" or host.endswith(".wuzzuf.net")
+        path = (urlparse(url).path or "").lower()
+        return "/jobs/p/" in path
 
     @classmethod
     def _build_job_url(cls, attrs: dict[str, Any]) -> str:

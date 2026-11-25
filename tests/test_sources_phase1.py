@@ -487,9 +487,12 @@ async def test_wuzzuf_adapter_bounds_pagination_to_2_pages_40_jobs_per_query():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_wuzzuf_adapter_graceful_fallback_on_403_500_or_changed_markup():
-    """Verify WuzzufAdapter returns [] gracefully on HTTP 403 Cloudflare, HTTP 500, or changed HTML."""
+async def test_wuzzuf_adapter_graceful_fallback_on_403_500_or_changed_markup(monkeypatch):
+    """Verify WuzzufAdapter returns [] gracefully on HTTP 403 Cloudflare (without Serper), HTTP 500, or changed HTML."""
     from src.sources.wuzzuf import WuzzufAdapter
+
+    monkeypatch.setattr(settings, "SERPER_API_KEY", None)
+    monkeypatch.setattr(settings, "SOCIAL_SEARCH_API_KEY", None)
 
     respx.get("https://wuzzuf.net/a/Frontend-Jobs-in-Egypt").mock(
         return_value=httpx.Response(403, text="<html><title>Just a moment...</title></html>")
@@ -516,6 +519,248 @@ async def test_wuzzuf_adapter_graceful_fallback_on_403_500_or_changed_markup():
         assert await adapter2.fetch_jobs() == []
     finally:
         await adapter2.http_client.close()
+
+
+@pytest.mark.asyncio
+async def test_wuzzuf_serper_fallback_on_403_normal_mode_and_url_validation(monkeypatch):
+    """When Wuzzuf SSR returns HTTP 403 and SERPER_API_KEY is set, run <= 2 Serper queries with strict URL validation."""
+    from src.sources.wuzzuf import WuzzufAdapter
+
+    monkeypatch.setattr(settings, "SERPER_API_KEY", "test-wuzzuf-serper-key")
+    monkeypatch.setattr(settings, "SERPER_FRESHNESS_TBS", "qdr:d3")
+
+    captured_serper: list[dict] = []
+
+    def serper_handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers.get("X-API-KEY") == "test-wuzzuf-serper-key"
+        body = json.loads(request.content.decode("utf-8"))
+        captured_serper.append(body)
+        return httpx.Response(
+            200,
+            json={
+                "organic": [
+                    {
+                        "title": "Frontend Developer job at Paymob in Cairo - Wuzzuf",
+                        "link": "https://wuzzuf.net/jobs/p/xyz123-frontend-developer-paymob-cairo-egypt?utm_source=google",
+                        "snippet": "Build Angular and TypeScript fintech apps in Maadi, Cairo. Hybrid role. 2 days ago.",
+                        "date": "2 days ago",
+                    },
+                    {
+                        "title": "Junior Angular Developer job at Integrant in Alexandria - Wuzzuf",
+                        "link": "https://wuzzuf.net/jobs/p/abc999-junior-angular-integrant-alexandria-egypt",
+                        "snippet": "Looking for Junior Angular Frontend engineer.",
+                        "date": "1 day ago",
+                    },
+                    # Spoofed / non-job / SSRF URLs that must be dropped
+                    {
+                        "title": "Spoofed Subdomain",
+                        "link": "https://wuzzuf.net.evil.com/jobs/p/fake1",
+                        "snippet": "Angular Cairo",
+                    },
+                    {
+                        "title": "Open Redirect",
+                        "link": "https://evil.com/?next=https://wuzzuf.net/jobs/p/fake2",
+                        "snippet": "Angular Cairo",
+                    },
+                    {
+                        "title": "Userinfo Phish",
+                        "link": "https://wuzzuf.net@evil.com/jobs/p/fake3",
+                        "snippet": "Angular Cairo",
+                    },
+                    {
+                        "title": "Category Browse Page Not Job Post",
+                        "link": "https://wuzzuf.net/a/Frontend-Jobs-in-Egypt",
+                        "snippet": "Frontend jobs list",
+                    },
+                    {
+                        "title": "Loopback SSRF",
+                        "link": "http://127.0.0.1/jobs/p/internal",
+                        "snippet": "Angular",
+                    },
+                    {
+                        "title": "XSS Scheme",
+                        "link": "javascript:alert(1)",
+                        "snippet": "Angular",
+                    },
+                ]
+            },
+        )
+
+    with respx.mock(assert_all_called=True) as mock_router:
+        mock_router.get("https://wuzzuf.net/a/Frontend-Jobs-in-Egypt").mock(
+            return_value=httpx.Response(403, text="<html><title>Just a moment...</title></html>")
+        )
+        mock_router.get("https://wuzzuf.net/a/Angular-Jobs-in-Egypt").mock(
+            return_value=httpx.Response(403, text="<html><title>Just a moment...</title></html>")
+        )
+        mock_router.post("https://google.serper.dev/search").mock(side_effect=serper_handler)
+
+        adapter = WuzzufAdapter(http_client=ResilientHttpClient(max_retries=1))
+        try:
+            raw_jobs = await adapter.fetch_jobs()
+        finally:
+            await adapter.http_client.close()
+
+    assert 1 <= len(captured_serper) <= 2
+    assert len(captured_serper) == 2
+    for payload in captured_serper:
+        assert payload.get("tbs") == "qdr:d3"
+        assert "site:wuzzuf.net/jobs/p" in payload.get("q", "")
+
+    # Deduplicated across 2 queries -> only 2 valid /jobs/p/ URLs
+    assert len(raw_jobs) == 2
+    norms = [adapter.normalize(rj) for rj in raw_jobs]
+
+    first = norms[0]
+    assert first.source_name == "wuzzuf"
+    assert first.is_social_post is False
+    assert first.title == "Frontend Developer"
+    assert first.company == "Paymob"
+    assert first.raw_location == "Cairo"
+    assert first.country_codes == ["EG"]
+    assert first.eligible_countries == ["EG"]
+    assert first.raw_payload.get("origin_board") == "Wuzzuf"
+    assert first.raw_payload.get("fetch_via") == "serper_fallback"
+    assert first.raw_payload.get("is_social_post") is False
+    assert first.workplace_type == WorkplaceType.HYBRID
+    assert "Angular" in first.required_skills and "TypeScript" in first.required_skills
+    assert first.source_job_id
+
+    second = norms[1]
+    assert second.title == "Junior Angular Developer"
+    assert second.company == "Integrant"
+    assert second.raw_location == "Alexandria"
+    assert second.seniority == SeniorityLevel.JUNIOR
+    assert second.raw_payload.get("fetch_via") == "serper_fallback"
+
+
+@pytest.mark.asyncio
+async def test_wuzzuf_serper_fallback_fast_mode_uses_1_query_and_qdr_d(monkeypatch):
+    """When WAF blocks SSR in fast_mode=True, WuzzufAdapter runs at most 1 Serper query with tbs=qdr:d."""
+    from src.sources.wuzzuf import WuzzufAdapter
+
+    monkeypatch.setattr(settings, "SERPER_API_KEY", "test-wuzzuf-fast-key")
+    monkeypatch.setattr(settings, "SERPER_FRESHNESS_TBS", "qdr:d3")
+
+    captured_serper: list[dict] = []
+
+    def serper_handler(request: httpx.Request) -> httpx.Response:
+        captured_serper.append(json.loads(request.content.decode("utf-8")))
+        return httpx.Response(
+            200,
+            json={
+                "organic": [
+                    {
+                        "title": "Angular Engineer at Tamara in Remote - Wuzzuf",
+                        "link": "https://wuzzuf.net/jobs/p/fast777-angular-engineer-tamara-egypt",
+                        "snippet": "Remote Angular & TypeScript role open to Egypt candidates. 3 hours ago.",
+                        "date": "3 hours ago",
+                    }
+                ]
+            },
+        )
+
+    with respx.mock(assert_all_called=True) as mock_router:
+        # HTTP 200 Cloudflare challenge -> 0 jobs due to WAF block
+        mock_router.get("https://wuzzuf.net/a/Frontend-Jobs-in-Egypt").mock(
+            return_value=httpx.Response(
+                200,
+                text="<html><head><title>Just a moment...</title></head><body>challenges.cloudflare.com</body></html>",
+            )
+        )
+        mock_router.get("https://wuzzuf.net/a/Angular-Jobs-in-Egypt").mock(
+            return_value=httpx.Response(403, text="Forbidden")
+        )
+        mock_router.post("https://google.serper.dev/search").mock(side_effect=serper_handler)
+
+        adapter = WuzzufAdapter(http_client=ResilientHttpClient(max_retries=1))
+        try:
+            raw_jobs = await adapter.fetch_jobs(fast_mode=True)
+        finally:
+            await adapter.http_client.close()
+
+    assert len(captured_serper) == 1
+    assert captured_serper[0].get("tbs") == "qdr:d"
+    assert "site:wuzzuf.net/jobs/p" in captured_serper[0].get("q", "")
+    assert len(raw_jobs) == 1
+
+    norm = adapter.normalize(raw_jobs[0])
+    assert norm.source_name == "wuzzuf"
+    assert norm.is_social_post is False
+    assert norm.raw_payload.get("origin_board") == "Wuzzuf"
+    assert norm.raw_payload.get("fetch_via") == "serper_fallback"
+    assert norm.title == "Angular Engineer"
+    assert norm.company == "Tamara"
+    assert norm.workplace_type == WorkplaceType.REMOTE
+
+
+@pytest.mark.asyncio
+async def test_wuzzuf_skips_serper_when_ssr_succeeds_or_api_key_missing(monkeypatch):
+    """Verify Serper is NOT called when SSR yields jobs, and 403 without SERPER_API_KEY makes zero Serper calls."""
+    from src.sources.wuzzuf import WuzzufAdapter
+
+    companies = {"1": {"id": "1", "type": "company", "attributes": {"name": "Paymob"}}}
+    sample_job = [
+        {
+            "id": "ssr-1",
+            "type": "job",
+            "attributes": {
+                "title": "Frontend Developer",
+                "uri": "jobs/p/ssr-1-frontend",
+                "postedAt": "11/25/2026 12:00:00",
+                "location": {"country": {"name": "Egypt", "code": "EG"}, "city": {"name": "Cairo"}},
+                "keywords": [{"name": "Angular"}],
+            },
+            "relationships": {"company": {"data": {"id": "1", "type": "company"}}},
+        }
+    ]
+
+    # Case 1: SSR succeeds even with SERPER_API_KEY configured -> 0 Serper calls
+    monkeypatch.setattr(settings, "SERPER_API_KEY", "should-not-be-used")
+    with respx.mock(assert_all_called=False) as mock_router:
+        mock_router.get("https://wuzzuf.net/a/Frontend-Jobs-in-Egypt").mock(
+            return_value=httpx.Response(
+                200,
+                text=_build_wuzzuf_ssr_html("/a/Frontend-Jobs-in-Egypt", sample_job, companies, total_count=1),
+            )
+        )
+        mock_router.get("https://wuzzuf.net/a/Angular-Jobs-in-Egypt").mock(
+            return_value=httpx.Response(403, text="Forbidden")
+        )
+        serper_route = mock_router.post("https://google.serper.dev/search").mock(
+            return_value=httpx.Response(200, json={"organic": []})
+        )
+
+        adapter = WuzzufAdapter(http_client=ResilientHttpClient(max_retries=1))
+        try:
+            raw_jobs = await adapter.fetch_jobs()
+        finally:
+            await adapter.http_client.close()
+
+        assert len(raw_jobs) == 1
+        assert not serper_route.called
+
+    # Case 2: SSR 403 with missing SERPER_API_KEY -> 0 Serper calls, returns []
+    monkeypatch.setattr(settings, "SERPER_API_KEY", "")
+    with respx.mock(assert_all_called=False) as mock_router:
+        mock_router.get("https://wuzzuf.net/a/Frontend-Jobs-in-Egypt").mock(
+            return_value=httpx.Response(403, text="Blocked")
+        )
+        mock_router.get("https://wuzzuf.net/a/Angular-Jobs-in-Egypt").mock(
+            return_value=httpx.Response(403, text="Blocked")
+        )
+        serper_route2 = mock_router.post("https://google.serper.dev/search").mock(
+            return_value=httpx.Response(200, json={"organic": []})
+        )
+
+        adapter2 = WuzzufAdapter(http_client=ResilientHttpClient(max_retries=1))
+        try:
+            raw_jobs2 = await adapter2.fetch_jobs()
+        finally:
+            await adapter2.http_client.close()
+
+        assert raw_jobs2 == []
+        assert not serper_route2.called
 
 
 # ---------------------------------------------------------------------------
