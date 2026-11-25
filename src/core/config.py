@@ -1,10 +1,9 @@
 """Application configuration via pydantic-settings."""
 
 from pathlib import Path
-from typing import List, Optional
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -33,12 +32,12 @@ class Settings(BaseSettings):
     DAILY_DIGEST_TIME: str = "09:00"
 
     # Telegram Bot
-    TELEGRAM_BOT_TOKEN: Optional[str] = None
-    TELEGRAM_OWNER_ID: Optional[int] = None
+    TELEGRAM_BOT_TOKEN: str | None = None
+    TELEGRAM_OWNER_ID: int | None = None
     TELEGRAM_POLLING: bool = True
 
     # Gemini AI
-    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: str | None = None
     GEMINI_MODEL: str = "gemini-3.8-flash"
     GEMINI_EXTRACTION_ENABLED: bool = True
     GEMINI_MAX_REQUESTS_PER_RUN: int = 25
@@ -57,14 +56,16 @@ class Settings(BaseSettings):
     # Default Sources Configuration
     LINKEDIN_SOCIAL_ENABLED: bool = True
     SOCIAL_SEARCH_PROVIDER: str = "auto"
-    SOCIAL_SEARCH_API_KEY: Optional[str] = None
-    SERPER_API_KEY: Optional[str] = None
+    SOCIAL_SEARCH_API_KEY: str | None = None
+    SERPER_API_KEY: str | None = None
     SERPER_FRESHNESS_TBS: str = "qdr:d3"
     SOCIAL_SEARCH_RECENCY: str = "qdr:d3"
-    SOCIAL_FEED_URLS: List[str] = Field(default_factory=list)
+    SOCIAL_FEED_URLS: list[str] = Field(default_factory=list)
 
     WUZZUF_ENABLED: bool = True
     ATS_DORK_ENABLED: bool = True
+    LINKEDIN_JOBS_ENABLED: bool = True
+    MAJOR_BOARDS_DORK_ENABLED: bool = True
     EGYPT_COMMUNITY_ENABLED: bool = True
     JOBICY_ENABLED: bool = True
     WORKABLE_ENABLED: bool = True
@@ -74,16 +75,16 @@ class Settings(BaseSettings):
     LEVER_ENABLED: bool = True
     RSS_ENABLED: bool = True
 
-    WORKABLE_COMPANY_SLUGS: List[str] = Field(
+    WORKABLE_COMPANY_SLUGS: list[str] = Field(
         default_factory=lambda: ["integrant", "robusta", "lamdax", "foodics", "petroapp"]
     )
-    GREENHOUSE_BOARD_TOKENS: List[str] = Field(
+    GREENHOUSE_BOARD_TOKENS: list[str] = Field(
         default_factory=lambda: ["canonical", "speechify", "tamara", "cloudflare", "reddit"]
     )
-    LEVER_COMPANY_SLUGS: List[str] = Field(
+    LEVER_COMPANY_SLUGS: list[str] = Field(
         default_factory=lambda: ["palantir"]
     )
-    RSS_JOB_FEEDS: List[str] = Field(
+    RSS_JOB_FEEDS: list[str] = Field(
         default_factory=lambda: [
             "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",
             "https://weworkremotely.com/categories/remote-programming-jobs.rss",

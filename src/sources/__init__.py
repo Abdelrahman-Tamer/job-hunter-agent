@@ -12,7 +12,9 @@ from src.sources.greenhouse import GreenhouseAdapter
 from src.sources.himalayas import HimalayasAdapter
 from src.sources.jobicy import JobicyAdapter
 from src.sources.lever import LeverAdapter
+from src.sources.linkedin_jobs import LinkedInJobsAdapter
 from src.sources.linkedin_posts import LinkedInSocialAdapter
+from src.sources.major_boards import MajorBoardsDorkAdapter
 from src.sources.registry import SourceRegistry, create_default_registry
 from src.sources.remotive import RemotiveAdapter
 from src.sources.rss import RSSAdapter
@@ -21,20 +23,22 @@ from src.sources.wuzzuf import WuzzufAdapter
 
 __all__ = [
     "BaseSourceAdapter",
-    "SourceMetadata",
-    "RawJobData",
-    "NormalizedJobData",
     "EgyptCommunityAdapter",
-    "WuzzufAdapter",
     "GlobalAtsDorkAdapter",
-    "JobicyAdapter",
-    "WorkableAdapter",
-    "HimalayasAdapter",
-    "RemotiveAdapter",
     "GreenhouseAdapter",
+    "HimalayasAdapter",
+    "JobicyAdapter",
     "LeverAdapter",
+    "LinkedInJobsAdapter",
     "LinkedInSocialAdapter",
+    "MajorBoardsDorkAdapter",
+    "NormalizedJobData",
     "RSSAdapter",
+    "RawJobData",
+    "RemotiveAdapter",
+    "SourceMetadata",
     "SourceRegistry",
+    "WorkableAdapter",
+    "WuzzufAdapter",
     "create_default_registry",
 ]

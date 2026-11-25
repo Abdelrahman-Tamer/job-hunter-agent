@@ -1,6 +1,7 @@
 """Source registry to configure, manage, and coordinate all active adapters."""
 
 import asyncio
+
 import httpx
 
 from src.core.config import settings
@@ -12,7 +13,9 @@ from src.sources.greenhouse import GreenhouseAdapter
 from src.sources.himalayas import HimalayasAdapter
 from src.sources.jobicy import JobicyAdapter
 from src.sources.lever import LeverAdapter
+from src.sources.linkedin_jobs import LinkedInJobsAdapter
 from src.sources.linkedin_posts import LinkedInSocialAdapter
+from src.sources.major_boards import MajorBoardsDorkAdapter
 from src.sources.remotive import RemotiveAdapter
 from src.sources.rss import RSSAdapter
 from src.sources.workable import WorkableAdapter
@@ -49,7 +52,7 @@ class SourceRegistry:
             try:
                 ok = bool(await asyncio.wait_for(adapter.health_check(), timeout=10.0))
                 return name, ok
-            except (asyncio.TimeoutError, httpx.HTTPError, ValueError, RuntimeError, OSError, TimeoutError, TypeError, AttributeError) as exc:
+            except (httpx.HTTPError, ValueError, RuntimeError, OSError, TimeoutError, TypeError, AttributeError) as exc:
                 logger.error(f"Health check exception for {name}: {exc}")
                 return name, False
             except Exception as exc:  # noqa: BLE001
@@ -72,6 +75,12 @@ def create_default_registry() -> SourceRegistry:
 
     if getattr(settings, "ATS_DORK_ENABLED", True):
         registry.register(GlobalAtsDorkAdapter())
+
+    if getattr(settings, "LINKEDIN_JOBS_ENABLED", True):
+        registry.register(LinkedInJobsAdapter())
+
+    if getattr(settings, "MAJOR_BOARDS_DORK_ENABLED", True):
+        registry.register(MajorBoardsDorkAdapter())
 
     if getattr(settings, "EGYPT_COMMUNITY_ENABLED", True):
         registry.register(EgyptCommunityAdapter())

@@ -9,11 +9,13 @@ from typing import Any
 from sqlalchemy import and_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from src.bot.formatters import build_job_inline_keyboard, format_job_card
 from src.bot.telegram_client import TelegramClient
 from src.core.config import settings
 from src.core.logging import logger
+from src.core.security import is_safe_url
 from src.engine.deduplication import DeduplicationEngine, compute_url_hash
 from src.engine.eligibility import GeographicEligibilityEngine
 from src.engine.frontend_filter import (
@@ -74,6 +76,67 @@ def _parse_telegram_send_result(res: Any) -> tuple[bool, int | None, str | None]
         return ok, msg_id, err
     ok = bool(res)
     return ok, None, None if ok else "Telegram send_message failed"
+
+
+_DIRECT_CONTACT_FIELDS: tuple[str, ...] = ("direct_email", "whatsapp_contact", "apply_form_url")
+
+
+def _is_safe_enriched_value(field: str, value: str) -> bool:
+    """Validate enriched contact values before persisting into existing Job.raw_payload."""
+    lowered = value.lower()
+    if lowered.startswith(("javascript:", "data:", "vbscript:")):
+        return False
+    if field == "apply_form_url":
+        return is_safe_url(value)
+    if field == "whatsapp_contact" and lowered.startswith(("http://", "https://")):
+        return is_safe_url(value)
+    return True
+
+
+def _enrich_existing_job(existing: Job, normalized: NormalizedJobData) -> bool:
+    """Merge missing direct contact metadata, skills, and richer description into a deduplicated Job."""
+    incoming_payload = normalized.raw_payload if isinstance(normalized.raw_payload, dict) else {}
+    existing_payload = dict(existing.raw_payload) if isinstance(existing.raw_payload, dict) else {}
+    enriched = False
+
+    for field in _DIRECT_CONTACT_FIELDS:
+        existing_val = str(existing_payload.get(field) or "").strip()
+        incoming_val = str(incoming_payload.get(field) or "").strip()
+        if not existing_val and incoming_val and _is_safe_enriched_value(field, incoming_val):
+            existing_payload[field] = incoming_val
+            enriched = True
+
+    if normalized.required_skills:
+        existing_skills = list(existing.required_skills or [])
+        existing_lower = {str(s).strip().lower() for s in existing_skills if str(s).strip()}
+        added_skills = [
+            str(s).strip()
+            for s in normalized.required_skills
+            if str(s).strip() and str(s).strip().lower() not in existing_lower
+        ]
+        if added_skills:
+            existing.required_skills = [*existing_skills, *added_skills]
+            flag_modified(existing, "required_skills")
+            enriched = True
+
+    existing_desc = (existing.description_text or "").strip()
+    incoming_desc = (normalized.description_text or "").strip()
+    if incoming_desc and (
+        not existing_desc
+        or (len(incoming_desc) > len(existing_desc) + 40 and len(existing_desc) < 300)
+        or len(incoming_desc) > len(existing_desc) * 2
+    ):
+        existing.description_text = incoming_desc
+        if normalized.description_html and not existing.description_html:
+            existing.description_html = normalized.description_html
+        enriched = True
+
+    if enriched:
+        existing_payload["enriched_from_source"] = normalized.source_name
+        existing.raw_payload = existing_payload
+        flag_modified(existing, "raw_payload")
+
+    return enriched
 
 
 class DailyPipelineRunner:
@@ -325,11 +388,15 @@ class DailyPipelineRunner:
                         logger.debug(f"Skipping job classified outside frontend tracks: '{normalized.title}' at {normalized.company}")
                         continue
 
-                    # Deduplication check
+                    # Deduplication check + cross-source enrichment
                     existing, _match_type = await DeduplicationEngine.find_existing_job(session, normalized)
                     if existing:
-                        # Update last_seen_at
                         existing.last_seen_at = datetime.now(UTC)
+                        if _enrich_existing_job(existing, normalized):
+                            logger.info(
+                                f"Enriched existing job id={existing.id} ({existing.source_name}) "
+                                f"with metadata from {normalized.source_name}."
+                            )
                         continue
 
                     # Step 5: Gemini extraction for missing attributes if budget permits
