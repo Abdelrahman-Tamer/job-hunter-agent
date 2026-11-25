@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     # Match thresholds (0 - 100)
     MATCH_THRESHOLD_DIGEST: float = 70.0
     MATCH_THRESHOLD_STORE: float = 50.0
+    FAST_RADAR_MIN_SCORE: int = 78
 
     # Freshness policy (maximum job age in days)
     MAX_JOB_AGE_DAYS: int = 30

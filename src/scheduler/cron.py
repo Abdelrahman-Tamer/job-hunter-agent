@@ -1,9 +1,9 @@
 """APScheduler cron job orchestrator for 09:00 Africa/Cairo daily digest."""
 
 import asyncio
-from datetime import datetime, timezone
 import zoneinfo
-from typing import Optional
+from datetime import datetime
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -16,14 +16,18 @@ from src.scheduler.runner import DailyPipelineRunner
 class JobSchedulerService:
     """Manages scheduled periodic tasks and catch-up execution."""
 
-    def __init__(self, runner: Optional[DailyPipelineRunner] = None):
+    def __init__(self, runner: DailyPipelineRunner | None = None):
         self.runner = runner or DailyPipelineRunner()
-        self.scheduler: Optional[AsyncIOScheduler] = None
+        self.scheduler: AsyncIOScheduler | None = None
         self.timezone_name = settings.TIMEZONE or "Africa/Cairo"
 
     def _scheduled_job_wrapper(self) -> None:
         """Helper to schedule async coroutine inside APScheduler."""
         asyncio.create_task(self.run_daily_job())
+
+    def _scheduled_fast_radar_wrapper(self) -> None:
+        """Schedule Fast-Radar pulse inside APScheduler."""
+        asyncio.create_task(self.run_fast_radar_job())
 
     async def run_daily_job(self, force: bool = False) -> None:
         """Execute daily job discovery and notification pass."""
@@ -31,8 +35,17 @@ class JobSchedulerService:
         async with async_session_factory() as session:
             try:
                 await self.runner.execute_daily_run(session, force=force)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.error(f"Scheduled daily run encountered an unhandled error: {exc}", exc_info=True)
+
+    async def run_fast_radar_job(self, force: bool = False) -> None:
+        """Execute Fast-Radar high-velocity opportunity pulse."""
+        logger.info(f"Triggering scheduled Fast-Radar pulse ({self.timezone_name})...")
+        async with async_session_factory() as session:
+            try:
+                await self.runner.execute_fast_radar_run(session, force=force)
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Scheduled Fast-Radar pulse encountered an unhandled error: {exc}", exc_info=True)
 
     async def check_and_run_missed_catchup(self) -> None:
         """
@@ -79,8 +92,24 @@ class JobSchedulerService:
             misfire_grace_time=3600,  # 1 hour grace time
         )
 
+        fast_trigger = CronTrigger(
+            hour="12,15,18",
+            minute=0,
+            timezone=cairo_tz,
+        )
+        self.scheduler.add_job(
+            self._scheduled_fast_radar_wrapper,
+            trigger=fast_trigger,
+            id="fast_radar_pulse",
+            name="Fast-Radar Opportunity Pulse (12:00, 15:00, 18:00 Africa/Cairo)",
+            replace_existing=True,
+            misfire_grace_time=1800,
+        )
+
         self.scheduler.start()
-        logger.info(f"JobScheduler started: configured for {hour:02d}:{minute:02d} {self.timezone_name}")
+        logger.info(
+            f"JobScheduler started: daily at {hour:02d}:{minute:02d} + Fast-Radar at 12:00/15:00/18:00 {self.timezone_name}"
+        )
 
     def shutdown(self) -> None:
         """Gracefully stop scheduler."""

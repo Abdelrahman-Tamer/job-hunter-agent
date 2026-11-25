@@ -43,6 +43,13 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
     """
 
     MAX_QUERIES_PER_RUN: ClassVar[int] = 8
+    MAX_FAST_QUERIES_PER_RUN: ClassVar[int] = 2
+    FAST_QUERIES: ClassVar[list[str]] = [
+        # 1. Egypt + Arabic Frontend/Angular hiring posts
+        '(site:linkedin.com/posts OR site:linkedin.com/feed/update) ("we are hiring" OR "hiring" OR "looking for" OR "مطلوب" OR "بنوظف" OR "فرصة عمل") ("frontend" OR "front-end" OR "angular" OR "فرونت") ("egypt" OR "cairo" OR "alexandria" OR "مصر" OR "القاهرة" OR "ريموت")',
+        # 2. Direct-email / WhatsApp / Form Frontend/Angular hiring posts
+        '(site:linkedin.com/posts OR site:linkedin.com/feed/update) ("frontend" OR "front-end" OR "angular") ("send your cv" OR "drop your cv" OR "hr@" OR "careers@" OR "jobs@" OR "whatsapp" OR "forms.gle") ("egypt" OR "cairo" OR "remote" OR "dubai" OR "riyadh")',
+    ]
     DEFAULT_QUERIES: ClassVar[list[str]] = [
         # 1-2: English Egypt Frontend/Angular hiring posts (/posts + /feed/update)
         'site:linkedin.com/posts ("we are hiring" OR "hiring" OR "looking for") ("frontend" OR "front-end" OR "angular") ("egypt" OR "cairo" OR "alexandria")',
@@ -89,9 +96,12 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
         self,
         http_client: ResilientHttpClient | None = None,
         custom_queries: list[str] | None = None,
+        fast_mode: bool = False,
     ):
         self.http_client = http_client or ResilientHttpClient()
+        self._has_custom_queries = custom_queries is not None
         self.queries = custom_queries or self.DEFAULT_QUERIES
+        self.fast_mode = fast_mode
 
     def source_metadata(self) -> SourceMetadata:
         return SourceMetadata(
@@ -127,10 +137,33 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
         self,
         since: datetime | None = None,
         query_config: dict[str, Any] | None = None,
+        fast_mode: bool | None = None,
     ) -> list[RawJobData]:
         """Fetch raw LinkedIn hiring posts through configured search or syndication providers."""
         raw_items: list[RawJobData] = []
         seen_urls: set[str] = set()
+
+        cfg = query_config if isinstance(query_config, dict) else {}
+        effective_fast = self.fast_mode if fast_mode is None else bool(fast_mode)
+        if "fast_mode" in cfg:
+            effective_fast = bool(cfg["fast_mode"])
+
+        override_queries = cfg.get("queries") if isinstance(cfg.get("queries"), list) else None
+        override_tbs = str(cfg.get("freshness_tbs")).strip() if cfg.get("freshness_tbs") else None
+
+        if effective_fast:
+            if override_queries:
+                active_queries = override_queries[: self.MAX_FAST_QUERIES_PER_RUN]
+            elif self._has_custom_queries:
+                active_queries = self.queries[: self.MAX_FAST_QUERIES_PER_RUN]
+            else:
+                active_queries = self.FAST_QUERIES[: self.MAX_FAST_QUERIES_PER_RUN]
+            active_tbs = override_tbs or "qdr:d"
+        else:
+            active_queries = (override_queries or self.queries)[: self.MAX_QUERIES_PER_RUN]
+            active_tbs = override_tbs
+
+        use_overrides = effective_fast or override_queries is not None or override_tbs is not None
 
         api_key = self._resolve_search_api_key()
         provider = getattr(settings, "SOCIAL_SEARCH_PROVIDER", "auto").lower()
@@ -145,14 +178,26 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
         # Strategy A: Serper / SerpAPI if configured
         if api_key and (provider in ("serper", "auto")):
             try:
-                _append_unique(await self._fetch_via_serper(api_key))
+                if use_overrides:
+                    _append_unique(
+                        await self._fetch_via_serper(
+                            api_key,
+                            queries=active_queries,
+                            freshness_tbs=active_tbs,
+                        )
+                    )
+                else:
+                    _append_unique(await self._fetch_via_serper(api_key))
             except (httpx.HTTPError, ValueError, KeyError, json.JSONDecodeError) as exc:
                 logger.warning(f"Serper search provider failed: {exc}. Trying fallback.")
 
         # Strategy B: DuckDuckGo public search (only if provider is auto or duckduckgo)
         if not raw_items and (provider in ("duckduckgo", "auto")):
             try:
-                _append_unique(await self._fetch_via_duckduckgo())
+                if use_overrides:
+                    _append_unique(await self._fetch_via_duckduckgo(queries=active_queries))
+                else:
+                    _append_unique(await self._fetch_via_duckduckgo())
             except (httpx.HTTPError, ValueError, KeyError) as exc:
                 logger.warning(f"DuckDuckGo social search failed: {exc}")
 
@@ -194,20 +239,26 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
         """Evaluate bilingual Arabic + English hiring intent vs job-seeker posts."""
         return is_hiring_intent_social_post(text)
 
-    async def _fetch_via_serper(self, api_key: str) -> list[RawJobData]:
+    async def _fetch_via_serper(
+        self,
+        api_key: str,
+        queries: list[str] | None = None,
+        freshness_tbs: str | None = None,
+    ) -> list[RawJobData]:
         """Execute Google Search queries via Serper API for LinkedIn posts."""
         results: list[RawJobData] = []
         headers = {
             "X-API-KEY": api_key,
             "Content-Type": "application/json",
         }
-        freshness_tbs = getattr(settings, "SERPER_FRESHNESS_TBS", "qdr:d3")
+        effective_tbs = freshness_tbs if freshness_tbs is not None else getattr(settings, "SERPER_FRESHNESS_TBS", "qdr:d3")
+        active_queries = (queries if queries is not None else self.queries)[: self.MAX_QUERIES_PER_RUN]
 
-        for q in self.queries[: self.MAX_QUERIES_PER_RUN]:
+        for q in active_queries:
             try:
                 payload_json: dict[str, Any] = {"q": q, "num": 10}
-                if freshness_tbs:
-                    payload_json["tbs"] = freshness_tbs
+                if effective_tbs:
+                    payload_json["tbs"] = effective_tbs
                 resp = await self.http_client.post(
                     "https://google.serper.dev/search",
                     headers=headers,
@@ -243,10 +294,11 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
                 logger.debug(f"Serper query error for '{q}': {exc}")
         return results
 
-    async def _fetch_via_duckduckgo(self) -> list[RawJobData]:
+    async def _fetch_via_duckduckgo(self, queries: list[str] | None = None) -> list[RawJobData]:
         """Execute public DuckDuckGo HTML search for public LinkedIn posts."""
         results: list[RawJobData] = []
-        for q in self.queries[: self.MAX_QUERIES_PER_RUN]:
+        active_queries = (queries if queries is not None else self.queries)[: self.MAX_QUERIES_PER_RUN]
+        for q in active_queries:
             try:
                 resp = await self.http_client.post(
                     "https://html.duckduckgo.com/html/",
@@ -494,7 +546,7 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
             return False
         if require_post_path:
             path = parsed.path or ""
-            if not (path.startswith("/posts/") or path.startswith("/feed/update/")):
+            if not path.startswith(("/posts/", "/feed/update/")):
                 return False
         return is_safe_url(url)
 

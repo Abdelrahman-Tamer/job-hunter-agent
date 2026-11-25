@@ -1,0 +1,93 @@
+name: Fast-Radar Opportunity Pulse
+
+on:
+  schedule:
+    # 12:00 PM, 3:00 PM, 6:00 PM Africa/Cairo in winter (UTC+2) -> 10:00, 13:00, 16:00 UTC
+    # Note: During Egypt summer DST (UTC+3), update to '0 9,12,15 * * *'
+    - cron: '0 10,13,16 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force re-run even if Fast-Radar pulse already completed for this hour'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: fast-radar
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  fast-radar:
+    name: Execute Fast-Radar Pulse
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Database Migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python -m alembic upgrade head
+
+      - name: Run Fast-Radar Pulse
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          TZ: "Africa/Cairo"
+          FORCE_RUN: ${{ inputs.force || 'false' }}
+        run: |
+          python - <<'EOF'
+          import asyncio
+          import os
+          import sys
+
+          from src.core.database import async_session_factory
+          from src.models.enums import RunStatus
+          from src.scheduler.runner import DailyPipelineRunner
+
+          async def main() -> None:
+              force_input = os.getenv("FORCE_RUN", "false").lower() == "true"
+              print(f"Starting Fast-Radar pulse (force={force_input})...")
+              runner = DailyPipelineRunner()
+              async with async_session_factory() as session:
+                  run = await runner.execute_fast_radar_run(session, force=force_input)
+
+              if run is None or getattr(run, "status", None) == RunStatus.FAILED:
+                  status_label = getattr(run, "status", "None")
+                  print(f"Fast-Radar pulse failed with status: {status_label}", file=sys.stderr)
+                  sys.exit(1)
+
+              print(
+                  f"Fast-Radar pulse completed: key={run.run_key}, status={run.status}, "
+                  f"discovered={run.jobs_discovered}, new={run.jobs_new}, notified={run.jobs_notified}"
+              )
+              sys.exit(0)
+
+          if __name__ == "__main__":
+              try:
+                  asyncio.run(main())
+              except Exception as exc:
+                  print(f"Fast-Radar pulse encountered an unhandled exception: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          EOF

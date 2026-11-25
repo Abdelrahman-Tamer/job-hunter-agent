@@ -79,6 +79,9 @@ def _parse_telegram_send_result(res: Any) -> tuple[bool, int | None, str | None]
 
 
 _DIRECT_CONTACT_FIELDS: tuple[str, ...] = ("direct_email", "whatsapp_contact", "apply_form_url")
+MAX_SOCIAL_AI_CHECKS: int = 10
+FAST_RADAR_SOURCE_NAMES: tuple[str, ...] = ("wuzzuf", "linkedin_jobs", "linkedin_social")
+FAST_RADAR_MAX_ALERTS: int = 5
 
 
 def _is_safe_enriched_value(field: str, value: str) -> bool:
@@ -154,116 +157,79 @@ class DailyPipelineRunner:
         self.eligibility_engine = GeographicEligibilityEngine(candidate_country=settings.CANDIDATE_COUNTRY)
         self.matching_engine = MatchingEngine()
 
+    def get_cairo_now(self) -> datetime:
+        """Return current aware datetime in Africa/Cairo IANA timezone."""
+        cairo_tz = zoneinfo.ZoneInfo(settings.TIMEZONE or "Africa/Cairo")
+        return datetime.now(cairo_tz)
+
     def get_cairo_date_key(self) -> str:
         """Return current date formatted YYYY-MM-DD in Africa/Cairo IANA timezone."""
-        cairo_tz = zoneinfo.ZoneInfo("Africa/Cairo")
-        now_cairo = datetime.now(cairo_tz)
-        return now_cairo.strftime("%Y-%m-%d")
+        return self.get_cairo_now().strftime("%Y-%m-%d")
 
-    async def execute_daily_run(
+    async def _acquire_or_create_run(
         self,
         session: AsyncSession,
-        force: bool = False,
-        target_chat_id: int | None = None,
-        progress_callback: Any | None = None,
-    ) -> DailyRun:
-        """
-        Execute all 11 steps of the daily job discovery and notification pipeline.
-        Enforces single-flight locking and database-level idempotency via DailyRun.run_key.
-        """
-        async with _get_pipeline_run_lock():
-            date_str = self.get_cairo_date_key()
-            run_key = f"daily-digest-{date_str}"
-            started_at = datetime.now(UTC)
-            GeminiJobExtractor.reset_quota_status()
-
-            # -------------------------------------------------------------
-            # Step 1: Database-backed run lock / unique daily run key
-            # -------------------------------------------------------------
-            stmt_run = select(DailyRun).where(DailyRun.run_key == run_key)
-            res_run = await session.execute(stmt_run)
-            daily_run = res_run.scalar_one_or_none()
-
-            if daily_run:
-                if daily_run.status == RunStatus.COMPLETED and not force:
-                    logger.info(f"Daily run {run_key} has already completed successfully. Skipping to prevent duplicate digest.")
-                    return daily_run
-                if daily_run.status == RunStatus.IN_PROGRESS and not force:
-                    prev_started = daily_run.started_at
-                    if prev_started and prev_started.tzinfo is None:
-                        prev_started = prev_started.replace(tzinfo=UTC)
-                    elapsed = (started_at - prev_started).total_seconds() if prev_started else 9999
-                    if elapsed < 900:  # 15 minutes lock window
-                        logger.warning(f"Daily run {run_key} is currently in progress ({int(elapsed)}s ago). Skipping concurrent run.")
-                        return daily_run
-                    logger.warning(f"Daily run {run_key} was stale IN_PROGRESS ({int(elapsed)}s ago). Recovering and restarting.")
-                daily_run.status = RunStatus.IN_PROGRESS
-                daily_run.started_at = started_at
-                daily_run.error_message = None
-            else:
-                daily_run = DailyRun(
-                    run_date=date_str,
-                    run_key=run_key,
-                    status=RunStatus.IN_PROGRESS,
-                    started_at=started_at,
-                )
-                session.add(daily_run)
-
-            await session.commit()
-            await session.refresh(daily_run)
-            daily_run_id = daily_run.id
-
-            try:
-                return await self._execute_pipeline_body(
-                    session=session,
-                    daily_run=daily_run,
-                    date_str=date_str,
-                    run_key=run_key,
-                    target_chat_id=target_chat_id,
-                    progress_callback=progress_callback,
-                )
-            except Exception as exc:
-                logger.error(f"Daily run {run_key} failed with unhandled error: {exc}", exc_info=True)
-                try:
-                    await session.rollback()
-                    failed_run = (
-                        await session.execute(select(DailyRun).where(DailyRun.id == daily_run_id))
-                    ).scalar_one_or_none()
-                    if failed_run:
-                        failed_run.status = RunStatus.FAILED
-                        failed_run.completed_at = datetime.now(UTC)
-                        failed_run.error_message = str(exc)[:2000]
-                        await session.commit()
-                except Exception as persist_exc:  # noqa: BLE001
-                    logger.error(f"Failed to persist FAILED status for {run_key}: {persist_exc}")
-                raise
-
-    async def _execute_pipeline_body(
-        self,
-        session: AsyncSession,
-        daily_run: DailyRun,
-        date_str: str,
         run_key: str,
-        target_chat_id: int | None = None,
-        progress_callback: Any | None = None,
-    ) -> DailyRun:
+        run_date: str,
+        force: bool,
+    ) -> tuple[DailyRun, bool]:
+        """Acquire database-backed run lock and return (DailyRun, should_execute)."""
+        started_at = datetime.now(UTC)
+        GeminiJobExtractor.reset_quota_status()
 
-        # -------------------------------------------------------------
-        # Step 2: Load profile and active source config
-        # -------------------------------------------------------------
-        profile = await get_or_create_candidate_profile(session)
-        recipient_chat_id = target_chat_id or settings.TELEGRAM_OWNER_ID
+        stmt_run = select(DailyRun).where(DailyRun.run_key == run_key)
+        daily_run = (await session.execute(stmt_run)).scalar_one_or_none()
 
-        metrics: dict[str, Any] = {"sources": {}}
-        total_discovered = 0
-        total_new = 0
-        gemini_requests_count = 0
-        newly_saved_jobs: list[Job] = []
+        if daily_run:
+            if daily_run.status == RunStatus.COMPLETED and not force:
+                logger.info(f"Run {run_key} already completed. Skipping duplicate execution.")
+                return daily_run, False
+            if daily_run.status == RunStatus.IN_PROGRESS and not force:
+                prev_started = daily_run.started_at
+                if prev_started and prev_started.tzinfo is None:
+                    prev_started = prev_started.replace(tzinfo=UTC)
+                elapsed = (started_at - prev_started).total_seconds() if prev_started else 9999
+                if elapsed < 900:
+                    logger.warning(f"Run {run_key} is currently in progress ({int(elapsed)}s ago). Skipping.")
+                    return daily_run, False
+                logger.warning(f"Run {run_key} was stale IN_PROGRESS ({int(elapsed)}s ago). Recovering.")
+            daily_run.status = RunStatus.IN_PROGRESS
+            daily_run.started_at = started_at
+            daily_run.error_message = None
+        else:
+            daily_run = DailyRun(
+                run_date=run_date,
+                run_key=run_key,
+                status=RunStatus.IN_PROGRESS,
+                started_at=started_at,
+            )
+            session.add(daily_run)
 
-        # -------------------------------------------------------------
-        # Step 3 & 4: Fetch enabled sources concurrently with isolation
-        # -------------------------------------------------------------
-        adapters = self.registry.list_adapters()
+        await session.commit()
+        await session.refresh(daily_run)
+        return daily_run, True
+
+    async def _mark_run_failed(self, session: AsyncSession, daily_run_id: int, run_key: str, exc: Exception) -> None:
+        """Persist FAILED state safely after rollback."""
+        try:
+            await session.rollback()
+            failed_run = (
+                await session.execute(select(DailyRun).where(DailyRun.id == daily_run_id))
+            ).scalar_one_or_none()
+            if failed_run:
+                failed_run.status = RunStatus.FAILED
+                failed_run.completed_at = datetime.now(UTC)
+                failed_run.error_message = str(exc)[:2000]
+                await session.commit()
+        except Exception as persist_exc:  # noqa: BLE001
+            logger.error(f"Failed to persist FAILED status for {run_key}: {persist_exc}")
+
+    async def _load_enabled_adapters(
+        self,
+        session: AsyncSession,
+        adapters: list[BaseSourceAdapter],
+    ) -> tuple[dict[str, Source], list[BaseSourceAdapter]]:
+        """Preload/seed Source rows in bulk and return enabled adapters."""
         source_names = [a.source_metadata().name for a in adapters]
         source_records: dict[str, Source] = {}
         enabled_adapters: list[BaseSourceAdapter] = []
@@ -297,34 +263,92 @@ class DailyPipelineRunner:
 
         for adapter in adapters:
             source_name = adapter.source_metadata().name
-            source_rec = source_records[source_name]
-            if source_rec.is_enabled:
+            if source_records[source_name].is_enabled:
                 enabled_adapters.append(adapter)
             else:
                 logger.info(f"Source {source_name} is disabled. Skipping.")
 
-        if progress_callback:
-            await progress_callback(f"📡 Scanning {len(enabled_adapters)} job sources in parallel...", 30)
+        return source_records, enabled_adapters
+
+    async def _fetch_sources_concurrently(
+        self,
+        enabled_adapters: list[BaseSourceAdapter],
+        fast_mode: bool = False,
+    ) -> list[tuple[BaseSourceAdapter, list[Any], str, str | None, int]]:
+        """Fetch enabled sources concurrently with 35s timeout and failure isolation."""
 
         async def _fetch_single_source(adapter: BaseSourceAdapter):
             meta = adapter.source_metadata()
             s_name = meta.name
             s_start = datetime.now(UTC)
             try:
-                # 35-second timeout per source so a slow provider never hangs the runner
-                raw_jobs = await asyncio.wait_for(adapter.fetch_jobs(), timeout=35.0)
+                if fast_mode and s_name == "linkedin_social":
+                    coro = adapter.fetch_jobs(query_config={"fast_mode": True, "freshness_tbs": "qdr:d"})
+                else:
+                    coro = adapter.fetch_jobs()
+                raw_jobs = await asyncio.wait_for(coro, timeout=35.0)
                 dur = int((datetime.now(UTC) - s_start).total_seconds())
                 return (adapter, raw_jobs, "SUCCESS", None, dur)
             except Exception as exc:  # noqa: BLE001
                 dur = int((datetime.now(UTC) - s_start).total_seconds())
-                logger.error(f"Source {s_name} failed during daily run: {exc}")
+                logger.error(f"Source {s_name} failed during pipeline run: {exc}")
                 return (adapter, [], "FAILED", str(exc), dur)
 
-        fetch_results = await asyncio.gather(*(_fetch_single_source(a) for a in enabled_adapters))
+        return list(await asyncio.gather(*(_fetch_single_source(a) for a in enabled_adapters)))
 
-        total_discovered_raw = sum(len(res[1]) for res in fetch_results)
-        if progress_callback:
-            await progress_callback(f"📥 Ingested {total_discovered_raw} listings. Matching against 32 verified skills...", 60)
+    async def _verify_and_merge_social_post(self, normalized: NormalizedJobData) -> bool:
+        """
+        Invoke Gemini social verification gate on new social posts.
+        Returns False when Gemini explicitly flags is_real_hiring_post == False.
+        Merges discovered contacts and min_years_required otherwise.
+        """
+        verification = await self.gemini.verify_social_hiring_post(
+            text=normalized.description_text,
+            title=normalized.title,
+        )
+        if not isinstance(verification, dict):
+            return True
+
+        if verification.get("is_real_hiring_post") is False:
+            logger.info(
+                f"Gemini social gate rejected non-hiring post: '{normalized.title}' ({normalized.source_url})"
+            )
+            return False
+
+        payload = dict(normalized.raw_payload) if isinstance(normalized.raw_payload, dict) else {}
+        for field in _DIRECT_CONTACT_FIELDS:
+            existing_val = str(payload.get(field) or "").strip()
+            candidate_val = str(verification.get(field) or "").strip()
+            if not existing_val and candidate_val and _is_safe_enriched_value(field, candidate_val):
+                payload[field] = candidate_val
+
+        min_years = verification.get("min_years_required")
+        if (
+            normalized.required_experience_years is None
+            and isinstance(min_years, (int, float))
+            and not isinstance(min_years, bool)
+            and 0 <= float(min_years) <= 25
+        ):
+            normalized.required_experience_years = float(min_years)
+
+        normalized.raw_payload = payload
+        return True
+
+    async def _ingest_fetch_results(
+        self,
+        session: AsyncSession,
+        daily_run: DailyRun,
+        profile: Any,
+        source_records: dict[str, Source],
+        fetch_results: list[tuple[BaseSourceAdapter, list[Any], str, str | None, int]],
+    ) -> tuple[int, int, list[Job], dict[str, Any]]:
+        """Normalize, filter, deduplicate, AI-verify, score, and persist fetched listings."""
+        source_metrics: dict[str, Any] = {}
+        total_discovered = 0
+        total_new = 0
+        gemini_requests_count = 0
+        social_ai_checks_count = 0
+        newly_saved_jobs: list[Job] = []
 
         for adapter, raw_jobs, status_str, error_str, duration in fetch_results:
             meta = adapter.source_metadata()
@@ -339,7 +363,7 @@ class DailyPipelineRunner:
                 for raw in raw_jobs:
                     normalized: NormalizedJobData = adapter.normalize(raw)
 
-                    # Freshness filter: Drop stale jobs older than MAX_JOB_AGE_DAYS (30 days)
+                    # Freshness filter: Drop stale jobs older than MAX_JOB_AGE_DAYS
                     if normalized.published_at:
                         if normalized.published_at.tzinfo is None:
                             normalized.published_at = normalized.published_at.replace(tzinfo=UTC)
@@ -351,8 +375,10 @@ class DailyPipelineRunner:
                             )
                             continue
 
+                    is_social = bool(getattr(normalized, "is_social_post", False) or "social" in source_name.lower())
+
                     # Social Hiring Intent Filter: Disqualify job-seeker posts (#OpenToWork, portfolio promo)
-                    if getattr(normalized, "is_social_post", False) or "social" in source_name.lower():
+                    if is_social:
                         is_hiring, hiring_reason = is_hiring_intent_social_post(normalized.description_text)
                         if not is_hiring:
                             logger.debug(
@@ -372,7 +398,7 @@ class DailyPipelineRunner:
                         )
                         continue
 
-                    # Classify job into target tracks (Frontend Egypt, Remote GCC, Frontend Intern, Web Angular)
+                    # Classify job into target tracks
                     job_track = classify_job_track(
                         title=normalized.title,
                         description=normalized.description_text,
@@ -385,7 +411,9 @@ class DailyPipelineRunner:
                         skills=normalized.required_skills,
                     )
                     if job_track == JobTrack.OTHER:
-                        logger.debug(f"Skipping job classified outside frontend tracks: '{normalized.title}' at {normalized.company}")
+                        logger.debug(
+                            f"Skipping job classified outside frontend tracks: '{normalized.title}' at {normalized.company}"
+                        )
                         continue
 
                     # Deduplication check + cross-source enrichment
@@ -398,6 +426,20 @@ class DailyPipelineRunner:
                                 f"with metadata from {normalized.source_name}."
                             )
                         continue
+
+                    # Social AI Verification Gate (only on NEW social candidates, capped at MAX_SOCIAL_AI_CHECKS = 10)
+                    if (
+                        is_social
+                        and settings.GEMINI_EXTRACTION_ENABLED
+                        and social_ai_checks_count < MAX_SOCIAL_AI_CHECKS
+                    ):
+                        social_ai_checks_count += 1
+                        try:
+                            keep_post = await self._verify_and_merge_social_post(normalized)
+                            if not keep_post:
+                                continue
+                        except Exception as social_ai_exc:  # noqa: BLE001
+                            logger.warning(f"Gemini social verification skipped for {normalized.title}: {social_ai_exc}")
 
                     # Step 5: Gemini extraction for missing attributes if budget permits
                     is_candidate_target = any(
@@ -445,7 +487,7 @@ class DailyPipelineRunner:
                         description_text=normalized.description_text,
                     )
 
-                    # Step 6: Deterministic 0-100 Scoring
+                    # Deterministic 0-100 Scoring
                     match_result = self.matching_engine.evaluate(
                         job_title=normalized.title,
                         job_description=normalized.description_text,
@@ -459,7 +501,6 @@ class DailyPipelineRunner:
                         job_track=job_track,
                     )
 
-                    # Create and persist new Job record
                     url_hash = compute_url_hash(normalized.original_application_url or normalized.source_url)
                     payload_audit = {
                         **normalized.raw_payload,
@@ -522,7 +563,6 @@ class DailyPipelineRunner:
                             session.add(job_record)
                             await session.flush()
 
-                            # Attach ApplicationTracker
                             tracker = JobStatusTracker(job_id=job_record.id)
                             session.add(tracker)
                             await session.flush()
@@ -536,7 +576,6 @@ class DailyPipelineRunner:
                     total_new += 1
                     newly_saved_jobs.append(job_record)
 
-            # Record source sync log
             source_rec.last_sync_at = datetime.now(UTC)
             source_rec.last_sync_status = status_str
             source_rec.last_sync_error = error_str
@@ -554,12 +593,236 @@ class DailyPipelineRunner:
             session.add(sync_log)
             await session.commit()
 
-            metrics["sources"][source_name] = {
+            source_metrics[source_name] = {
                 "status": status_str,
                 "fetched": fetched_count,
                 "new": new_count,
                 "duration_seconds": duration,
             }
+
+        return total_discovered, total_new, newly_saved_jobs, source_metrics
+
+    async def _query_unsent_eligible_jobs(
+        self,
+        session: AsyncSession,
+        min_score: float,
+        limit: int | None = None,
+    ) -> list[Job]:
+        """Select active, unexpired jobs with score >= min_score that have no SENT notification."""
+        stmt = (
+            select(Job)
+            .outerjoin(
+                NotificationLog,
+                and_(
+                    Job.id == NotificationLog.job_id,
+                    NotificationLog.status == NotificationStatus.SENT,
+                ),
+            )
+            .where(
+                Job.is_active == True,
+                Job.is_expired == False,
+                Job.job_track != JobTrack.OTHER,
+                Job.match_score >= min_score,
+                NotificationLog.id == None,
+            )
+            .order_by(
+                (Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE).desc(),
+                Job.match_score.desc(),
+            )
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        res = await session.execute(stmt)
+        return list(res.scalars().all())
+
+    async def _dispatch_telegram_card(
+        self,
+        session: AsyncSession,
+        daily_run: DailyRun,
+        job: Job,
+        recipient_chat_id: int,
+        notification_type: NotificationType,
+    ) -> bool:
+        """Send a single Telegram job card and record NotificationLog truthfully."""
+        card = format_job_card(job)
+        markup = build_job_inline_keyboard(job)
+        msg_res = await self.telegram.send_message(
+            chat_id=recipient_chat_id,
+            text=card,
+            reply_markup=markup,
+        )
+        sent_ok, msg_id, err_details = _parse_telegram_send_result(msg_res)
+
+        n_log = NotificationLog(
+            run_id=daily_run.id,
+            job_id=job.id,
+            notification_type=notification_type,
+            telegram_chat_id=recipient_chat_id,
+            telegram_message_id=msg_id,
+            status=NotificationStatus.SENT if sent_ok else NotificationStatus.FAILED,
+            error_details=err_details,
+        )
+        session.add(n_log)
+        await session.commit()
+        return sent_ok
+
+    async def execute_daily_run(
+        self,
+        session: AsyncSession,
+        force: bool = False,
+        target_chat_id: int | None = None,
+        progress_callback: Any | None = None,
+    ) -> DailyRun:
+        """
+        Execute all 11 steps of the daily job discovery and notification pipeline.
+        Enforces single-flight locking and database-level idempotency via DailyRun.run_key.
+        """
+        async with _get_pipeline_run_lock():
+            date_str = self.get_cairo_date_key()
+            run_key = f"daily-digest-{date_str}"
+            daily_run, should_run = await self._acquire_or_create_run(
+                session=session,
+                run_key=run_key,
+                run_date=date_str,
+                force=force,
+            )
+            if not should_run:
+                return daily_run
+
+            daily_run_id = daily_run.id
+            try:
+                return await self._execute_pipeline_body(
+                    session=session,
+                    daily_run=daily_run,
+                    date_str=date_str,
+                    run_key=run_key,
+                    target_chat_id=target_chat_id,
+                    progress_callback=progress_callback,
+                )
+            except Exception as exc:
+                logger.error(f"Daily run {run_key} failed with unhandled error: {exc}", exc_info=True)
+                await self._mark_run_failed(session, daily_run_id, run_key, exc)
+                raise
+
+    async def execute_fast_radar_run(
+        self,
+        session: AsyncSession,
+        force: bool = False,
+        target_chat_id: int | None = None,
+    ) -> DailyRun:
+        """
+        Execute a lean Fast-Radar pulse across high-velocity fresh sources only
+        (Wuzzuf, LinkedIn Jobs, LinkedIn Social in fast_mode=True <= 2 Serper credits).
+        Alerts immediately ONLY for unsent active matches >= FAST_RADAR_MIN_SCORE (max 5);
+        stays completely silent on Telegram when 0 hot matches are found.
+        """
+        async with _get_pipeline_run_lock():
+            now_cairo = self.get_cairo_now()
+            run_key = f"fast-radar-{now_cairo.strftime('%Y-%m-%d-%H')}"
+            # Compact 10-char unique key for daily_runs.run_date (never collides with YYYY-MM-DD daily digest)
+            run_date = f"{now_cairo.strftime('%y%m%d')}-{now_cairo.strftime('%H')}h"
+
+            daily_run, should_run = await self._acquire_or_create_run(
+                session=session,
+                run_key=run_key,
+                run_date=run_date,
+                force=force,
+            )
+            if not should_run:
+                return daily_run
+
+            daily_run_id = daily_run.id
+            try:
+                profile = await get_or_create_candidate_profile(session)
+                recipient_chat_id = target_chat_id or settings.TELEGRAM_OWNER_ID
+
+                fast_adapters = [
+                    a
+                    for a in self.registry.list_adapters()
+                    if a.source_metadata().name in FAST_RADAR_SOURCE_NAMES
+                ]
+                source_records, enabled_adapters = await self._load_enabled_adapters(session, fast_adapters)
+                fetch_results = await self._fetch_sources_concurrently(enabled_adapters, fast_mode=True)
+                total_discovered, total_new, _saved, source_metrics = await self._ingest_fetch_results(
+                    session=session,
+                    daily_run=daily_run,
+                    profile=profile,
+                    source_records=source_records,
+                    fetch_results=fetch_results,
+                )
+
+                notified_count = 0
+                if recipient_chat_id and profile.digest_enabled:
+                    hot_jobs = await self._query_unsent_eligible_jobs(
+                        session=session,
+                        min_score=float(settings.FAST_RADAR_MIN_SCORE),
+                        limit=FAST_RADAR_MAX_ALERTS,
+                    )
+                    for job in hot_jobs:
+                        if await self._dispatch_telegram_card(
+                            session=session,
+                            daily_run=daily_run,
+                            job=job,
+                            recipient_chat_id=recipient_chat_id,
+                            notification_type=NotificationType.REAL_TIME_ALERT,
+                        ):
+                            notified_count += 1
+                        await asyncio.sleep(0.5)
+
+                daily_run.status = RunStatus.COMPLETED
+                daily_run.completed_at = datetime.now(UTC)
+                daily_run.jobs_discovered = total_discovered
+                daily_run.jobs_new = total_new
+                daily_run.jobs_notified = notified_count
+                daily_run.metrics = {"mode": "fast_radar", "sources": source_metrics}
+
+                await session.commit()
+                await session.refresh(daily_run)
+                logger.info(
+                    f"Fast-Radar run {run_key} completed: discovered={total_discovered}, new={total_new}, notified={notified_count}"
+                )
+                return daily_run
+            except Exception as exc:
+                logger.error(f"Fast-Radar run {run_key} failed with unhandled error: {exc}", exc_info=True)
+                await self._mark_run_failed(session, daily_run_id, run_key, exc)
+                raise
+
+    async def _execute_pipeline_body(
+        self,
+        session: AsyncSession,
+        daily_run: DailyRun,
+        date_str: str,
+        run_key: str,
+        target_chat_id: int | None = None,
+        progress_callback: Any | None = None,
+    ) -> DailyRun:
+
+        # -------------------------------------------------------------
+        # Step 2: Load profile and active source config
+        # -------------------------------------------------------------
+        profile = await get_or_create_candidate_profile(session)
+        recipient_chat_id = target_chat_id or settings.TELEGRAM_OWNER_ID
+
+        adapters = self.registry.list_adapters()
+        source_records, enabled_adapters = await self._load_enabled_adapters(session, adapters)
+
+        if progress_callback:
+            await progress_callback(f"📡 Scanning {len(enabled_adapters)} job sources in parallel...", 30)
+
+        fetch_results = await self._fetch_sources_concurrently(enabled_adapters, fast_mode=False)
+
+        total_discovered_raw = sum(len(res[1]) for res in fetch_results)
+        if progress_callback:
+            await progress_callback(f"📥 Ingested {total_discovered_raw} listings. Matching against 32 verified skills...", 60)
+
+        total_discovered, total_new, _newly_saved_jobs, source_metrics = await self._ingest_fetch_results(
+            session=session,
+            daily_run=daily_run,
+            profile=profile,
+            source_records=source_records,
+            fetch_results=fetch_results,
+        )
+        metrics: dict[str, Any] = {"sources": source_metrics}
 
         # -------------------------------------------------------------
         # Step 7.5: Cull expired and ghost postings across active feed
@@ -578,30 +841,10 @@ class DailyPipelineRunner:
         # -------------------------------------------------------------
         notified_count = 0
         if recipient_chat_id and profile.digest_enabled:
-            # Query active, un-expired jobs without an existing SENT notification
-            stmt_unnotified = (
-                select(Job)
-                .outerjoin(
-                    NotificationLog,
-                    and_(
-                        Job.id == NotificationLog.job_id,
-                        NotificationLog.status == NotificationStatus.SENT,
-                    ),
-                )
-                .where(
-                    Job.is_active == True,
-                    Job.is_expired == False,
-                    Job.job_track != JobTrack.OTHER,
-                    Job.match_score >= profile.digest_threshold,
-                    NotificationLog.id == None,
-                )
-                .order_by(
-                    (Job.eligibility == GeographicEligibility.EGYPT_ELIGIBLE).desc(),
-                    Job.match_score.desc(),
-                )
+            eligible_for_digest = await self._query_unsent_eligible_jobs(
+                session=session,
+                min_score=profile.digest_threshold,
             )
-            res_unnotified = await session.execute(stmt_unnotified)
-            eligible_for_digest = res_unnotified.scalars().all()
 
             # Cleanly segment opportunities into the two top-level buckets:
             # 1. Egypt: Cairo, Giza, Alexandria, Egypt Remote (On-site, Hybrid, Remote + Internships)
@@ -676,27 +919,13 @@ Discovered <b>{total_digest_jobs}</b> new verified Frontend opportunities:
                     await self.telegram.send_message(chat_id=recipient_chat_id, text=title_banner)
                     sent_in_section = 0
                     for j in job_list:
-                        card = format_job_card(j)
-                        markup = build_job_inline_keyboard(j)
-                        msg_res = await self.telegram.send_message(
-                            chat_id=recipient_chat_id,
-                            text=card,
-                            reply_markup=markup,
-                        )
-                        sent_ok, msg_id, err_details = _parse_telegram_send_result(msg_res)
-
-                        # Step 10: Persist NotificationLog truthfully
-                        n_log = NotificationLog(
-                            run_id=daily_run.id,
-                            job_id=j.id,
+                        sent_ok = await self._dispatch_telegram_card(
+                            session=session,
+                            daily_run=daily_run,
+                            job=j,
+                            recipient_chat_id=recipient_chat_id,
                             notification_type=NotificationType.DAILY_DIGEST,
-                            telegram_chat_id=recipient_chat_id,
-                            telegram_message_id=msg_id,
-                            status=NotificationStatus.SENT if sent_ok else NotificationStatus.FAILED,
-                            error_details=err_details,
                         )
-                        session.add(n_log)
-                        await session.commit()
                         if sent_ok:
                             sent_in_section += 1
                         await asyncio.sleep(0.5)

@@ -2,16 +2,18 @@
 
 import re
 import secrets
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import select, and_, or_, delete, func, not_
+from sqlalchemy import and_, delete, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, selectinload
 
 from src.core.config import settings
 from src.core.database import get_db_session
+from src.core.security import is_safe_url
 from src.engine.gemini_extractor import GeminiJobExtractor
 from src.models import (
     ApplicationNote,
@@ -26,10 +28,14 @@ from src.models import (
     WorkplaceType,
 )
 from src.services.expiry_detector import scan_and_mark_expired_jobs
-from src.services.profile_service import apply_verified_cv_to_profile, get_or_create_candidate_profile
+from src.services.profile_service import (
+    apply_verified_cv_to_profile,
+    get_or_create_candidate_profile,
+)
 from src.services.resume_generator import generate_tailored_resume_pdf
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
+DbSession = Annotated[AsyncSession, Depends(get_db_session)]
 
 
 class JobSummaryDTO(BaseModel):
@@ -37,53 +43,95 @@ class JobSummaryDTO(BaseModel):
     source_name: str
     company: str
     title: str
-    raw_location: Optional[str]
+    raw_location: str | None
     workplace_type: WorkplaceType
     job_track: JobTrack = JobTrack.OTHER
     eligibility: GeographicEligibility
     seniority: SeniorityLevel
     match_score: float
     match_band: MatchBand
-    published_at: Optional[str]
+    published_at: str | None
     first_seen_at: str
     original_application_url: str
-    required_skills: List[str]
-    tracker_status: Optional[ApplicationStatus] = None
-    opportunity_segment: Optional[str] = None
+    required_skills: list[str]
+    tracker_status: ApplicationStatus | None = None
+    opportunity_segment: str | None = None
     is_social_post: bool = False
     source_category_label: str = "Job Board"
-    poster_name: Optional[str] = None
-    contact_hint: Optional[str] = None
+    poster_name: str | None = None
+    contact_hint: str | None = None
+    direct_email: str | None = None
+    whatsapp_contact: str | None = None
+    apply_form_url: str | None = None
+    origin_board: str | None = None
+
+
+_SAFE_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
+def _extract_safe_job_contacts(raw_payload: Any) -> dict[str, str | None]:
+    """Extract and validate direct contact fields and origin board from Job.raw_payload."""
+    payload = raw_payload if isinstance(raw_payload, dict) else {}
+
+    raw_email = str(payload.get("direct_email") or "").strip()
+    direct_email: str | None = None
+    if raw_email and not any(ch in raw_email for ch in "<>\"'`\r\n") and _SAFE_EMAIL_RE.match(raw_email):
+        direct_email = raw_email[:160]
+
+    raw_wa = str(payload.get("whatsapp_contact") or "").strip()
+    whatsapp_contact: str | None = None
+    if raw_wa and not any(ch in raw_wa for ch in "<>\"'`\r\n"):
+        lowered_wa = raw_wa.lower()
+        if lowered_wa.startswith(("http://", "https://")):
+            if is_safe_url(raw_wa):
+                whatsapp_contact = raw_wa[:256]
+        elif not lowered_wa.startswith(("javascript:", "data:", "vbscript:", "file:")):
+            whatsapp_contact = raw_wa[:32]
+
+    raw_form = str(payload.get("apply_form_url") or "").strip()
+    apply_form_url: str | None = None
+    if raw_form and is_safe_url(raw_form):
+        apply_form_url = raw_form[:512]
+
+    raw_board = str(payload.get("origin_board") or "").strip()
+    origin_board: str | None = raw_board[:64] if raw_board else None
+
+    return {
+        "direct_email": direct_email,
+        "whatsapp_contact": whatsapp_contact,
+        "apply_form_url": apply_form_url,
+        "origin_board": origin_board,
+    }
 
 
 class JobDetailDTO(JobSummaryDTO):
     description_text: str
-    description_html: Optional[str]
+    description_html: str | None
     eligibility_reason: str
-    score_breakdown: Dict[str, Any]
-    match_reasons: List[str]
-    skill_gaps: List[str]
-    salary_min: Optional[float]
-    salary_max: Optional[float]
-    salary_currency: Optional[str]
-    salary_period: Optional[str]
+    score_breakdown: dict[str, Any]
+    match_reasons: list[str]
+    skill_gaps: list[str]
+    salary_min: float | None
+    salary_max: float | None
+    salary_currency: str | None
+    salary_period: str | None
 
 
-@router.get("", response_model=Dict[str, Any])
+@router.get("", response_model=dict[str, Any])
 async def list_jobs(
-    db: AsyncSession = Depends(get_db_session),
+    db: DbSession,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    keyword: Optional[str] = None,
-    track: Optional[JobTrack] = None,
-    segment: Optional[str] = None,
-    is_social_post: Optional[bool] = None,
-    workplace_type: Optional[WorkplaceType] = None,
-    eligibility: Optional[GeographicEligibility] = None,
-    seniority: Optional[SeniorityLevel] = None,
-    min_score: Optional[float] = Query(None, ge=0.0, le=100.0),
-    source_name: Optional[str] = None,
-) -> Dict[str, Any]:
+    keyword: str | None = None,
+    track: JobTrack | None = None,
+    segment: str | None = None,
+    is_social_post: bool | None = None,
+    workplace_type: WorkplaceType | None = None,
+    eligibility: GeographicEligibility | None = None,
+    seniority: SeniorityLevel | None = None,
+    min_score: float | None = Query(None, ge=0.0, le=100.0),
+    source_name: str | None = None,
+) -> dict[str, Any]:
     """Search and filter discovered opportunities."""
     filters = [Job.is_active == True]
 
@@ -176,6 +224,7 @@ async def list_jobs(
 
     items = []
     for j in jobs:
+        safe_contacts = _extract_safe_job_contacts(j.raw_payload)
         items.append(
             JobSummaryDTO(
                 id=j.id,
@@ -199,6 +248,7 @@ async def list_jobs(
                 source_category_label=j.source_category_label,
                 poster_name=(j.raw_payload or {}).get("poster_name"),
                 contact_hint=(j.raw_payload or {}).get("contact_hint"),
+                **safe_contacts,
             )
         )
 
@@ -213,7 +263,7 @@ async def list_jobs(
 @router.get("/{job_id}", response_model=JobDetailDTO)
 async def get_job_detail(
     job_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: DbSession,
 ) -> JobDetailDTO:
     """Get full details of a specific job opportunity."""
     stmt = select(Job).options(selectinload(Job.tracker)).where(Job.id == job_id)
@@ -222,6 +272,7 @@ async def get_job_detail(
     if not j:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    safe_contacts = _extract_safe_job_contacts(j.raw_payload)
     return JobDetailDTO(
         id=j.id,
         source_name=j.source_name,
@@ -254,13 +305,14 @@ async def get_job_detail(
         source_category_label=j.source_category_label,
         poster_name=(j.raw_payload or {}).get("poster_name"),
         contact_hint=(j.raw_payload or {}).get("contact_hint"),
+        **safe_contacts,
     )
 
 
 @router.get("/{job_id}/tailored-resume")
 async def download_tailored_resume(
     job_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: DbSession,
 ) -> Response:
     """Download an ATS-optimized PDF resume tailored specifically to this job's tech stack."""
     stmt = select(Job).where(Job.id == job_id)
@@ -285,11 +337,11 @@ async def download_tailored_resume(
     )
 
 
-@router.post("/{job_id}/outreach", response_model=Dict[str, Any])
+@router.post("/{job_id}/outreach", response_model=dict[str, Any])
 async def generate_outreach_messages(
     job_id: int,
-    db: AsyncSession = Depends(get_db_session),
-) -> Dict[str, Any]:
+    db: DbSession,
+) -> dict[str, Any]:
     """Generate high-impact LinkedIn outreach note (<300 chars) and recruiter InMail/DM."""
     stmt = select(Job).where(Job.id == job_id)
     res = await db.execute(stmt)
@@ -330,11 +382,11 @@ async def generate_outreach_messages(
     }
 
 
-@router.post("/{job_id}/cover-letter", response_model=Dict[str, Any])
+@router.post("/{job_id}/cover-letter", response_model=dict[str, Any])
 async def generate_cover_letter(
     job_id: int,
-    db: AsyncSession = Depends(get_db_session),
-) -> Dict[str, Any]:
+    db: DbSession,
+) -> dict[str, Any]:
     """Generate tailored AI cover letter for the specific job."""
     stmt = select(Job).where(Job.id == job_id)
     res = await db.execute(stmt)
@@ -373,11 +425,11 @@ async def generate_cover_letter(
     }
 
 
-@router.post("/verify-links", response_model=Dict[str, Any])
+@router.post("/verify-links", response_model=dict[str, Any])
 async def verify_active_links(
+    db: DbSession,
     limit: int = Query(30, ge=1, le=100),
-    db: AsyncSession = Depends(get_db_session),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run the Expiry & Ghost Posting detector across active opportunities."""
     metrics = await scan_and_mark_expired_jobs(db, limit=limit)
     return {
@@ -386,11 +438,11 @@ async def verify_active_links(
     }
 
 
-@router.post("/wipe-and-reset", response_model=Dict[str, Any])
+@router.post("/wipe-and-reset", response_model=dict[str, Any])
 async def wipe_all_jobs(
-    x_admin_key: Optional[str] = Header(None),
-    db: AsyncSession = Depends(get_db_session),
-) -> Dict[str, Any]:
+    db: DbSession,
+    x_admin_key: str | None = Header(None),
+) -> dict[str, Any]:
     """
     Wipe all existing jobs, application trackers, and notification records.
     Requires X-Admin-Key matching a configured non-default settings.SECRET_KEY.

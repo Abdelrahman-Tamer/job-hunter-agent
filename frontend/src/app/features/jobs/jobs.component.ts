@@ -286,6 +286,17 @@ import {
                   >
                     Remote Abroad
                   </ui-badge>
+                  @if (hasDirectContact(job)) {
+                    <ui-badge variant="success" size="sm">
+                      <app-icon name="mail" [size]="10" />
+                      <span>{{ job.direct_email ? 'Direct Email' : 'Direct Contact' }}</span>
+                    </ui-badge>
+                  }
+                  @if (job.origin_board && !job.is_social_post) {
+                    <ui-badge variant="default" size="sm">
+                      {{ job.origin_board }}
+                    </ui-badge>
+                  }
                 </div>
               </div>
 
@@ -801,6 +812,8 @@ import {
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      flex-wrap: wrap;
+      max-width: 100%;
     }
 
     .card-company-row {
@@ -1308,6 +1321,10 @@ export class JobsComponent implements OnInit {
       this.telegram.haptic('medium');
       this.telegram.openExternalLink(job.original_application_url);
     }
+  }
+
+  hasDirectContact(job: JobSummary): boolean {
+    return Boolean(job.direct_email || job.whatsapp_contact || job.apply_form_url);
   }
 
   roundScore(score: number): number {

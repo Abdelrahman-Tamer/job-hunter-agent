@@ -61,6 +61,11 @@ import {
                 >
                   LinkedIn Post
                 </ui-badge>
+                @if (displayJob()?.origin_board && !displayJob()?.is_social_post) {
+                  <ui-badge variant="default" size="sm">
+                    {{ displayJob()?.origin_board }}
+                  </ui-badge>
+                }
               </div>
               <h2 class="job-title" dir="auto">{{ displayJob()?.title || 'Opportunity Details' }}</h2>
             </div>
@@ -126,6 +131,87 @@ import {
               </p>
             </div>
           </section>
+
+          <!-- Direct Recruiter Contact Strip -->
+          @if (displayJob(); as activeJob) {
+            @if (hasAnyDirectContact(activeJob)) {
+              <section class="section-card direct-contact-card" aria-label="Direct Recruiter Contact">
+                <div class="section-card-head">
+                  <div class="head-left">
+                    <app-icon name="send" [size]="14" class="text-emerald" />
+                    <h3 class="section-heading">Direct Recruiter Contact</h3>
+                  </div>
+                  <ui-badge variant="success" size="sm">Direct Channel</ui-badge>
+                </div>
+
+                <div class="direct-contact-strip">
+                  @if (getSafeEmail(activeJob.direct_email); as email) {
+                    <div class="contact-action-group">
+                      <a
+                        [href]="'mailto:' + email"
+                        class="contact-pill contact-email"
+                        title="Email recruiter directly"
+                      >
+                        <app-icon name="mail" [size]="13" />
+                        <span>Email Direct</span>
+                        <span class="contact-detail">{{ email }}</span>
+                      </a>
+                      <button
+                        type="button"
+                        (click)="copyText(email, 'direct_email')"
+                        class="copy-micro-btn"
+                        aria-label="Copy recruiter email"
+                      >
+                        <app-icon [name]="copiedKey() === 'direct_email' ? 'check' : 'copy'" [size]="11" />
+                        <span>{{ copiedKey() === 'direct_email' ? 'Copied' : 'Copy Email' }}</span>
+                      </button>
+                    </div>
+                  }
+
+                  @if (activeJob.whatsapp_contact; as waRaw) {
+                    <div class="contact-action-group">
+                      @if (getWhatsAppHref(waRaw); as waUrl) {
+                        <a
+                          [href]="waUrl"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          (click)="onExternalContactClick($event, waUrl)"
+                          class="contact-pill contact-wa"
+                          title="Message recruiter on WhatsApp"
+                        >
+                          <app-icon name="message-square" [size]="13" />
+                          <span>WhatsApp</span>
+                        </a>
+                      }
+                      <button
+                        type="button"
+                        (click)="copyText(waRaw, 'whatsapp')"
+                        class="copy-micro-btn"
+                        aria-label="Copy WhatsApp contact"
+                      >
+                        <app-icon [name]="copiedKey() === 'whatsapp' ? 'check' : 'copy'" [size]="11" />
+                        <span>{{ copiedKey() === 'whatsapp' ? 'Copied' : 'Copy' }}</span>
+                      </button>
+                    </div>
+                  }
+
+                  @if (getSafeHttpUrl(activeJob.apply_form_url); as formUrl) {
+                    <a
+                      [href]="formUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      (click)="onExternalContactClick($event, formUrl)"
+                      class="contact-pill contact-form"
+                      title="Open direct application form"
+                    >
+                      <app-icon name="external-link" [size]="13" />
+                      <span>Direct Form</span>
+                    </a>
+                  }
+                </div>
+              </section>
+            }
+          }
 
           <!-- Match Score & Core Telemetry -->
           <section class="telemetry-card">
@@ -716,6 +802,63 @@ import {
       margin-top: 4px;
       font-size: 11px;
       color: var(--text-tertiary);
+    }
+
+    .direct-contact-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .contact-action-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      max-width: 100%;
+    }
+    .contact-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: var(--radius-xs);
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border-default);
+      background-color: var(--bg-surface-2);
+      color: var(--text-primary);
+      transition: all var(--motion-fast);
+      max-width: 100%;
+    }
+    .contact-pill:hover {
+      border-color: var(--border-strong);
+      background-color: var(--bg-surface-3);
+    }
+    .contact-pill.contact-email {
+      border-color: var(--brand-border-subtle);
+      background-color: var(--brand-bg-subtle);
+      color: var(--brand-accent);
+    }
+    .contact-pill.contact-wa {
+      border-color: var(--emerald-border);
+      background-color: var(--emerald-bg);
+      color: var(--emerald-400);
+    }
+    .contact-pill.contact-form {
+      border-color: var(--sky-border);
+      background-color: var(--sky-bg);
+      color: var(--sky-400);
+    }
+    .contact-detail {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      opacity: 0.9;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 180px;
     }
 
     /* Telemetry Card */
@@ -1564,6 +1707,65 @@ export class JobDrawerComponent implements OnChanges {
     if (this.telegram.isTelegram()) {
       e.preventDefault();
       this.telegram.openExternalLink(this.api.getTailoredResumeUrl(jobId));
+    }
+  }
+
+  hasAnyDirectContact(job: JobSummary | JobDetail | null): boolean {
+    if (!job) return false;
+    return Boolean(
+      this.getSafeEmail(job.direct_email) ||
+      job.whatsapp_contact?.trim() ||
+      this.getSafeHttpUrl(job.apply_form_url)
+    );
+  }
+
+  getSafeEmail(email?: string | null): string | null {
+    if (!email) return null;
+    const trimmed = email.trim();
+    if (!trimmed || /[\s<>"'`]/.test(trimmed)) return null;
+    return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(trimmed) ? trimmed : null;
+  }
+
+  getSafeHttpUrl(url?: string | null): string | null {
+    if (!url) return null;
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+      if (parsed.username || parsed.password) return null;
+      return parsed.href;
+    } catch {
+      return null;
+    }
+  }
+
+  getWhatsAppHref(contact?: string | null): string | null {
+    if (!contact) return null;
+    const trimmed = contact.trim();
+    if (!trimmed) return null;
+    if (/^https?:\/\//i.test(trimmed)) {
+      const safe = this.getSafeHttpUrl(trimmed);
+      if (!safe) return null;
+      const host = new URL(safe).hostname.toLowerCase();
+      return host === 'wa.me' || host === 'api.whatsapp.com' || host.endsWith('.whatsapp.com') ? safe : null;
+    }
+    const digits = trimmed.replace(/\D+/g, '');
+    if (digits.length < 8) return null;
+    const normalized = digits.startsWith('01') && digits.length === 11 ? `20${digits.slice(1)}` : digits;
+    return `https://wa.me/${normalized}`;
+  }
+
+  onExternalContactClick(e: MouseEvent, url: string): void {
+    const safe = this.getSafeHttpUrl(url);
+    if (!safe) {
+      e.preventDefault();
+      return;
+    }
+    this.telegram.haptic('medium');
+    if (this.telegram.isTelegram()) {
+      e.preventDefault();
+      this.telegram.openExternalLink(safe);
     }
   }
 

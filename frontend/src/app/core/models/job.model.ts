@@ -68,6 +68,10 @@ export interface JobSummary {
   source_category_label?: string;
   poster_name?: string | null;
   contact_hint?: string | null;
+  direct_email?: string | null;
+  whatsapp_contact?: string | null;
+  apply_form_url?: string | null;
+  origin_board?: string | null;
 }
 
 export interface JobDetail extends JobSummary {

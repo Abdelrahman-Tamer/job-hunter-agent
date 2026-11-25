@@ -9,24 +9,22 @@ Computes an explainable 0-100 score across 6 distinct dimensions:
 6. Freshness and source evidence quality (weight: 5)
 """
 
-from datetime import datetime, timezone
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+
 from pydantic import BaseModel, Field
 
+from src.engine.track_classifier import classify_job_track
 from src.models.enums import (
     EmploymentType,
     GeographicEligibility,
     JobTrack,
     MatchBand,
     SeniorityLevel,
-    WorkplaceType,
 )
 from src.models.profile import CandidateProfile
-from src.engine.track_classifier import classify_job_track
 
-
-_SKILL_ALIASES: Dict[str, str] = {
+_SKILL_ALIASES: dict[str, str] = {
     "html5": "html",
     "css3": "css",
     "reactjs": "react",
@@ -49,7 +47,7 @@ _SKILL_ALIASES: Dict[str, str] = {
     "rest api": "rest",
 }
 
-_KNOWN_SCAN_TECHS: List[str] = [
+_KNOWN_SCAN_TECHS: list[str] = [
     "angular",
     "typescript",
     "javascript",
@@ -88,6 +86,44 @@ _RECOGNIZED_TECH_SKILLS = set(_KNOWN_SCAN_TECHS) | set(_SKILL_ALIASES.keys()) | 
     "httpclient",
     "next.js",
 }
+
+
+_SENIOR_TITLE_RE = re.compile(
+    r"\b(?:senior|sr\.?(?!\w)|staff|principal|lead|architect|manager)\b|سينيور",
+    re.IGNORECASE,
+)
+_JUNIOR_TITLE_RE = re.compile(
+    r"\b(?:junior|jr\.?(?!\w)|entry[\s-]*level|entry|fresh[\s-]*graduate|fresh|graduate|intern|internship|trainee)\b|جونيور|مبتدئ|متدرب|حديث\s*التخرج",
+    re.IGNORECASE,
+)
+_ASSOCIATE_TITLE_RE = re.compile(r"\bassociate\b", re.IGNORECASE)
+_MID_TITLE_RE = re.compile(r"\bmid[\s-]*level\b|\bmid\b", re.IGNORECASE)
+_MIN_YEARS_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"(?:minimum|min\.?|at\s+least)?\s*(\d{1,2})\s*(?:\+|[-–to]+\s*\d{1,2})?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:[\w/+.-]+\s+){0,2}(?:experience|exp)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:experience|exp)\s*(?:required|needed|level)?\s*[:\-–]?\s*(?:minimum|min\.?|at\s+least)?\s*(\d{1,2})\s*(?:\+|[-–to]+\s*\d{1,2})?\s*(?:years?|yrs?)\b",
+        re.IGNORECASE,
+    ),
+)
+
+
+def _extract_min_years_from_text(text: str) -> float | None:
+    """Extract explicit minimum required years of experience from title/JD snippet when structured field is missing."""
+    if not text:
+        return None
+    matches: list[int] = []
+    for pattern in _MIN_YEARS_PATTERNS:
+        for match in pattern.finditer(text):
+            try:
+                yrs = int(match.group(1))
+            except (TypeError, ValueError):
+                continue
+            if 0 <= yrs <= 25:
+                matches.append(yrs)
+    return float(max(matches)) if matches else None
 
 
 def _normalize_skill_name(skill: str) -> str:
@@ -131,8 +167,9 @@ class MatchResult(BaseModel):
     score: float
     band: MatchBand
     breakdown: ScoreBreakdown
-    reasons: List[str] = Field(default_factory=list)
-    skill_gaps: List[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    skill_gaps: list[str] = Field(default_factory=list)
+    red_flags: list[str] = Field(default_factory=list)
     confidence: float = 1.0
     is_student_conflict: bool = False
     job_track: JobTrack = JobTrack.OTHER
@@ -152,20 +189,30 @@ class MatchingEngine:
         self,
         job_title: str,
         job_description: str,
-        job_skills: List[str],
+        job_skills: list[str],
         seniority: SeniorityLevel,
         employment_type: EmploymentType,
         eligibility: GeographicEligibility,
-        published_at: Optional[datetime],
-        required_experience_years: Optional[float],
+        published_at: datetime | None,
+        required_experience_years: float | None,
         profile: CandidateProfile,
-        job_track: Optional[JobTrack] = None,
+        job_track: JobTrack | None = None,
     ) -> MatchResult:
-        reasons: List[str] = []
-        gaps: List[str] = []
-        confidence_factors: List[float] = []
+        reasons: list[str] = []
+        gaps: list[str] = []
+        red_flags: list[str] = []
+        confidence_factors: list[float] = []
         title_lower = job_title.lower()
         desc_lower = job_description[:3000].lower()
+        is_junior_mid_candidate = (
+            profile.experience_years is None or profile.experience_years <= 2.0
+        )
+        effective_years = (
+            required_experience_years
+            if required_experience_years is not None
+            else _extract_min_years_from_text(f"{job_title} {job_description[:1500]}")
+        )
+        is_overqualified_senior = False
 
         # Classify track if not provided
         if job_track is None:
@@ -347,7 +394,7 @@ class MatchingEngine:
                     gaps.append(f"Missing confirmed overlap with job skills: {', '.join(sorted(unmatched_job_skills)[:4])}.")
 
                 if unmatched_job_skills:
-                    missing_sorted = sorted(list(unmatched_job_skills))
+                    missing_sorted = sorted(unmatched_job_skills)
                     missing_display = ", ".join(missing_sorted[:5])
                     deduction = 25.0 - skills_score
                     if deduction > 0.0:
@@ -362,31 +409,91 @@ class MatchingEngine:
             is_student_only = "student" in title_lower or "current student" in desc_lower or "currently enrolled" in desc_lower
             is_graduate_friendly = "graduate" in title_lower or "recent graduate" in desc_lower or "entry" in title_lower or "junior" in title_lower
 
+            senior_levels = (
+                SeniorityLevel.SENIOR,
+                SeniorityLevel.LEAD,
+                SeniorityLevel.STAFF,
+                SeniorityLevel.PRINCIPAL,
+                SeniorityLevel.MANAGER,
+            )
+            is_senior_enum = seniority in senior_levels
+            is_senior_title = bool(_SENIOR_TITLE_RE.search(title_lower))
+            is_overqualified_years = effective_years is not None and effective_years >= 5.0
+            is_junior_title = bool(_JUNIOR_TITLE_RE.search(title_lower))
+            is_associate_title = bool(_ASSOCIATE_TITLE_RE.search(title_lower))
+            is_mid_title = bool(_MID_TITLE_RE.search(title_lower))
+
             if is_student_only and not is_graduate_friendly:
                 is_student_conflict = True
                 exp_score = 4.0
                 gaps.append("Job appears restricted to currently-enrolled students; candidate is already a graduate (-16 pts)")
-            elif seniority in (SeniorityLevel.GRADUATE, SeniorityLevel.ENTRY, SeniorityLevel.JUNIOR, SeniorityLevel.INTERNSHIP):
-                exp_score = 18.0
-                reasons.append(f"Seniority ({seniority.value}) matches entry/graduate profile.")
-            elif seniority in (SeniorityLevel.ASSOCIATE, SeniorityLevel.MID):
-                exp_score = 14.0
-                reasons.append(f"Mid/Associate seniority ({seniority.value}); feasible with demonstrated project proficiency.")
-                gaps.append(f"Seniority requested is mid-level ({seniority.value}) vs. junior/entry candidate profile (-6 pts)")
-            elif seniority in (SeniorityLevel.SENIOR, SeniorityLevel.LEAD, SeniorityLevel.STAFF, SeniorityLevel.PRINCIPAL, SeniorityLevel.MANAGER):
-                exp_score = 6.0
-                gaps.append(f"Seniority requested ({seniority.value}) requires advanced production experience (-14 pts)")
+            elif is_junior_mid_candidate and (is_senior_enum or is_senior_title or is_overqualified_years):
+                is_overqualified_senior = True
+                exp_score = 2.0
+                if is_overqualified_years:
+                    flag_msg = (
+                        f"Senior / {effective_years:.0f}+ yrs requirement exceeds target junior-mid range (-18 pts)"
+                    )
+                else:
+                    sen_label = seniority.value if is_senior_enum else "Senior/Lead/Architect"
+                    flag_msg = (
+                        f"Seniority ({sen_label}) exceeds target junior-mid range (-18 pts)"
+                    )
+                red_flags.append(flag_msg)
+                gaps.append(flag_msg)
+            elif not is_junior_mid_candidate:
+                # Experienced candidate (> 2 yrs): score senior/mid roles favorably
+                if is_senior_enum or is_senior_title or is_overqualified_years:
+                    exp_score = 18.0
+                    reasons.append("Seniority and experience align with experienced candidate profile.")
+                elif seniority in (SeniorityLevel.ASSOCIATE, SeniorityLevel.MID):
+                    exp_score = 18.0
+                    reasons.append(f"Mid/Associate seniority ({seniority.value}) aligns with candidate experience.")
+                elif seniority in (SeniorityLevel.GRADUATE, SeniorityLevel.ENTRY, SeniorityLevel.JUNIOR, SeniorityLevel.INTERNSHIP):
+                    exp_score = 14.0
+                    reasons.append(f"Junior/Entry role ({seniority.value}); below candidate's current seniority.")
+                else:
+                    exp_score = 14.0
+                    confidence_factors.append(0.7)
+            elif seniority in (SeniorityLevel.GRADUATE, SeniorityLevel.ENTRY, SeniorityLevel.JUNIOR, SeniorityLevel.INTERNSHIP) or is_junior_title:
+                if effective_years is not None and effective_years > 2.0:
+                    exp_score = 17.0
+                    reasons.append(
+                        f"Junior/Entry boost ({effective_years:.0f} yrs) fits 0–3 years frontend target."
+                    )
+                else:
+                    exp_score = 19.0
+                    yrs_note = f"{effective_years:.0f} yrs" if effective_years is not None else "0–2 yrs"
+                    sen_label = seniority.value if seniority != SeniorityLevel.UNKNOWN else "Junior/Entry"
+                    reasons.append(
+                        f"Seniority boost: Junior/Entry ({sen_label}, {yrs_note}) strongly aligns with target range."
+                    )
+            elif seniority == SeniorityLevel.ASSOCIATE or is_associate_title:
+                exp_score = 18.0 if (effective_years is None or effective_years <= 3.0) else 15.0
+                reasons.append("Seniority boost: Associate role strongly aligns with 0–3 years target.")
+            elif seniority == SeniorityLevel.MID or is_mid_title or (effective_years is not None and 2.0 < effective_years <= 4.0):
+                if effective_years is not None and effective_years <= 3.0:
+                    exp_score = 17.0
+                    reasons.append(
+                        f"Mid-level boost ({effective_years:.0f} yrs) fits 0–3 years frontend target."
+                    )
+                elif effective_years is not None and effective_years <= 4.0:
+                    exp_score = 14.0
+                    reasons.append("Mid-level seniority (up to 4 yrs); eligible with strong stack match.")
+                    gaps.append(
+                        f"Experience requested ({effective_years:.0f} yrs) stretches 0–2 yr baseline (-6 pts)"
+                    )
+                else:
+                    exp_score = 16.0
+                    reasons.append("Mid-level seniority fits target frontend engineering growth range.")
+            elif effective_years is not None and effective_years <= 2.0:
+                exp_score = 19.0
+                reasons.append(
+                    f"Seniority boost: Experience requirement ({effective_years:.0f}y) fits junior/entry target."
+                )
             else:
-                exp_score = 12.0
+                exp_score = 13.0
                 confidence_factors.append(0.7)
-
-            if required_experience_years is not None:
-                if required_experience_years <= 2.0:
-                    exp_score = max(exp_score, 18.0)
-                    reasons.append(f"Experience requirement ({required_experience_years:.0f}y) is accessible.")
-                elif required_experience_years > 2.0:
-                    exp_score = min(exp_score, 8.0)
-                    gaps.append(f"Experience required ({required_experience_years:.0f}+ years) exceeds 1-2 years (-12 pts)")
 
         # -------------------------------------------------------------
         # 4. Work Eligibility & Location (max 20)
@@ -438,8 +545,8 @@ class MatchingEngine:
         fresh_score = 3.0
         if published_at:
             if published_at.tzinfo is None:
-                published_at = published_at.replace(tzinfo=timezone.utc)
-            age_days = (datetime.now(timezone.utc) - published_at).days
+                published_at = published_at.replace(tzinfo=UTC)
+            age_days = (datetime.now(UTC) - published_at).days
             if age_days <= 3:
                 fresh_score = 5.0
                 reasons.append("Recently published listing (≤ 3 days ago).")
@@ -474,6 +581,10 @@ class MatchingEngine:
         if role_score <= 5.0 and skills_score <= 3.0:
             total = min(total, 45.0)
 
+        # Hard Cap for Senior / Overqualified (5+ yrs) roles when candidate is <= 2 yrs experience
+        if is_overqualified_senior:
+            total = min(total, 65.0)
+
         # Round to 1 decimal place
         total = round(total, 1)
 
@@ -507,6 +618,7 @@ class MatchingEngine:
             breakdown=breakdown,
             reasons=reasons,
             skill_gaps=gaps,
+            red_flags=red_flags,
             confidence=overall_confidence,
             is_student_conflict=is_student_conflict,
             job_track=job_track,
