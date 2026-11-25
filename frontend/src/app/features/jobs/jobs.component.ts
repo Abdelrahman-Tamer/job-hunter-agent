@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   ElementRef,
   HostListener,
   OnInit,
@@ -8,9 +9,11 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { Subject, catchError, of, switchMap } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -23,7 +26,6 @@ import { UiEmptyStateComponent } from '../../shared/ui/ui-empty-state.component'
 import {
   ApplicationStatus,
   JobSummary,
-  OpportunitySegment,
   WorkplaceType,
 } from '../../core/models/job.model';
 
@@ -1008,11 +1010,22 @@ import {
       }
       .segmented-control {
         width: 100%;
-        overflow-x: auto;
+        flex-wrap: wrap;
+        gap: 4px;
+        overflow-x: visible;
+      }
+      .segment-tab-btn {
+        flex: 1 1 auto;
+        justify-content: center;
+        min-height: 36px;
       }
       .command-row-bottom {
         flex-direction: column;
         align-items: stretch;
+      }
+      .search-box-wrap {
+        min-width: 0;
+        width: 100%;
       }
       .filters-actions-wrap {
         width: 100%;
@@ -1050,6 +1063,9 @@ export class JobsComponent implements OnInit {
   private readonly telegram = inject(TelegramService);
   private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+
+  private readonly fetchTrigger$ = new Subject<void>();
 
   readonly Math = Math;
 
@@ -1058,6 +1074,7 @@ export class JobsComponent implements OnInit {
   readonly total = signal<number>(0);
   readonly currentPage = signal<number>(1);
   readonly limit = 20;
+  readonly savingJobIds = signal<Set<number>>(new Set());
 
   // Filter States
   readonly selectedSegment = signal<string>(''); // '', 'EGYPT', 'REMOTE_GCC_ABROAD'
@@ -1085,20 +1102,39 @@ export class JobsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.route.queryParams.subscribe((params) => {
-      if (params['segment']) {
-        this.selectedSegment.set(params['segment']);
-      }
-      if (params['keyword']) {
-        this.searchKeyword = params['keyword'];
-      }
-      this.fetchJobs();
-    });
+    this.fetchTrigger$
+      .pipe(
+        switchMap(() => {
+          this.isLoading.set(true);
+          return this.api.getJobs(this.buildQueryParams()).pipe(
+            catchError((err: unknown) => {
+              console.error('Failed to load opportunities:', err);
+              this.toast.show('Failed to fetch opportunities', 'error');
+              this.isLoading.set(false);
+              return of(null);
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((res) => {
+        if (!res) return;
+        this.jobs.set(res.items);
+        this.total.set(res.total);
+        this.isLoading.set(false);
+      });
+
+    this.route.queryParams
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        this.selectedSegment.set(params['segment'] || '');
+        this.searchKeyword = params['keyword'] || '';
+        this.currentPage.set(1);
+        this.fetchJobs();
+      });
   }
 
-  fetchJobs(): void {
-    this.isLoading.set(true);
-
+  private buildQueryParams(): Record<string, string | number | boolean | null | undefined> {
     const queryParams: Record<string, string | number | boolean | null | undefined> = {
       page: this.currentPage(),
       limit: this.limit,
@@ -1127,18 +1163,11 @@ export class JobsComponent implements OnInit {
       queryParams['keyword'] = this.searchKeyword.trim();
     }
 
-    this.api.getJobs(queryParams).subscribe({
-      next: (res) => {
-        this.jobs.set(res.items);
-        this.total.set(res.total);
-        this.isLoading.set(false);
-      },
-      error: (err) => {
-        console.error('Failed to load opportunities:', err);
-        this.toast.show('Failed to fetch opportunities', 'error');
-        this.isLoading.set(false);
-      },
-    });
+    return queryParams;
+  }
+
+  fetchJobs(): void {
+    this.fetchTrigger$.next();
   }
 
   setSegment(seg: string): void {
@@ -1212,38 +1241,70 @@ export class JobsComponent implements OnInit {
     this.jobs.update((list) =>
       list.map((j) => (j.id === evt.jobId ? { ...j, tracker_status: evt.status } : j))
     );
+    if (this.selectedJob()?.id === evt.jobId) {
+      this.selectedJob.update((cur) => (cur ? { ...cur, tracker_status: evt.status } : cur));
+    }
   }
 
   toggleSave(job: JobSummary, event: Event): void {
     event.stopPropagation();
-    const newStatus: ApplicationStatus = job.tracker_status === 'SAVED' ? 'DISCOVERED' : 'SAVED';
+    if (this.savingJobIds().has(job.id)) return;
+
+    const prevStatus: ApplicationStatus = job.tracker_status || 'DISCOVERED';
+    const newStatus: ApplicationStatus = prevStatus === 'SAVED' ? 'DISCOVERED' : 'SAVED';
     this.telegram.haptic('medium');
+
+    this.savingJobIds.update((set) => {
+      const next = new Set(set);
+      next.add(job.id);
+      return next;
+    });
 
     this.jobs.update((list) =>
       list.map((j) => (j.id === job.id ? { ...j, tracker_status: newStatus } : j))
     );
+    if (this.selectedJob()?.id === job.id) {
+      this.selectedJob.update((cur) => (cur ? { ...cur, tracker_status: newStatus } : cur));
+    }
 
-    this.api.updateJobStatus(job.id, newStatus).subscribe({
-      next: () => {
-        this.toast.show(
-          newStatus === 'SAVED' ? 'Saved to Tracker' : 'Removed from Saved',
-          'info',
-          1800
-        );
-      },
-      error: () => {
-        // Rollback
-        this.jobs.update((list) =>
-          list.map((j) => (j.id === job.id ? { ...j, tracker_status: job.tracker_status } : j))
-        );
-        this.toast.show('Failed to update bookmark', 'error');
-      },
+    this.api
+      .updateJobStatus(job.id, newStatus)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.clearSavingJobId(job.id);
+          this.toast.show(
+            newStatus === 'SAVED' ? 'Saved to Tracker' : 'Removed from Saved',
+            'info',
+            1800
+          );
+        },
+        error: () => {
+          this.clearSavingJobId(job.id);
+          // Rollback to explicit prior status
+          this.jobs.update((list) =>
+            list.map((j) => (j.id === job.id ? { ...j, tracker_status: prevStatus } : j))
+          );
+          if (this.selectedJob()?.id === job.id) {
+            this.selectedJob.update((cur) => (cur ? { ...cur, tracker_status: prevStatus } : cur));
+          }
+          this.toast.show('Failed to update bookmark', 'error');
+        },
+      });
+  }
+
+  private clearSavingJobId(jobId: number): void {
+    this.savingJobIds.update((set) => {
+      const next = new Set(set);
+      next.delete(jobId);
+      return next;
     });
   }
 
   onDirectApply(job: JobSummary, event: Event): void {
     event.stopPropagation();
-    if (job.original_application_url) {
+    if (job.original_application_url && this.telegram.isTelegram()) {
+      event.preventDefault();
       this.telegram.haptic('medium');
       this.telegram.openExternalLink(job.original_application_url);
     }

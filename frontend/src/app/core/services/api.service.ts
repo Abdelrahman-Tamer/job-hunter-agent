@@ -141,8 +141,11 @@ export class ApiService {
     return this.http.get<DailyRunRecord[]>(`${this.baseUrl}/api/v1/runs`);
   }
 
-  triggerRun(force: boolean = false): Observable<any> {
-    return this.http.post<any>(`${this.baseUrl}/api/v1/runs/trigger?force=${force}`, {});
+  triggerRun(force: boolean = false): Observable<{ status: string; message?: string }> {
+    return this.http.post<{ status: string; message?: string }>(
+      `${this.baseUrl}/api/v1/runs/trigger?force=${force}`,
+      {}
+    );
   }
 
   wipeAndReset(adminKey: string): Observable<{ status: string; message: string; candidate?: string; confirmed_skills_count?: number }> {

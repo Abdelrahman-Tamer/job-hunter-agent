@@ -1,7 +1,7 @@
-import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
-import { Router, NavigationEnd, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, DestroyRef, inject, OnInit, OnDestroy, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { filter } from 'rxjs';
 import { TelegramService } from './core/services/telegram.service';
 import { ThemeService } from './core/services/theme.service';
 import { ToastService } from './core/services/toast.service';
@@ -34,6 +34,7 @@ export class App implements OnInit, OnDestroy {
   readonly toastService = inject(ToastService);
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly isScanning = signal<boolean>(false);
 
@@ -45,6 +46,8 @@ export class App implements OnInit, OnDestroy {
     { path: '/settings', label: 'Settings', icon: 'settings', shortcut: 'G S' },
   ];
 
+  private focusListener?: () => void;
+  private wheelListener?: (e: WheelEvent) => void;
   private keydownListener?: (e: KeyboardEvent) => void;
   private pendingSequence: string | null = null;
   private lastKeyTimestamp = 0;
@@ -54,45 +57,36 @@ export class App implements OnInit, OnDestroy {
       window.focus();
 
       // Ensure iframe retains focus for mouse wheel events on Telegram Desktop
-      window.addEventListener('mouseenter', () => window.focus(), { passive: true });
-      window.addEventListener('pointerdown', () => window.focus(), { passive: true });
-
-      // Robust route scroll reset:
-      this.router.events
-        .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
-        .subscribe(() => {
-          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-        });
+      this.focusListener = () => window.focus();
+      window.addEventListener('mouseenter', this.focusListener, { passive: true });
+      window.addEventListener('pointerdown', this.focusListener, { passive: true });
 
       // Active mouse wheel fallback for Telegram Desktop / CEF iframe wrappers
-      window.addEventListener(
-        'wheel',
-        (e: WheelEvent) => {
-          let target = e.target as HTMLElement | null;
-          let insideScrollable = false;
-          while (target && target !== document.body && target !== document.documentElement) {
-            const style = window.getComputedStyle(target);
-            if (
-              (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
-              target.scrollHeight > target.clientHeight
-            ) {
-              insideScrollable = true;
-              break;
-            }
-            target = target.parentElement;
+      this.wheelListener = (e: WheelEvent) => {
+        let target = e.target as HTMLElement | null;
+        let insideScrollable = false;
+        while (target && target !== document.body && target !== document.documentElement) {
+          const style = window.getComputedStyle(target);
+          if (
+            (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+            target.scrollHeight > target.clientHeight
+          ) {
+            insideScrollable = true;
+            break;
           }
+          target = target.parentElement;
+        }
 
-          if (!insideScrollable) {
-            const before = window.scrollY;
-            requestAnimationFrame(() => {
-              if (window.scrollY === before && Math.abs(e.deltaY) > 0) {
-                window.scrollBy({ top: e.deltaY, behavior: 'auto' });
-              }
-            });
-          }
-        },
-        { passive: true }
-      );
+        if (!insideScrollable) {
+          const before = window.scrollY;
+          requestAnimationFrame(() => {
+            if (window.scrollY === before && Math.abs(e.deltaY) > 0) {
+              window.scrollBy({ top: e.deltaY, behavior: 'auto' });
+            }
+          });
+        }
+      };
+      window.addEventListener('wheel', this.wheelListener, { passive: true });
 
       // Global keyboard shortcut sequence listener (e.g. G O, G J, G T, G P, G S)
       this.keydownListener = (e: KeyboardEvent) => this.handleGlobalKeyDown(e);
@@ -101,8 +95,17 @@ export class App implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (typeof window !== 'undefined' && this.keydownListener) {
-      window.removeEventListener('keydown', this.keydownListener);
+    if (typeof window !== 'undefined') {
+      if (this.focusListener) {
+        window.removeEventListener('mouseenter', this.focusListener);
+        window.removeEventListener('pointerdown', this.focusListener);
+      }
+      if (this.wheelListener) {
+        window.removeEventListener('wheel', this.wheelListener);
+      }
+      if (this.keydownListener) {
+        window.removeEventListener('keydown', this.keydownListener);
+      }
     }
   }
 
@@ -174,17 +177,28 @@ export class App implements OnInit, OnDestroy {
     this.telegram.haptic('medium');
     this.toastService.show('Autonomous Agent initiating feed sweep...', 'info', 2500);
 
-    this.api.triggerRun(true).subscribe({
-      next: () => {
-        this.isScanning.set(false);
-        this.telegram.haptic('success');
-        this.toastService.show('Sweep completed successfully! Feeds verified.', 'success');
-      },
-      error: () => {
-        this.isScanning.set(false);
-        this.telegram.haptic('error');
-        this.toastService.show('Feed scan completed or already up to date.', 'info');
-      },
-    });
+    this.api
+      .triggerRun(true)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.isScanning.set(false);
+          this.telegram.haptic('success');
+          if (res?.status === 'accepted') {
+            this.toastService.show(
+              res.message || 'Background feed sweep started.',
+              'info',
+              3000
+            );
+          } else {
+            this.toastService.show('Sweep completed successfully! Feeds verified.', 'success');
+          }
+        },
+        error: () => {
+          this.isScanning.set(false);
+          this.telegram.haptic('error');
+          this.toastService.show('Failed to initiate feed sweep. Please try again.', 'error');
+        },
+      });
   }
 }

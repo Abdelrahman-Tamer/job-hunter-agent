@@ -1,15 +1,18 @@
 import {
   Component,
+  DestroyRef,
   EventEmitter,
   HostListener,
   Input,
   OnChanges,
-  OnInit,
   Output,
+  computed,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
+import { Subject, catchError, of, switchMap } from 'rxjs';
 import { ApiService } from '../../services/api.service';
 import { TelegramService } from '../../services/telegram.service';
 import { ToastService } from '../../services/toast.service';
@@ -33,23 +36,25 @@ import {
     <div
       class="drawer-backdrop"
       [class.open]="isOpen"
+      [attr.inert]="!isOpen ? '' : null"
+      [attr.aria-hidden]="!isOpen"
       (click)="onBackdropClick($event)"
       role="dialog"
       aria-modal="true"
-      [attr.aria-label]="job?.title || 'Job details'"
+      [attr.aria-label]="displayJob()?.title || 'Job details'"
     >
       <div class="drawer-panel" (click)="$event.stopPropagation()">
         <!-- Sticky Drawer Header -->
         <header class="drawer-header">
           <div class="header-left">
             <div class="company-avatar-box">
-              <span>{{ job?.company?.charAt(0) || 'J' }}</span>
+              <span>{{ displayJob()?.company?.charAt(0) || 'J' }}</span>
             </div>
             <div class="header-titles">
               <div class="company-row">
-                <span class="company-name" dir="auto">{{ job?.company || 'Company' }}</span>
+                <span class="company-name" dir="auto">{{ displayJob()?.company || 'Company' }}</span>
                 <ui-badge
-                  *ngIf="job?.is_social_post"
+                  *ngIf="displayJob()?.is_social_post"
                   variant="social"
                   size="sm"
                   [dot]="true"
@@ -57,14 +62,14 @@ import {
                   LinkedIn Post
                 </ui-badge>
               </div>
-              <h2 class="job-title" dir="auto">{{ job?.title || 'Opportunity Details' }}</h2>
+              <h2 class="job-title" dir="auto">{{ displayJob()?.title || 'Opportunity Details' }}</h2>
             </div>
           </div>
 
           <div class="header-actions">
             <a
-              *ngIf="job?.original_application_url"
-              [href]="job?.original_application_url"
+              *ngIf="displayJob()?.original_application_url"
+              [href]="displayJob()?.original_application_url"
               target="_blank"
               rel="noopener noreferrer"
               (click)="onApplyClick($event)"
@@ -104,17 +109,17 @@ import {
         <!-- Scrollable Drawer Body -->
         <div class="drawer-body custom-scrollbar">
           <!-- Social Post Callout (when role originated from LinkedIn hiring post) -->
-          <section *ngIf="job?.is_social_post" class="social-post-callout">
+          <section *ngIf="displayJob()?.is_social_post" class="social-post-callout">
             <div class="social-callout-header">
               <app-icon name="message-square" [size]="14" class="social-glyph"></app-icon>
               <span class="social-callout-title">Direct Social Hiring Post</span>
             </div>
             <div class="social-callout-body">
-              <p *ngIf="job?.poster_name" class="poster-info">
-                <strong>Shared by:</strong> {{ job?.poster_name }}
+              <p *ngIf="displayJob()?.poster_name" class="poster-info">
+                <strong>Shared by:</strong> {{ displayJob()?.poster_name }}
               </p>
-              <p *ngIf="job?.contact_hint" class="contact-hint-info">
-                <strong>Contact Hint:</strong> {{ job?.contact_hint }}
+              <p *ngIf="displayJob()?.contact_hint" class="contact-hint-info">
+                <strong>Contact Hint:</strong> {{ displayJob()?.contact_hint }}
               </p>
               <p class="social-disclaimer">
                 This opportunity was surfaced from authentic recruiter outreach on LinkedIn. You can apply directly by reaching out to the poster.
@@ -127,15 +132,15 @@ import {
             <div class="score-split">
               <div
                 class="score-pill-large tabular-nums"
-                [attr.data-band]="getScoreBand(job?.match_score || 0)"
+                [attr.data-band]="getScoreBand(displayJob()?.match_score || 0)"
               >
-                <span class="score-val">{{ roundScore(job?.match_score || 0) }}%</span>
+                <span class="score-val">{{ roundScore(displayJob()?.match_score || 0) }}%</span>
                 <span class="score-lbl">Fit Score</span>
               </div>
               <div class="score-context">
                 <div class="score-fit-label">
                   <app-icon name="sparkles" [size]="13" class="sparkle-icon"></app-icon>
-                  <span>{{ getScoreFitText(job?.match_score || 0) }}</span>
+                  <span>{{ getScoreFitText(displayJob()?.match_score || 0) }}</span>
                 </div>
                 <p class="score-reason">
                   {{ jobDetail()?.eligibility_reason || 'Verified match calculated against your target engineering profile.' }}
@@ -149,35 +154,35 @@ import {
                 <span class="meta-label">Segment</span>
                 <span class="meta-value">
                   <app-icon name="compass" [size]="12"></app-icon>
-                  {{ formatSegment(job?.opportunity_segment) }}
+                  {{ formatSegment(displayJob()?.opportunity_segment) }}
                 </span>
               </div>
               <div class="meta-chip">
                 <span class="meta-label">Workplace</span>
                 <span class="meta-value">
                   <app-icon name="building" [size]="12"></app-icon>
-                  {{ formatWorkplace(job?.workplace_type) }}
+                  {{ formatWorkplace(displayJob()?.workplace_type) }}
                 </span>
               </div>
               <div class="meta-chip">
                 <span class="meta-label">Eligibility</span>
                 <span class="meta-value text-emerald">
                   <app-icon name="globe" [size]="12"></app-icon>
-                  {{ formatEligibility(job?.eligibility) }}
+                  {{ formatEligibility(displayJob()?.eligibility) }}
                 </span>
               </div>
               <div class="meta-chip">
                 <span class="meta-label">Seniority</span>
                 <span class="meta-value">
                   <app-icon name="user" [size]="12"></app-icon>
-                  {{ formatSeniority(job?.seniority) }}
+                  {{ formatSeniority(displayJob()?.seniority) }}
                 </span>
               </div>
-              <div class="meta-chip" *ngIf="job?.raw_location">
+              <div class="meta-chip" *ngIf="displayJob()?.raw_location">
                 <span class="meta-label">Location</span>
                 <span class="meta-value text-truncate">
                   <app-icon name="map-pin" [size]="12"></app-icon>
-                  {{ job?.raw_location }}
+                  {{ displayJob()?.raw_location }}
                 </span>
               </div>
             </div>
@@ -199,6 +204,8 @@ import {
               <button
                 *ngFor="let s of availableStages"
                 type="button"
+                role="radio"
+                [attr.aria-checked]="currentStatus() === s.status"
                 (click)="setJobStatus(s.status)"
                 [class.active]="currentStatus() === s.status"
                 class="stage-pill-btn"
@@ -285,17 +292,19 @@ import {
                 <span>Cover Letter</span>
               </button>
 
-              <a
-                *ngIf="job?.id"
-                [href]="api.getTailoredResumeUrl(job!.id)"
-                target="_blank"
-                download
-                class="tool-tab-btn resume-pdf-btn"
-                title="Download ATS PDF resume tailored for this role"
-              >
-                <app-icon name="download" [size]="13"></app-icon>
-                <span>Tailored ATS Resume</span>
-              </a>
+              @if (displayJob(); as activeJob) {
+                <a
+                  [href]="api.getTailoredResumeUrl(activeJob.id)"
+                  target="_blank"
+                  download
+                  (click)="onResumeClick($event, activeJob.id)"
+                  class="tool-tab-btn resume-pdf-btn"
+                  title="Download ATS PDF resume tailored for this role"
+                >
+                  <app-icon name="download" [size]="13"></app-icon>
+                  <span>Tailored ATS Resume</span>
+                </a>
+              }
             </div>
 
             <!-- Tool Result: Recruiter Outreach Kit -->
@@ -312,44 +321,50 @@ import {
                 <span>Synthesizing tailored recruiter outreach...</span>
               </div>
 
-              <div *ngIf="!isLoadingTool() && outreachData()" class="tool-cards-stack">
-                <!-- 1. Connection Note -->
-                <div class="outreach-block">
-                  <div class="outreach-top">
-                    <span class="outreach-label">LinkedIn Connection Note (&lt; 300 chars)</span>
-                    <button (click)="copyText(outreachData()!.connection_note, 'conn')" class="copy-micro-btn">
-                      <app-icon [name]="copiedKey() === 'conn' ? 'check' : 'copy'" [size]="11"></app-icon>
-                      <span>{{ copiedKey() === 'conn' ? 'Copied' : 'Copy' }}</span>
-                    </button>
-                  </div>
-                  <pre class="outreach-prose">{{ outreachData()!.connection_note }}</pre>
-                  <span class="char-length-indicator tabular-nums">{{ outreachData()!.connection_note.length }}/300 chars</span>
-                </div>
+              @if (!isLoadingTool()) {
+                @if (outreachData(); as outreach) {
+                  <div class="tool-cards-stack">
+                    <!-- 1. Connection Note -->
+                    <div class="outreach-block">
+                      <div class="outreach-top">
+                        <span class="outreach-label">LinkedIn Connection Note (&lt; 300 chars)</span>
+                        <button (click)="copyText(outreach.connection_note, 'conn')" class="copy-micro-btn">
+                          <app-icon [name]="copiedKey() === 'conn' ? 'check' : 'copy'" [size]="11"></app-icon>
+                          <span>{{ copiedKey() === 'conn' ? 'Copied' : 'Copy' }}</span>
+                        </button>
+                      </div>
+                      <pre class="outreach-prose">{{ outreach.connection_note }}</pre>
+                      <span class="char-length-indicator tabular-nums">{{ outreach.connection_note.length }}/300 chars</span>
+                    </div>
 
-                <!-- 2. Recruiter InMail / Direct Message -->
-                <div class="outreach-block">
-                  <div class="outreach-top">
-                    <span class="outreach-label">Recruiter InMail / Direct Message</span>
-                    <button (click)="copyText(outreachData()!.inmail_dm, 'inmail')" class="copy-micro-btn">
-                      <app-icon [name]="copiedKey() === 'inmail' ? 'check' : 'copy'" [size]="11"></app-icon>
-                      <span>{{ copiedKey() === 'inmail' ? 'Copied' : 'Copy' }}</span>
-                    </button>
-                  </div>
-                  <pre class="outreach-prose">{{ outreachData()!.inmail_dm }}</pre>
-                </div>
+                    <!-- 2. Recruiter InMail / Direct Message -->
+                    <div class="outreach-block">
+                      <div class="outreach-top">
+                        <span class="outreach-label">Recruiter InMail / Direct Message</span>
+                        <button (click)="copyText(outreach.inmail_dm, 'inmail')" class="copy-micro-btn">
+                          <app-icon [name]="copiedKey() === 'inmail' ? 'check' : 'copy'" [size]="11"></app-icon>
+                          <span>{{ copiedKey() === 'inmail' ? 'Copied' : 'Copy' }}</span>
+                        </button>
+                      </div>
+                      <pre class="outreach-prose">{{ outreach.inmail_dm }}</pre>
+                    </div>
 
-                <!-- 3. Follow-up Note -->
-                <div class="outreach-block" *ngIf="outreachData()!.follow_up_note">
-                  <div class="outreach-top">
-                    <span class="outreach-label">5-Day Follow-Up Message</span>
-                    <button (click)="copyText(outreachData()!.follow_up_note, 'follow')" class="copy-micro-btn">
-                      <app-icon [name]="copiedKey() === 'follow' ? 'check' : 'copy'" [size]="11"></app-icon>
-                      <span>{{ copiedKey() === 'follow' ? 'Copied' : 'Copy' }}</span>
-                    </button>
+                    <!-- 3. Follow-up Note -->
+                    @if (outreach.follow_up_note) {
+                      <div class="outreach-block">
+                        <div class="outreach-top">
+                          <span class="outreach-label">5-Day Follow-Up Message</span>
+                          <button (click)="copyText(outreach.follow_up_note, 'follow')" class="copy-micro-btn">
+                            <app-icon [name]="copiedKey() === 'follow' ? 'check' : 'copy'" [size]="11"></app-icon>
+                            <span>{{ copiedKey() === 'follow' ? 'Copied' : 'Copy' }}</span>
+                          </button>
+                        </div>
+                        <pre class="outreach-prose">{{ outreach.follow_up_note }}</pre>
+                      </div>
+                    }
                   </div>
-                  <pre class="outreach-prose">{{ outreachData()!.follow_up_note }}</pre>
-                </div>
-              </div>
+                }
+              }
             </div>
 
             <!-- Tool Result: Cover Letter -->
@@ -357,14 +372,15 @@ import {
               <div class="tool-result-header">
                 <span class="tool-result-title">Tailored AI Cover Letter</span>
                 <div class="header-tools">
-                  <button
-                    *ngIf="coverLetterText()"
-                    (click)="copyText(coverLetterText()!, 'cover')"
-                    class="copy-micro-btn"
-                  >
-                    <app-icon [name]="copiedKey() === 'cover' ? 'check' : 'copy'" [size]="11"></app-icon>
-                    <span>{{ copiedKey() === 'cover' ? 'Copied' : 'Copy Letter' }}</span>
-                  </button>
+                  @if (coverLetterText(); as letter) {
+                    <button
+                      (click)="copyText(letter, 'cover')"
+                      class="copy-micro-btn"
+                    >
+                      <app-icon [name]="copiedKey() === 'cover' ? 'check' : 'copy'" [size]="11"></app-icon>
+                      <span>{{ copiedKey() === 'cover' ? 'Copied' : 'Copy Letter' }}</span>
+                    </button>
+                  }
                   <button (click)="closeTool()" class="tool-dismiss-btn" aria-label="Close tool">
                     <app-icon name="x" [size]="12"></app-icon>
                   </button>
@@ -376,9 +392,13 @@ import {
                 <span>Crafting custom cover letter...</span>
               </div>
 
-              <div *ngIf="!isLoadingTool() && coverLetterText()" class="cover-letter-wrap">
-                <pre class="outreach-prose cover-prose">{{ coverLetterText() }}</pre>
-              </div>
+              @if (!isLoadingTool()) {
+                @if (coverLetterText(); as letter) {
+                  <div class="cover-letter-wrap">
+                    <pre class="outreach-prose cover-prose">{{ letter }}</pre>
+                  </div>
+                }
+              }
             </div>
           </section>
 
@@ -389,7 +409,7 @@ import {
                 <app-icon name="file-text" [size]="14"></app-icon>
                 <h3 class="section-heading">Role Description</h3>
               </div>
-              <span class="sub-counter">{{ job?.source_name }}</span>
+              <span class="sub-counter">{{ displayJob()?.source_name }}</span>
             </div>
 
             <div
@@ -413,11 +433,11 @@ import {
         <!-- Sticky Drawer Bottom Bar -->
         <footer class="drawer-footer">
           <div class="footer-timestamp tabular-nums">
-            <span *ngIf="job?.published_at">
-              Published {{ formatRelativeDate(job?.published_at) }}
+            <span *ngIf="displayJob()?.published_at">
+              Published {{ formatRelativeDate(displayJob()?.published_at) }}
             </span>
-            <span *ngIf="!job?.published_at && job?.first_seen_at">
-              Discovered {{ formatRelativeDate(job?.first_seen_at) }}
+            <span *ngIf="!displayJob()?.published_at && displayJob()?.first_seen_at">
+              Discovered {{ formatRelativeDate(displayJob()?.first_seen_at) }}
             </span>
           </div>
 
@@ -443,8 +463,8 @@ import {
             </button>
 
             <a
-              *ngIf="job?.original_application_url"
-              [href]="job?.original_application_url"
+              *ngIf="displayJob()?.original_application_url"
+              [href]="displayJob()?.original_application_url"
               target="_blank"
               rel="noopener noreferrer"
               (click)="onApplyClick($event)"
@@ -1217,7 +1237,7 @@ import {
     }
   `],
 })
-export class JobDrawerComponent implements OnInit, OnChanges {
+export class JobDrawerComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() job: JobSummary | JobDetail | null = null;
   @Output() closeDrawer = new EventEmitter<void>();
@@ -1229,9 +1249,12 @@ export class JobDrawerComponent implements OnInit, OnChanges {
   readonly api = inject(ApiService);
   private readonly telegram = inject(TelegramService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
+  private readonly jobSignal = signal<JobSummary | JobDetail | null>(null);
   readonly isLoadingDetail = signal<boolean>(false);
   readonly jobDetail = signal<JobDetail | null>(null);
+  readonly displayJob = computed(() => this.jobDetail() ?? this.jobSignal());
   readonly copied = signal<boolean>(false);
   readonly currentStatus = signal<ApplicationStatus>('DISCOVERED');
 
@@ -1245,6 +1268,16 @@ export class JobDrawerComponent implements OnInit, OnChanges {
   readonly coverLetterText = signal<string | null>(null);
   readonly copiedKey = signal<string | null>(null);
 
+  readonly matchedSkills = computed<string[]>(() => {
+    const req = this.displayJob()?.required_skills || [];
+    const gaps = this.jobDetail()?.skill_gaps || [];
+    return req.filter((s) => !gaps.includes(s));
+  });
+
+  readonly skillGaps = computed<string[]>(() => {
+    return this.jobDetail()?.skill_gaps || [];
+  });
+
   readonly availableStages: { status: ApplicationStatus; label: string }[] = [
     { status: 'DISCOVERED', label: 'Discovered' },
     { status: 'SAVED', label: 'Saved' },
@@ -1255,6 +1288,98 @@ export class JobDrawerComponent implements OnInit, OnChanges {
     { status: 'ARCHIVED', label: 'Archived' },
   ];
 
+  private readonly detailTrigger$ = new Subject<number | null>();
+  private readonly outreachTrigger$ = new Subject<number | null>();
+  private readonly coverTrigger$ = new Subject<number | null>();
+  private loadedForJobId: number | null = null;
+  private copyTimer?: ReturnType<typeof setTimeout>;
+  private copyLinkTimer?: ReturnType<typeof setTimeout>;
+
+  constructor() {
+    this.detailTrigger$
+      .pipe(
+        switchMap((jobId) => {
+          if (jobId === null) {
+            return of(null);
+          }
+          return this.api.getJobDetail(jobId).pipe(
+            catchError((err: unknown) => {
+              console.warn('Could not load detailed job info:', err);
+              this.isLoadingDetail.set(false);
+              return of(null);
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((detail) => {
+        if (!detail || detail.id !== this.loadedForJobId) {
+          this.isLoadingDetail.set(false);
+          return;
+        }
+        this.jobDetail.set(detail);
+        if (detail.tracker_status) {
+          this.currentStatus.set(detail.tracker_status);
+        }
+        this.isLoadingDetail.set(false);
+      });
+
+    this.outreachTrigger$
+      .pipe(
+        switchMap((jobId) => {
+          if (jobId === null) {
+            return of(null);
+          }
+          return this.api.getOutreachMessages(jobId).pipe(
+            catchError(() => {
+              this.isLoadingTool.set(false);
+              this.toast.show('Failed to generate recruiter outreach', 'error');
+              return of(null);
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((data) => {
+        if (!data || data.job_id !== this.loadedForJobId) {
+          this.isLoadingTool.set(false);
+          return;
+        }
+        this.outreachData.set(data);
+        this.isLoadingTool.set(false);
+      });
+
+    this.coverTrigger$
+      .pipe(
+        switchMap((jobId) => {
+          if (jobId === null) {
+            return of(null);
+          }
+          return this.api.getCoverLetter(jobId).pipe(
+            catchError(() => {
+              this.isLoadingTool.set(false);
+              this.toast.show('Failed to generate cover letter', 'error');
+              return of(null);
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((data) => {
+        if (!data || data.job_id !== this.loadedForJobId) {
+          this.isLoadingTool.set(false);
+          return;
+        }
+        this.coverLetterText.set(data.cover_letter);
+        this.isLoadingTool.set(false);
+      });
+
+    this.destroyRef.onDestroy(() => {
+      if (this.copyTimer) clearTimeout(this.copyTimer);
+      if (this.copyLinkTimer) clearTimeout(this.copyLinkTimer);
+    });
+  }
+
   @HostListener('document:keydown.escape')
   onEsc(): void {
     if (this.isOpen) {
@@ -1262,44 +1387,43 @@ export class JobDrawerComponent implements OnInit, OnChanges {
     }
   }
 
-  ngOnInit(): void {
-    if (this.job) {
-      this.initJobData();
-    }
-  }
-
   ngOnChanges(): void {
-    if (this.job) {
-      this.initJobData();
+    this.jobSignal.set(this.job);
+
+    if (!this.isOpen || !this.job) {
+      this.resetTransientState();
+      return;
+    }
+
+    if (this.loadedForJobId !== this.job.id) {
+      this.resetTransientState();
+      this.loadedForJobId = this.job.id;
+      this.currentStatus.set(this.job.tracker_status || 'DISCOVERED');
+
+      if ('description_text' in this.job && this.job.description_text) {
+        this.jobDetail.set(this.job as JobDetail);
+      } else {
+        this.isLoadingDetail.set(true);
+        this.detailTrigger$.next(this.job.id);
+      }
+    } else if (this.job.tracker_status) {
+      this.currentStatus.set(this.job.tracker_status);
     }
   }
 
-  private initJobData(): void {
-    if (!this.job) return;
-    this.currentStatus.set(this.job.tracker_status || 'DISCOVERED');
-
-    if ('description_text' in this.job && this.job.description_text) {
-      this.jobDetail.set(this.job as JobDetail);
-    } else {
-      this.loadDetail(this.job.id);
-    }
-  }
-
-  private loadDetail(jobId: number): void {
-    this.isLoadingDetail.set(true);
-    this.api.getJobDetail(jobId).subscribe({
-      next: (detail) => {
-        this.jobDetail.set(detail);
-        if (detail.tracker_status) {
-          this.currentStatus.set(detail.tracker_status);
-        }
-        this.isLoadingDetail.set(false);
-      },
-      error: (err) => {
-        console.warn('Could not load detailed job info:', err);
-        this.isLoadingDetail.set(false);
-      },
-    });
+  private resetTransientState(): void {
+    this.loadedForJobId = null;
+    this.jobDetail.set(null);
+    this.isLoadingDetail.set(false);
+    this.activeTool.set('none');
+    this.isLoadingTool.set(false);
+    this.outreachData.set(null);
+    this.coverLetterText.set(null);
+    this.copied.set(false);
+    this.copiedKey.set(null);
+    this.detailTrigger$.next(null);
+    this.outreachTrigger$.next(null);
+    this.coverTrigger$.next(null);
   }
 
   close(): void {
@@ -1307,25 +1431,35 @@ export class JobDrawerComponent implements OnInit, OnChanges {
     this.closeDrawer.emit();
   }
 
-  onBackdropClick(e: MouseEvent): void {
+  onBackdropClick(_e: MouseEvent): void {
     this.close();
   }
 
   setJobStatus(status: ApplicationStatus): void {
-    if (!this.job) return;
+    const activeJob = this.displayJob();
+    if (!activeJob) return;
+
+    const jobId = activeJob.id;
+    const prevStatus = this.currentStatus();
     this.telegram.haptic('medium');
     this.currentStatus.set(status);
 
-    this.api.updateJobStatus(this.job.id, status).subscribe({
-      next: () => {
-        this.toast.show(`Stage updated to ${this.formatStatus(status)}`, 'success', 2000);
-        this.statusUpdated.emit({ jobId: this.job!.id, status });
-      },
-      error: (e) => {
-        console.error('Failed to update job status:', e);
-        this.toast.show('Failed to update stage', 'error');
-      },
-    });
+    this.api
+      .updateJobStatus(jobId, status)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.show(`Stage updated to ${this.formatStatus(status)}`, 'success', 2000);
+          this.statusUpdated.emit({ jobId, status });
+        },
+        error: (e: unknown) => {
+          console.error('Failed to update job status:', e);
+          if (this.loadedForJobId === jobId) {
+            this.currentStatus.set(prevStatus);
+          }
+          this.toast.show('Failed to update stage', 'error');
+        },
+      });
   }
 
   toggleSave(): void {
@@ -1345,15 +1479,11 @@ export class JobDrawerComponent implements OnInit, OnChanges {
     }
     this.activeTool.set('outreach');
     this.telegram.haptic('selection');
-    if (!this.outreachData() && this.job) {
+    const activeJob = this.displayJob();
+    if (!this.outreachData() && activeJob) {
       this.isLoadingTool.set(true);
-      this.api.getOutreachMessages(this.job.id).subscribe({
-        next: (data) => {
-          this.outreachData.set(data);
-          this.isLoadingTool.set(false);
-        },
-        error: () => this.isLoadingTool.set(false),
-      });
+      this.coverTrigger$.next(null);
+      this.outreachTrigger$.next(activeJob.id);
     }
   }
 
@@ -1364,43 +1494,76 @@ export class JobDrawerComponent implements OnInit, OnChanges {
     }
     this.activeTool.set('cover');
     this.telegram.haptic('selection');
-    if (!this.coverLetterText() && this.job) {
+    const activeJob = this.displayJob();
+    if (!this.coverLetterText() && activeJob) {
       this.isLoadingTool.set(true);
-      this.api.getCoverLetter(this.job.id).subscribe({
-        next: (data) => {
-          this.coverLetterText.set(data.cover_letter);
-          this.isLoadingTool.set(false);
-        },
-        error: () => this.isLoadingTool.set(false),
-      });
+      this.outreachTrigger$.next(null);
+      this.coverTrigger$.next(activeJob.id);
     }
   }
 
   closeTool(): void {
     this.activeTool.set('none');
+    this.isLoadingTool.set(false);
+    this.outreachTrigger$.next(null);
+    this.coverTrigger$.next(null);
   }
 
   copyText(text: string, key: string): void {
-    navigator.clipboard.writeText(text);
-    this.telegram.haptic('selection');
-    this.toast.show('Copied to clipboard', 'info', 1500);
-    this.copiedKey.set(key);
-    setTimeout(() => this.copiedKey.set(null), 2000);
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      this.toast.show('Clipboard unavailable', 'error');
+      return;
+    }
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        this.telegram.haptic('selection');
+        this.toast.show('Copied to clipboard', 'info', 1500);
+        this.copiedKey.set(key);
+        if (this.copyTimer) clearTimeout(this.copyTimer);
+        this.copyTimer = setTimeout(() => this.copiedKey.set(null), 2000);
+      })
+      .catch(() => {
+        this.toast.show('Failed to copy to clipboard', 'error');
+      });
   }
 
   copyJobLink(): void {
-    if (!this.job?.original_application_url) return;
-    navigator.clipboard.writeText(this.job.original_application_url);
-    this.telegram.haptic('selection');
-    this.toast.show('Application link copied', 'info', 1500);
-    this.copied.set(true);
-    setTimeout(() => this.copied.set(false), 2000);
+    const url = this.displayJob()?.original_application_url;
+    if (!url) return;
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      this.toast.show('Clipboard unavailable', 'error');
+      return;
+    }
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        this.telegram.haptic('selection');
+        this.toast.show('Application link copied', 'info', 1500);
+        this.copied.set(true);
+        if (this.copyLinkTimer) clearTimeout(this.copyLinkTimer);
+        this.copyLinkTimer = setTimeout(() => this.copied.set(false), 2000);
+      })
+      .catch(() => {
+        this.toast.show('Failed to copy application link', 'error');
+      });
   }
 
   onApplyClick(e: MouseEvent): void {
-    if (this.job?.original_application_url) {
-      this.telegram.haptic('medium');
-      this.telegram.openExternalLink(this.job.original_application_url);
+    const url = this.displayJob()?.original_application_url;
+    if (!url) return;
+    this.telegram.haptic('medium');
+    if (this.telegram.isTelegram()) {
+      e.preventDefault();
+      this.telegram.openExternalLink(url);
+    }
+  }
+
+  onResumeClick(e: MouseEvent, jobId: number): void {
+    this.telegram.haptic('selection');
+    if (this.telegram.isTelegram()) {
+      e.preventDefault();
+      this.telegram.openExternalLink(this.api.getTailoredResumeUrl(jobId));
     }
   }
 
@@ -1497,16 +1660,6 @@ export class JobDrawerComponent implements OnInit, OnChanges {
     } catch {
       return 'Recently';
     }
-  }
-
-  matchedSkills(): string[] {
-    const req = this.job?.required_skills || [];
-    const gaps = this.jobDetail()?.skill_gaps || [];
-    return req.filter((s) => !gaps.includes(s));
-  }
-
-  skillGaps(): string[] {
-    return this.jobDetail()?.skill_gaps || [];
   }
 
   getParagraphs(text?: string | null): string[] {

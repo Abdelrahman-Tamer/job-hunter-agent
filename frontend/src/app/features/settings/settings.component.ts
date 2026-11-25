@@ -1,4 +1,6 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
@@ -113,6 +115,7 @@ import { CandidateProfile } from '../../core/models/job.model';
             <ui-button
               [variant]="'primary'"
               [loading]="isSaving()"
+              [disabled]="loadFailed() || isSaving()"
               (clicked)="saveSettings()"
             >
               <app-icon name="check" [size]="14"></app-icon>
@@ -917,12 +920,14 @@ export class SettingsComponent implements OnInit {
   private readonly telegram = inject(TelegramService);
   readonly theme = inject(ThemeService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
   profile = signal<CandidateProfile | null>(null);
   digestEnabled = signal<boolean>(true);
   digestTime: string = '09:00';
   digestThreshold: number = 70;
   isSaving = signal<boolean>(false);
+  loadFailed = signal<boolean>(false);
 
   // Danger Zone
   adminKey: string = '';
@@ -934,17 +939,26 @@ export class SettingsComponent implements OnInit {
   }
 
   loadSettings(): void {
-    this.api.getProfile().subscribe({
-      next: (p) => {
-        this.profile.set(p);
-        this.digestEnabled.set(p.digest_enabled);
-        this.digestTime = p.digest_time || '09:00';
-        this.digestThreshold = p.digest_threshold ?? 70;
-      },
-      error: () => {
-        this.digestEnabled.set(true);
-      },
-    });
+    this.loadFailed.set(false);
+    this.api
+      .getProfile()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (p) => {
+          this.loadFailed.set(false);
+          this.profile.set(p);
+          this.digestEnabled.set(p.digest_enabled);
+          this.digestTime = p.digest_time || '09:00';
+          this.digestThreshold = p.digest_threshold ?? 70;
+        },
+        error: () => {
+          this.loadFailed.set(true);
+          this.toast.show(
+            'Failed to load settings. Refresh before saving to prevent overwriting defaults.',
+            'error'
+          );
+        },
+      });
   }
 
   toggleDigest(): void {
@@ -958,6 +972,7 @@ export class SettingsComponent implements OnInit {
   }
 
   saveSettings(): void {
+    if (this.loadFailed() || this.isSaving()) return;
     this.isSaving.set(true);
     this.telegram.haptic('medium');
 
@@ -967,16 +982,17 @@ export class SettingsComponent implements OnInit {
         digest_time: this.digestTime,
         digest_threshold: this.digestThreshold,
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.isSaving.set(false);
           this.telegram.haptic('success');
           this.toast.show('Settings & automation preferences saved!', 'success');
         },
-        error: (err) => {
+        error: (err: unknown) => {
           this.isSaving.set(false);
           this.telegram.haptic('error');
-          this.toast.show('Failed to save settings: ' + (err.error?.detail || err.message), 'error');
+          this.toast.show('Failed to save settings: ' + this.extractErrorMessage(err), 'error');
         },
       });
   }
@@ -1000,20 +1016,32 @@ export class SettingsComponent implements OnInit {
     this.isWiping.set(true);
     this.telegram.haptic('heavy');
 
-    this.api.wipeAndReset(this.adminKey.trim()).subscribe({
-      next: (res) => {
-        this.isWiping.set(false);
-        this.showWipeConfirm.set(false);
-        this.adminKey = '';
-        this.telegram.haptic('success');
-        this.toast.show(res.message || 'Database successfully wiped and reset!', 'success');
-        this.loadSettings();
-      },
-      error: (err) => {
-        this.isWiping.set(false);
-        this.telegram.haptic('error');
-        this.toast.show('Failed to reset: ' + (err.error?.detail || err.message), 'error');
-      },
-    });
+    this.api
+      .wipeAndReset(this.adminKey.trim())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.isWiping.set(false);
+          this.showWipeConfirm.set(false);
+          this.adminKey = '';
+          this.telegram.haptic('success');
+          this.toast.show(res.message || 'Database successfully wiped and reset!', 'success');
+          this.loadSettings();
+        },
+        error: (err: unknown) => {
+          this.isWiping.set(false);
+          this.telegram.haptic('error');
+          this.toast.show('Failed to reset: ' + this.extractErrorMessage(err), 'error');
+        },
+      });
+  }
+
+  private extractErrorMessage(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      const detail = (err.error as { detail?: string } | null)?.detail;
+      return detail || err.message;
+    }
+    if (err instanceof Error) return err.message;
+    return 'Unknown error';
   }
 }

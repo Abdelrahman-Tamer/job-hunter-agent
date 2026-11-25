@@ -1,4 +1,5 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { TelegramService } from './telegram.service';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -6,6 +7,7 @@ export type ThemeMode = 'dark' | 'light';
   providedIn: 'root',
 })
 export class ThemeService {
+  private readonly telegram = inject(TelegramService);
   readonly currentTheme = signal<ThemeMode>('dark');
 
   constructor() {
@@ -35,7 +37,7 @@ export class ThemeService {
       }
     }
 
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+    if (this.telegram.isTelegram() && typeof window !== 'undefined' && window.Telegram?.WebApp) {
       const tg = window.Telegram.WebApp;
       try {
         if (theme === 'dark') {

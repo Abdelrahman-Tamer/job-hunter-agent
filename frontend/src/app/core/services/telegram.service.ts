@@ -1,4 +1,12 @@
-import { Injectable, signal } from '@angular/core';
+import { DestroyRef, Injectable, inject, signal } from '@angular/core';
+
+export interface TelegramUser {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
+}
 
 declare global {
   interface Window {
@@ -29,13 +37,7 @@ declare global {
         themeParams: Record<string, string>;
         initData: string;
         initDataUnsafe: {
-          user?: {
-            id: number;
-            first_name: string;
-            last_name?: string;
-            username?: string;
-            language_code?: string;
-          };
+          user?: TelegramUser;
           start_param?: string;
         };
         HapticFeedback?: {
@@ -52,11 +54,23 @@ declare global {
   providedIn: 'root',
 })
 export class TelegramService {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly isTelegram = signal<boolean>(false);
-  readonly telegramUser = signal<any>(null);
+  readonly telegramUser = signal<TelegramUser | null>(null);
+
+  private viewportHandler?: () => void;
+  private registeredTg?: NonNullable<NonNullable<Window['Telegram']>['WebApp']>;
 
   constructor() {
     this.init();
+    this.destroyRef.onDestroy(() => {
+      if (this.viewportHandler && typeof this.registeredTg?.offEvent === 'function') {
+        this.registeredTg.offEvent('viewportChanged', this.viewportHandler);
+      }
+      this.viewportHandler = undefined;
+      this.registeredTg = undefined;
+    });
   }
 
   init(): void {
@@ -77,7 +91,7 @@ export class TelegramService {
           search.includes('tgWebAppData') ||
           hash.includes('tgWebAppData') ||
           search.includes('tg=1') ||
-          Boolean((window as any).TelegramWebviewProxy)
+          Boolean((window as unknown as { TelegramWebviewProxy?: unknown }).TelegramWebviewProxy)
         )
     );
 
@@ -104,6 +118,12 @@ export class TelegramService {
         };
         updateViewport();
 
+        if (this.viewportHandler && typeof this.registeredTg?.offEvent === 'function') {
+          this.registeredTg.offEvent('viewportChanged', this.viewportHandler);
+        }
+        this.viewportHandler = updateViewport;
+        this.registeredTg = tg;
+
         if (typeof tg.onEvent === 'function') {
           tg.onEvent('viewportChanged', updateViewport);
         }
@@ -126,7 +146,7 @@ export class TelegramService {
   }
 
   haptic(style: 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'error'): void {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !this.isTelegram()) return;
     const haptic = window.Telegram?.WebApp?.HapticFeedback;
     if (!haptic) return;
 
@@ -146,9 +166,9 @@ export class TelegramService {
   }
 
   openUrl(url: string): void {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !url || !/^https?:\/\//i.test(url)) return;
     const tg = window.Telegram?.WebApp;
-    if (tg && typeof tg.openLink === 'function') {
+    if (this.isTelegram() && tg && typeof tg.openLink === 'function') {
       tg.openLink(url);
     } else {
       window.open(url, '_blank', 'noopener,noreferrer');

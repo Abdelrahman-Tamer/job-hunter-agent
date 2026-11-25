@@ -316,6 +316,12 @@ export type IconName =
           <line x1="12" y1="8" x2="12.01" y2="8"></line>
         </g>
 
+        <!-- Mail -->
+        <g *ngSwitchCase="'mail'">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+          <polyline points="22,6 12,13 2,6"></polyline>
+        </g>
+
         <!-- Database -->
         <g *ngSwitchCase="'database'">
           <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>

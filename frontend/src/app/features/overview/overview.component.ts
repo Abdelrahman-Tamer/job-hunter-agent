@@ -1,4 +1,5 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -815,6 +816,7 @@ export class OverviewComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly telegram = inject(TelegramService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly totalJobs = signal<number>(0);
   readonly countEgypt = signal<number>(0);
@@ -846,57 +848,75 @@ export class OverviewComponent implements OnInit {
     this.isLoadingTopJobs.set(true);
 
     // 1. Fetch top matching opportunities
-    this.api.getJobs({ limit: 8, sort_by: 'match_score' }).subscribe({
-      next: (res) => {
-        this.totalJobs.set(res.total);
-        this.topJobs.set(res.items);
-        this.isLoadingTopJobs.set(false);
-      },
-      error: (e) => {
-        console.error('Failed to load top jobs', e);
-        this.isLoadingTopJobs.set(false);
-      },
-    });
+    this.api
+      .getJobs({ limit: 8, sort_by: 'match_score' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.totalJobs.set(res.total);
+          this.topJobs.set(res.items);
+          this.isLoadingTopJobs.set(false);
+        },
+        error: (e: unknown) => {
+          console.error('Failed to load top jobs', e);
+          this.isLoadingTopJobs.set(false);
+        },
+      });
 
     // 2. Fetch Egypt count
-    this.api.getJobs({ segment: 'EGYPT', limit: 1 }).subscribe({
-      next: (res) => this.countEgypt.set(res.total),
-      error: () => {},
-    });
+    this.api
+      .getJobs({ segment: 'EGYPT', limit: 1 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.countEgypt.set(res.total),
+        error: () => {},
+      });
 
     // 3. Fetch Remote GCC / Abroad count
-    this.api.getJobs({ segment: 'REMOTE_GCC_ABROAD', limit: 1 }).subscribe({
-      next: (res) => this.countRemote.set(res.total),
-      error: () => {},
-    });
+    this.api
+      .getJobs({ segment: 'REMOTE_GCC_ABROAD', limit: 1 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.countRemote.set(res.total),
+        error: () => {},
+      });
 
     // 4. Fetch Tracker pipeline count
-    this.api.getTrackedJobs().subscribe({
-      next: (items) => {
-        const saved = items.filter((i) => i.status === 'SAVED').length;
-        const applied = items.filter((i) => i.status === 'APPLIED' || i.status === 'INTERVIEW').length;
-        this.savedCount.set(saved);
-        this.appliedCount.set(applied);
-        this.totalPipeline.set(items.length);
-      },
-      error: (e) => console.error('Failed to load tracker stats', e),
-    });
+    this.api
+      .getTrackedJobs()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          const saved = items.filter((i) => i.status === 'SAVED').length;
+          const applied = items.filter((i) => i.status === 'APPLIED' || i.status === 'INTERVIEW').length;
+          this.savedCount.set(saved);
+          this.appliedCount.set(applied);
+          this.totalPipeline.set(items.length);
+        },
+        error: (e: unknown) => console.error('Failed to load tracker stats', e),
+      });
 
     // 5. Fetch Sources
-    this.api.getSources().subscribe({
-      next: (srcs) => this.sources.set(srcs),
-      error: (e) => console.error('Failed to load sources', e),
-    });
+    this.api
+      .getSources()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (srcs) => this.sources.set(srcs),
+        error: (e: unknown) => console.error('Failed to load sources', e),
+      });
 
     // 6. Fetch Runs
-    this.api.getRuns().subscribe({
-      next: (runs) => {
-        if (runs.length > 0) {
-          this.lastRun.set(runs[0]);
-        }
-      },
-      error: (e) => console.error('Failed to load runs', e),
-    });
+    this.api
+      .getRuns()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (runs) => {
+          if (runs.length > 0) {
+            this.lastRun.set(runs[0]);
+          }
+        },
+        error: (e: unknown) => console.error('Failed to load runs', e),
+      });
   }
 
   triggerSweep(): void {
@@ -905,20 +925,30 @@ export class OverviewComponent implements OnInit {
     this.telegram.haptic('medium');
     this.toast.show('Autonomous Agent initiating sweep across feeds...', 'info', 2500);
 
-    this.api.triggerRun(true).subscribe({
-      next: () => {
-        this.isSweeping.set(false);
-        this.telegram.haptic('success');
-        this.toast.show('Feed sweep completed! Latest roles refreshed.', 'success');
-        this.loadOverviewData();
-      },
-      error: () => {
-        this.isSweeping.set(false);
-        this.telegram.haptic('error');
-        this.toast.show('Feed scan completed or already up to date.', 'info');
-        this.loadOverviewData();
-      },
-    });
+    this.api
+      .triggerRun(true)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.isSweeping.set(false);
+          this.telegram.haptic('success');
+          if (res?.status === 'accepted') {
+            this.toast.show(
+              res.message || 'Background feed sweep started.',
+              'info',
+              3000
+            );
+          } else {
+            this.toast.show('Feed sweep completed! Latest roles refreshed.', 'success');
+          }
+          this.loadOverviewData();
+        },
+        error: () => {
+          this.isSweeping.set(false);
+          this.telegram.haptic('error');
+          this.toast.show('Failed to initiate feed sweep. Please try again.', 'error');
+        },
+      });
   }
 
   openDrawer(job: JobSummary): void {

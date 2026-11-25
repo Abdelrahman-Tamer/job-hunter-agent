@@ -1,4 +1,15 @@
-import { Component, HostListener, OnInit, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  HostListener,
+  OnInit,
+  ViewChild,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
@@ -7,7 +18,30 @@ import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
 import { UiBadgeComponent } from '../../shared/ui/ui-badge.component';
 import { UiButtonComponent } from '../../shared/ui/ui-button.component';
-import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
+import {
+  CandidateProfile,
+  ParsedCVResult,
+  ParsedEducation,
+  ParsedExperience,
+  ParsedProject,
+} from '../../core/models/job.model';
+
+interface CvReviewData {
+  full_name: string;
+  professional_summary: string;
+  education_institution: string;
+  degree_title: string;
+  graduation_year: number | null;
+  experience_years: number | null;
+  linkedin_url: string;
+  github_url: string;
+  confirmed_skills: string[];
+  target_skills: string[];
+  learning_or_exposure_skills: string[];
+  projects: ParsedProject[];
+  experiences: ParsedExperience[];
+  educations: ParsedEducation[];
+}
 
 @Component({
   selector: 'app-profile',
@@ -375,10 +409,10 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
                   <h3 class="project-name" dir="auto">{{ proj.name }}</h3>
                   <span *ngIf="proj.context" class="project-context" dir="auto">{{ proj.context }}</span>
                 </div>
-                <div *ngIf="proj.technologies?.length" class="project-tech-row">
+                <div *ngIf="proj.technologies.length" class="project-tech-row">
                   <span *ngFor="let tech of proj.technologies" class="project-tech-chip" dir="auto">{{ tech }}</span>
                 </div>
-                <ul *ngIf="proj.bullets?.length" class="project-bullets">
+                <ul *ngIf="proj.bullets.length" class="project-bullets">
                   <li *ngFor="let bullet of proj.bullets" dir="auto">{{ bullet }}</li>
                 </ul>
               </article>
@@ -505,7 +539,7 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
                 <span class="review-meta-key">Education</span>
                 <span class="review-meta-val" dir="auto">{{ reviewData.education_institution }}</span>
               </div>
-              <div *ngIf="reviewData.projects?.length" class="review-meta-row">
+              <div *ngIf="reviewData.projects.length" class="review-meta-row">
                 <span class="review-meta-key">Projects</span>
                 <span class="review-meta-val tabular-nums">{{ reviewData.projects.length }} detected</span>
               </div>
@@ -513,7 +547,7 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
 
             <div class="review-section">
               <h3 class="review-section-title tabular-nums">
-                Confirmed Skills ({{ reviewData.confirmed_skills?.length || 0 }})
+                Confirmed Skills ({{ reviewData.confirmed_skills.length }})
               </h3>
               <div class="chips-flex-wrap">
                 <span
@@ -1435,9 +1469,12 @@ import { CandidateProfile, ParsedCVResult } from '../../core/models/job.model';
   `],
 })
 export class ProfileComponent implements OnInit {
+  @ViewChild('fileInput') fileInputRef?: ElementRef<HTMLInputElement>;
+
   private readonly api = inject(ApiService);
   private readonly telegram = inject(TelegramService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly profile = signal<CandidateProfile | null>(null);
 
@@ -1480,7 +1517,22 @@ export class ProfileComponent implements OnInit {
   readonly isParsing = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
   readonly parsedCvResult = signal<ParsedCVResult | null>(null);
-  reviewData: any = {};
+  reviewData: CvReviewData = {
+    full_name: '',
+    professional_summary: '',
+    education_institution: '',
+    degree_title: '',
+    graduation_year: null,
+    experience_years: null,
+    linkedin_url: '',
+    github_url: '',
+    confirmed_skills: [],
+    target_skills: [],
+    learning_or_exposure_skills: [],
+    projects: [],
+    experiences: [],
+    educations: [],
+  };
 
   @HostListener('document:keydown.escape')
   onEsc(): void {
@@ -1494,23 +1546,26 @@ export class ProfileComponent implements OnInit {
   }
 
   loadProfile(): void {
-    this.api.getProfile().subscribe({
-      next: (p) => {
-        this.profile.set(p);
-        this.fullName = p.full_name || '';
-        this.professionalSummary = p.professional_summary || '';
-        this.educationInst = p.education_institution || '';
-        this.degreeTitle = p.degree_title || '';
-        this.gradYear = p.graduation_year;
-        this.experienceYears = p.experience_years;
-        this.linkedinUrl = p.linkedin_url || '';
-        this.githubUrl = p.github_url || '';
-        this.confirmedSkills.set([...(p.confirmed_skills || [])]);
-        this.targetSkills.set([...(p.target_skills || [])]);
-        this.exposureSkills.set([...(p.learning_or_exposure_skills || [])]);
-      },
-      error: (e) => console.error('Failed to load profile:', e),
-    });
+    this.api
+      .getProfile()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (p) => {
+          this.profile.set(p);
+          this.fullName = p.full_name || '';
+          this.professionalSummary = p.professional_summary || '';
+          this.educationInst = p.education_institution || '';
+          this.degreeTitle = p.degree_title || '';
+          this.gradYear = p.graduation_year;
+          this.experienceYears = p.experience_years;
+          this.linkedinUrl = p.linkedin_url || '';
+          this.githubUrl = p.github_url || '';
+          this.confirmedSkills.set([...(p.confirmed_skills || [])]);
+          this.targetSkills.set([...(p.target_skills || [])]);
+          this.exposureSkills.set([...(p.learning_or_exposure_skills || [])]);
+        },
+        error: (e: unknown) => console.error('Failed to load profile:', e),
+      });
   }
 
   calculateCompleteness(): number {
@@ -1585,6 +1640,7 @@ export class ProfileComponent implements OnInit {
         target_skills: this.targetSkills(),
         learning_or_exposure_skills: this.exposureSkills(),
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.isSaving.set(false);
@@ -1614,18 +1670,25 @@ export class ProfileComponent implements OnInit {
     this.toast.show('Profile JSON exported', 'info', 1500);
   }
 
-  onFileSelected(event: any): void {
-    const file = event.target.files?.[0];
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
     if (file) {
       this.selectedFile = file;
       this.selectedFileName = file.name;
       this.toast.show(`Selected ${file.name}`, 'info', 1500);
+    }
+    if (input) {
+      input.value = '';
     }
   }
 
   clearSelectedFile(): void {
     this.selectedFile = null;
     this.selectedFileName = '';
+    if (this.fileInputRef?.nativeElement) {
+      this.fileInputRef.nativeElement.value = '';
+    }
   }
 
   onDragOver(event: DragEvent): void {
@@ -1660,7 +1723,7 @@ export class ProfileComponent implements OnInit {
       ? this.api.uploadCvFile(this.selectedFile)
       : this.api.uploadCvText(this.rawCvText);
 
-    obs.subscribe({
+    obs.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result: ParsedCVResult) => {
         this.telegram.haptic('success');
         this.isParsing.set(false);
@@ -1687,10 +1750,10 @@ export class ProfileComponent implements OnInit {
           educations: [...(result.educations || [])],
         };
       },
-      error: (err: any) => {
+      error: (err: unknown) => {
         this.isParsing.set(false);
         this.toast.show(
-          'Failed to parse CV: ' + (err.error?.detail || err.message),
+          'Failed to parse CV: ' + this.extractErrorMessage(err),
           'error'
         );
       },
@@ -1699,32 +1762,41 @@ export class ProfileComponent implements OnInit {
 
   removeReviewSkill(index: number): void {
     this.telegram.haptic('light');
-    if (this.reviewData.confirmed_skills) {
-      this.reviewData.confirmed_skills.splice(index, 1);
-    }
+    this.reviewData.confirmed_skills.splice(index, 1);
   }
 
   confirmAndSaveProfile(): void {
     this.isSaving.set(true);
     this.telegram.haptic('medium');
-    this.api.confirmCvData(this.reviewData).subscribe({
-      next: () => {
-        this.isSaving.set(false);
-        this.parsedCvResult.set(null);
-        this.selectedFile = null;
-        this.selectedFileName = '';
-        this.rawCvText = '';
-        this.telegram.haptic('success');
-        this.toast.show('CV facts confirmed & applied to profile!', 'success');
-        this.loadProfile();
-      },
-      error: (err: any) => {
-        this.isSaving.set(false);
-        this.toast.show(
-          'Error saving profile: ' + (err.error?.detail || err.message),
-          'error'
-        );
-      },
-    });
+    this.api
+      .confirmCvData(this.reviewData)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.isSaving.set(false);
+          this.parsedCvResult.set(null);
+          this.clearSelectedFile();
+          this.rawCvText = '';
+          this.telegram.haptic('success');
+          this.toast.show('CV facts confirmed & applied to profile!', 'success');
+          this.loadProfile();
+        },
+        error: (err: unknown) => {
+          this.isSaving.set(false);
+          this.toast.show(
+            'Error saving profile: ' + this.extractErrorMessage(err),
+            'error'
+          );
+        },
+      });
+  }
+
+  private extractErrorMessage(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      const detail = (err.error as { detail?: string } | null)?.detail;
+      return detail || err.message;
+    }
+    if (err instanceof Error) return err.message;
+    return 'Unknown error';
   }
 }

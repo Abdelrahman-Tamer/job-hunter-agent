@@ -1,4 +1,5 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -1110,11 +1111,13 @@ export class TrackerComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly telegram = inject(TelegramService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly allItems = signal<TrackedJobItem[]>([]);
   readonly filterStatus = signal<string>('ALL');
   readonly viewMode = signal<'kanban' | 'list'>('kanban');
   readonly isLoading = signal<boolean>(false);
+  readonly pendingJobIds = signal<Set<number>>(new Set());
 
   // Drawer integration
   readonly isDrawerOpen = signal<boolean>(false);
@@ -1131,19 +1134,24 @@ export class TrackerComponent implements OnInit {
     this.loadTrackerItems();
   }
 
-  loadTrackerItems(): void {
-    this.isLoading.set(true);
-    this.api.getTrackedJobs().subscribe({
-      next: (items) => {
-        this.allItems.set(items);
-        this.isLoading.set(false);
-      },
-      error: (e) => {
-        console.error('Failed to load tracked jobs:', e);
-        this.toast.show('Failed to fetch tracker items', 'error');
-        this.isLoading.set(false);
-      },
-    });
+  loadTrackerItems(showSpinner = true): void {
+    if (showSpinner) {
+      this.isLoading.set(true);
+    }
+    this.api
+      .getTrackedJobs()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.allItems.set(items);
+          this.isLoading.set(false);
+        },
+        error: (e: unknown) => {
+          console.error('Failed to load tracked jobs:', e);
+          this.toast.show('Failed to fetch tracker items', 'error');
+          this.isLoading.set(false);
+        },
+      });
   }
 
   setViewMode(mode: 'kanban' | 'list'): void {
@@ -1187,14 +1195,54 @@ export class TrackerComponent implements OnInit {
   }
 
   onStatusChange(jobId: number, newStatus: ApplicationStatus): void {
+    if (this.pendingJobIds().has(jobId)) return;
+
+    const prevItems = this.allItems();
     this.telegram.haptic('medium');
-    this.api.updateJobStatus(jobId, newStatus).subscribe({
-      next: () => {
-        this.toast.show(`Role moved to ${this.formatStatus(newStatus)}`, 'success', 2000);
-        this.loadTrackerItems();
-      },
-      error: () => this.toast.show('Failed to update stage', 'error'),
+
+    this.pendingJobIds.update((set) => {
+      const next = new Set(set);
+      next.add(jobId);
+      return next;
     });
+
+    this.applyStatusLocally(jobId, newStatus);
+
+    this.api
+      .updateJobStatus(jobId, newStatus)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.clearPendingJobId(jobId);
+          this.toast.show(`Role moved to ${this.formatStatus(newStatus)}`, 'success', 2000);
+        },
+        error: () => {
+          this.clearPendingJobId(jobId);
+          this.allItems.set(prevItems);
+          this.toast.show('Failed to update stage', 'error');
+        },
+      });
+  }
+
+  private clearPendingJobId(jobId: number): void {
+    this.pendingJobIds.update((set) => {
+      const next = new Set(set);
+      next.delete(jobId);
+      return next;
+    });
+  }
+
+  private applyStatusLocally(jobId: number, status: ApplicationStatus): void {
+    if (status === 'DISCOVERED') {
+      this.allItems.update((list) => list.filter((item) => item.job_id !== jobId));
+    } else {
+      this.allItems.update((list) =>
+        list.map((item) => (item.job_id === jobId ? { ...item, status } : item))
+      );
+    }
+    if (this.selectedJob()?.id === jobId) {
+      this.selectedJob.update((cur) => (cur ? { ...cur, tracker_status: status } : cur));
+    }
   }
 
   advanceStatus(item: TrackedJobItem, nextStatus: ApplicationStatus): void {
@@ -1230,7 +1278,12 @@ export class TrackerComponent implements OnInit {
   }
 
   onDrawerStatusUpdated(event: { jobId: number; status: ApplicationStatus }): void {
-    this.loadTrackerItems();
+    const exists = this.allItems().some((item) => item.job_id === event.jobId);
+    if (exists) {
+      this.applyStatusLocally(event.jobId, event.status);
+    } else {
+      this.loadTrackerItems(false);
+    }
   }
 
   onOpenLink(event: MouseEvent, url: string): void {

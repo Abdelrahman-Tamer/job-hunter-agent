@@ -365,6 +365,24 @@ button {
   background-color: var(--bg-surface-1);
 }
 
+/* Inline Loading Spinner */
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* =========================================================================
    8. Reduced Motion Safety Guardrail
    ========================================================================= */
