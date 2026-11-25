@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from src.api.routes import health, jobs, profile, runs, sources, tracker
 from src.bot.bot_service import TelegramBotService
 from src.core.config import settings
-from src.core.database import async_session_factory
+from src.core.database import async_session_factory, engine
 from src.core.logging import logger
 from src.scheduler.cron import JobSchedulerService
 from src.services.profile_service import apply_verified_cv_to_profile, get_or_create_candidate_profile
@@ -54,6 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     scheduler_service.shutdown()
     if polling_task:
         polling_task.cancel()
+    await engine.dispose()
 
 
 def create_app() -> FastAPI:

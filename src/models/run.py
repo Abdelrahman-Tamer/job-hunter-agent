@@ -1,7 +1,7 @@
 """Daily run and scheduler execution tracking."""
 
 from datetime import datetime, timezone
-from sqlalchemy import Column, DateTime, Enum as SQLEnum, Integer, String, Text, JSON
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, Index, Integer, String, Text, JSON
 from sqlalchemy.orm import relationship
 from src.core.database import Base
 from src.models.enums import RunStatus
@@ -38,4 +38,8 @@ class DailyRun(Base):
     updated_at = Column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
 
     # Relationships
-    notifications = relationship("NotificationLog", back_populates="run", cascade="all, delete-orphan", lazy="selectin")
+    notifications = relationship("NotificationLog", back_populates="run", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_daily_runs_started_at", "started_at"),
+    )

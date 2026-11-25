@@ -201,18 +201,20 @@ class DailyPipelineRunner:
         # Step 3 & 4: Fetch enabled sources concurrently with isolation
         # -------------------------------------------------------------
         adapters = self.registry.list_adapters()
+        source_names = [a.source_metadata().name for a in adapters]
         source_records: dict[str, Source] = {}
         enabled_adapters: list[BaseSourceAdapter] = []
 
+        if source_names:
+            existing_res = await session.execute(select(Source).where(Source.name.in_(source_names)))
+            for s_rec in existing_res.scalars().all():
+                source_records[s_rec.name] = s_rec
+
+        newly_added_sources: list[Source] = []
         for adapter in adapters:
             meta = adapter.source_metadata()
             source_name = meta.name
-
-            # Ensure source record exists in DB
-            stmt_s = select(Source).where(Source.name == source_name)
-            res_s = await session.execute(stmt_s)
-            source_rec = res_s.scalar_one_or_none()
-            if not source_rec:
+            if source_name not in source_records:
                 source_rec = Source(
                     name=source_name,
                     source_type=meta.source_type,
@@ -222,10 +224,17 @@ class DailyPipelineRunner:
                     attribution_text=meta.attribution_requirement,
                 )
                 session.add(source_rec)
-                await session.commit()
-                await session.refresh(source_rec)
+                source_records[source_name] = source_rec
+                newly_added_sources.append(source_rec)
 
-            source_records[source_name] = source_rec
+        if newly_added_sources:
+            await session.commit()
+            for s_rec in newly_added_sources:
+                await session.refresh(s_rec)
+
+        for adapter in adapters:
+            source_name = adapter.source_metadata().name
+            source_rec = source_records[source_name]
             if source_rec.is_enabled:
                 enabled_adapters.append(adapter)
             else:
@@ -429,6 +438,8 @@ class DailyPipelineRunner:
                             and match_result.score >= settings.MATCH_THRESHOLD_STORE
                         ),
                         job_track=job_track,
+                        opportunity_segment=opportunity_segment.value,
+                        is_social_post=bool(getattr(normalized, "is_social_post", False)),
                         eligibility=eligibility,
                         eligibility_reason=_clamp(elig_reason, 500) or "",
                         match_score=match_result.score,

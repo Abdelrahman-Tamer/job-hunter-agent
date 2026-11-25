@@ -7,6 +7,7 @@ import re
 from typing import Any, Dict, List, Optional
 from sqlalchemy import and_, delete, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.bot.formatters import (
     build_job_inline_keyboard,
@@ -312,6 +313,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
         """Display today's top matches."""
         stmt = (
             select(Job)
+            .options(selectinload(Job.tracker))
             .where(
                 Job.is_active == True,
                 Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
@@ -384,6 +386,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
 
         stmt = (
             select(Job)
+            .options(selectinload(Job.tracker))
             .where(
                 Job.is_active == True,
                 Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
@@ -547,6 +550,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
     async def _cmd_saved(self, chat_id: int, session: AsyncSession) -> None:
         stmt = (
             select(Job)
+            .options(selectinload(Job.tracker))
             .join(JobStatusTracker)
             .where(JobStatusTracker.status == ApplicationStatus.SAVED)
             .order_by(Job.match_score.desc())
@@ -597,6 +601,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
     async def _cmd_applied(self, chat_id: int, session: AsyncSession) -> None:
         stmt = (
             select(Job)
+            .options(selectinload(Job.tracker))
             .join(JobStatusTracker)
             .where(JobStatusTracker.status == ApplicationStatus.APPLIED)
             .order_by(JobStatusTracker.applied_at.desc())
@@ -737,6 +742,7 @@ All previous listings have been purged.
         min_score = min(60.0, profile.digest_threshold)
         stmt = (
             select(Job)
+            .options(selectinload(Job.tracker))
             .where(
                 Job.is_active == True,
                 Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
@@ -1178,9 +1184,13 @@ All previous listings have been purged.
 
     async def _handle_filter_query(self, chat_id: int, key: str, session: AsyncSession) -> None:
         """Filter and display active opportunities based on user-selected criteria."""
-        stmt = select(Job).where(
-            Job.is_active == True,
-            Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
+        stmt = (
+            select(Job)
+            .options(selectinload(Job.tracker))
+            .where(
+                Job.is_active == True,
+                Job.eligibility != GeographicEligibility.NOT_ELIGIBLE,
+            )
         )
 
         filter_titles = {

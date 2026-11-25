@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from typing import Any
+import sqlalchemy as sa
 from sqlalchemy import (
     Boolean,
     Column,
@@ -74,14 +75,29 @@ class Job(Base):
     first_seen_at = Column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
     last_seen_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
-    is_expired = Column(Boolean, default=False, nullable=False, index=True)
+    is_expired = Column(Boolean, default=False, server_default=sa.false(), nullable=False, index=True)
     last_verified_at = Column(DateTime(timezone=True), nullable=True)
     expiry_reason = Column(String(255), nullable=True)
 
     # Classification & Deterministic Scoring
     job_track = Column(
-        SQLEnum(JobTrack, native_enum=False),
+        SQLEnum(JobTrack, native_enum=False, length=50),
         default=JobTrack.OTHER,
+        server_default="OTHER",
+        nullable=False,
+        index=True,
+    )
+    opportunity_segment = Column(
+        String(32),
+        default="OTHER",
+        server_default="OTHER",
+        nullable=False,
+        index=True,
+    )
+    is_social_post = Column(
+        Boolean,
+        default=False,
+        server_default=sa.false(),
         nullable=False,
         index=True,
     )
@@ -105,54 +121,53 @@ class Job(Base):
     created_at = Column(DateTime(timezone=True), default=now_utc, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
 
-    # Relationships
-    source = relationship("Source", back_populates="jobs", lazy="selectin")
-    tracker = relationship("JobStatusTracker", back_populates="job", uselist=False, cascade="all, delete-orphan", lazy="selectin")
-    notifications = relationship("NotificationLog", back_populates="job", cascade="all, delete-orphan", lazy="selectin")
-    notes = relationship("ApplicationNote", back_populates="job", cascade="all, delete-orphan", lazy="selectin")
+    # Relationships (explicitly loaded at call sites via selectinload/contains_eager)
+    source = relationship("Source", back_populates="jobs")
+    tracker = relationship("JobStatusTracker", back_populates="job", uselist=False, cascade="all, delete-orphan")
+    notifications = relationship("NotificationLog", back_populates="job", cascade="all, delete-orphan")
+    notes = relationship("ApplicationNote", back_populates="job", cascade="all, delete-orphan")
 
-    @property
-    def is_social_post(self) -> bool:
-        """Return True if opportunity originates from a social hiring post (e.g. LinkedIn)."""
-        if self.raw_payload and self.raw_payload.get("is_social_post"):
-            return True
-        s_name = (self.source_name or "").lower()
-        return "linkedin_social" in s_name or "social" in s_name
+    def __init__(self, **kwargs: Any) -> None:
+        raw_payload = kwargs.get("raw_payload") or {}
+        if "is_social_post" not in kwargs:
+            if isinstance(raw_payload, dict) and "is_social_post" in raw_payload:
+                kwargs["is_social_post"] = bool(raw_payload["is_social_post"])
+            else:
+                s_name = str(kwargs.get("source_name") or "").lower()
+                kwargs["is_social_post"] = ("linkedin_social" in s_name) or ("social" in s_name)
+        else:
+            kwargs["is_social_post"] = bool(kwargs["is_social_post"])
 
-    @is_social_post.setter
-    def is_social_post(self, value: bool) -> None:
-        if self.raw_payload is None:
-            self.raw_payload = {}
-        self.raw_payload = {**self.raw_payload, "is_social_post": bool(value)}
+        if "opportunity_segment" not in kwargs:
+            if isinstance(raw_payload, dict) and raw_payload.get("opportunity_segment"):
+                seg_val = raw_payload["opportunity_segment"]
+                kwargs["opportunity_segment"] = seg_val.value if hasattr(seg_val, "value") else str(seg_val)
+            elif any(k in kwargs for k in ("raw_location", "workplace_type", "remote_scope", "eligibility")):
+                from src.engine.eligibility import GeographicEligibilityEngine
+                engine = GeographicEligibilityEngine()
+                kwargs["opportunity_segment"] = engine.classify_segment(
+                    raw_location=kwargs.get("raw_location"),
+                    workplace_type=kwargs.get("workplace_type") or WorkplaceType.UNKNOWN,
+                    remote_scope=kwargs.get("remote_scope"),
+                    eligibility=kwargs.get("eligibility"),
+                    description_text=kwargs.get("description_text"),
+                ).value
+        else:
+            seg_val = kwargs["opportunity_segment"]
+            kwargs["opportunity_segment"] = seg_val.value if hasattr(seg_val, "value") else str(seg_val)
+
+        super().__init__(**kwargs)
 
     @property
     def source_category_label(self) -> str:
         """Display label distinguishing Social Post vs Job Board."""
         return "Social Post" if self.is_social_post else "Job Board"
 
-    @property
-    def opportunity_segment(self) -> str:
-        """Determine whether job belongs to Egypt or Remote Abroad / GCC bucket."""
-        if self.raw_payload and self.raw_payload.get("opportunity_segment"):
-            return str(self.raw_payload["opportunity_segment"])
-        from src.engine.eligibility import GeographicEligibilityEngine
-        engine = GeographicEligibilityEngine()
-        return engine.classify_segment(
-            raw_location=self.raw_location,
-            workplace_type=self.workplace_type,
-            remote_scope=self.remote_scope,
-            eligibility=self.eligibility,
-            description_text=self.description_text,
-        ).value
-
-    @opportunity_segment.setter
-    def opportunity_segment(self, value: Any) -> None:
-        if self.raw_payload is None:
-            self.raw_payload = {}
-        val_str = value.value if hasattr(value, "value") else str(value)
-        self.raw_payload = {**self.raw_payload, "opportunity_segment": val_str}
-
     __table_args__ = (
         Index("ix_jobs_source_and_id", "source_name", "source_job_id", unique=True),
         Index("ix_jobs_eligibility_score", "eligibility", "match_score"),
+        Index("ix_jobs_active_score_seen", "match_score", "first_seen_at", "id", postgresql_where=sa.text("is_active = true")),
+        Index("ix_jobs_active_track_score", "job_track", "match_score", "first_seen_at", "id", postgresql_where=sa.text("is_active = true")),
+        Index("ix_jobs_segment_social_score", "opportunity_segment", "is_social_post", "match_score", postgresql_where=sa.text("is_active = true")),
+        Index("ix_jobs_expiry_scan", "last_verified_at", "first_seen_at", postgresql_where=sa.text("is_active = true AND is_expired = false")),
     )

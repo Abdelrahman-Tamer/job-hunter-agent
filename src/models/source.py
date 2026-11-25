@@ -33,8 +33,8 @@ class Source(Base):
     updated_at = Column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
 
     # Relationships
-    jobs = relationship("Job", back_populates="source", cascade="all, delete-orphan", lazy="selectin")
-    sync_logs = relationship("SourceSyncLog", back_populates="source", cascade="all, delete-orphan", lazy="selectin")
+    jobs = relationship("Job", back_populates="source", cascade="all, delete-orphan")
+    sync_logs = relationship("SourceSyncLog", back_populates="source", cascade="all, delete-orphan")
 
 
 class SourceSyncLog(Base):

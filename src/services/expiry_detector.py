@@ -111,48 +111,72 @@ async def check_job_url(url: str, client: httpx.AsyncClient) -> Tuple[bool, str]
 async def scan_and_mark_expired_jobs(session: AsyncSession, limit: int = 40) -> Dict[str, Any]:
     """
     Scan active job opportunities in the database and cull expired or ghost listings.
+    Releases read transaction before issuing concurrent HTTP checks.
     """
     now = datetime.now(timezone.utc)
     stmt = (
-        select(Job)
+        select(
+            Job.id,
+            Job.title,
+            Job.company,
+            Job.original_application_url,
+            Job.source_url,
+        )
         .where(Job.is_active == True, Job.is_expired == False)
         .order_by(Job.last_verified_at.asc().nullsfirst(), Job.first_seen_at.desc())
         .limit(limit)
     )
     res = await session.execute(stmt)
-    jobs = res.scalars().all()
+    targets = [
+        (row.id, row.title, row.company, row.original_application_url or row.source_url)
+        for row in res.all()
+    ]
 
-    if not jobs:
+    # End read-only transaction before slow external HTTP checks without expiring caller objects
+    await session.commit()
+
+    if not targets:
         return {"checked": 0, "expired": 0, "active": 0}
 
     semaphore = asyncio.Semaphore(8)
-    expired_count = 0
-    active_count = 0
 
     async with httpx.AsyncClient() as client:
-        async def _check_single(job: Job) -> Tuple[Job, bool, str]:
+        async def _check_single(
+            job_id: int, title: str, company: str, url: str
+        ) -> Tuple[int, str, str, bool, str]:
             async with semaphore:
-                url = job.original_application_url or job.source_url
                 is_expired, reason = await check_job_url(url, client)
-                return job, is_expired, reason
+                return job_id, title, company, is_expired, reason
 
-        results = await asyncio.gather(*[_check_single(j) for j in jobs], return_exceptions=False)
+        results = await asyncio.gather(
+            *(_check_single(jid, t, c, u) for jid, t, c, u in targets),
+            return_exceptions=False,
+        )
 
-    for job, is_expired, reason in results:
+    expired_count = 0
+    active_count = 0
+    job_ids = [r[0] for r in results]
+    jobs_res = await session.execute(select(Job).where(Job.id.in_(job_ids)))
+    jobs_by_id = {j.id: j for j in jobs_res.scalars().all()}
+
+    for job_id, title, company, is_expired, reason in results:
+        job = jobs_by_id.get(job_id)
+        if not job:
+            continue
         job.last_verified_at = now
         if is_expired:
             job.is_expired = True
             job.is_active = False
             job.expiry_reason = reason
             expired_count += 1
-            logger.info(f"Marked Job #{job.id} ({job.title} at {job.company}) as EXPIRED: {reason}")
+            logger.info(f"Marked Job #{job_id} ({title} at {company}) as EXPIRED: {reason}")
         else:
             active_count += 1
 
     await session.commit()
-    logger.info(f"Expiry scan completed: checked={len(jobs)}, expired={expired_count}, active={active_count}")
+    logger.info(f"Expiry scan completed: checked={len(results)}, expired={expired_count}, active={active_count}")
     return {
-        "checked": len(jobs),
+        "checked": len(results),
         "expired": expired_count,
         "active": active_count,
     }

@@ -1,5 +1,6 @@
 """Source registry to configure, manage, and coordinate all active adapters."""
 
+import asyncio
 import httpx
 
 from src.core.config import settings
@@ -42,14 +43,19 @@ class SourceRegistry:
 
     async def check_all_health(self) -> dict[str, bool]:
         """Execute health checks across all registered adapters concurrently."""
-        results: dict[str, bool] = {}
-        for name, adapter in self._adapters.items():
+        async def _probe(name: str, adapter: BaseSourceAdapter) -> tuple[str, bool]:
             try:
-                results[name] = await adapter.health_check()
-            except (httpx.HTTPError, ValueError, RuntimeError, OSError, TimeoutError, TypeError, AttributeError) as exc:
+                ok = bool(await asyncio.wait_for(adapter.health_check(), timeout=10.0))
+                return name, ok
+            except (asyncio.TimeoutError, httpx.HTTPError, ValueError, RuntimeError, OSError, TimeoutError, TypeError, AttributeError) as exc:
                 logger.error(f"Health check exception for {name}: {exc}")
-                results[name] = False
-        return results
+                return name, False
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Unexpected health check error for {name}: {exc}")
+                return name, False
+
+        pairs = await asyncio.gather(*(_probe(n, a) for n, a in self._adapters.items()))
+        return dict(pairs)
 
 
 def create_default_registry() -> SourceRegistry:

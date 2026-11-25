@@ -2,6 +2,7 @@
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from src.models import (
     CandidateProfile,
     GeographicEligibility,
@@ -103,8 +104,8 @@ async def test_job_and_source_database_relationships(db_session):
     await db_session.refresh(tracker)
     await db_session.refresh(job, ["tracker"])
 
-    # Query back
-    stmt = select(Job).where(Job.id == job.id)
+    # Query back with explicit eager loads for accessed relationships
+    stmt = select(Job).options(selectinload(Job.source), selectinload(Job.tracker)).where(Job.id == job.id)
     res = await db_session.execute(stmt)
     retrieved_job = res.scalar_one()
 

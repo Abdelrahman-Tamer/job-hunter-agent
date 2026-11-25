@@ -56,12 +56,12 @@ class CandidateProfile(Base):
     career_direction = Column(String(100), default="Software Engineering / Web Development", nullable=False)
     priority_target = Column(String(100), default="Angular / Frontend", nullable=False)
 
-    target_role_terms = Column(JSON, default=DEFAULT_TARGET_ROLES, nullable=False)
-    target_technology_terms = Column(JSON, default=DEFAULT_TARGET_TECH, nullable=False)
+    target_role_terms = Column(JSON, default=lambda: list(DEFAULT_TARGET_ROLES), nullable=False)
+    target_technology_terms = Column(JSON, default=lambda: list(DEFAULT_TARGET_TECH), nullable=False)
 
     # Critical skill separation
     confirmed_skills = Column(JSON, default=list, nullable=False)  # Verified skills only
-    target_skills = Column(JSON, default=DEFAULT_TARGET_TECH, nullable=False)  # Skills being targeted
+    target_skills = Column(JSON, default=lambda: list(DEFAULT_TARGET_TECH), nullable=False)  # Skills being targeted
     learning_or_exposure_skills = Column(JSON, default=list, nullable=False)  # In progress or introductory
 
     linkedin_url = Column(String(255), default="https://www.linkedin.com/in/abd-el-rahman-emam", nullable=True)

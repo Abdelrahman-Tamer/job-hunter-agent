@@ -51,13 +51,15 @@ class UserJobAlertDTO(BaseModel):
 async def list_sources(db: AsyncSession = Depends(get_db_session)) -> List[Dict[str, Any]]:
     """List registered sources with metadata and last sync state."""
     meta_list = registry_instance.list_metadata()
+    source_names = [m.name for m in meta_list]
+    source_by_name: Dict[str, Source] = {}
+    if source_names:
+        res = await db.execute(select(Source).where(Source.name.in_(source_names)))
+        source_by_name = {s.name: s for s in res.scalars().all()}
+
     results = []
-
     for m in meta_list:
-        stmt = select(Source).where(Source.name == m.name)
-        res = await db.execute(stmt)
-        s_record = res.scalar_one_or_none()
-
+        s_record = source_by_name.get(m.name)
         results.append({
             "name": m.name,
             "source_type": m.source_type,
@@ -197,6 +199,8 @@ async def ingest_user_alert(
         remote_scope=_clamp(norm.remote_scope, 255),
         required_skills=dto.skills or [],
         job_track=job_track,
+        opportunity_segment=opportunity_segment.value,
+        is_social_post=False,
         is_active=(
             eligibility != GeographicEligibility.NOT_ELIGIBLE
             and job_track != JobTrack.OTHER

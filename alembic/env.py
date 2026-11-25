@@ -2,11 +2,11 @@ import asyncio
 from logging.config import fileConfig
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 from src.core.config import settings
-from src.core.database import ensure_sqlite_dir
+from src.core.database import ensure_sqlite_dir, prepare_async_database_url
 from src.models import Base
 
 # this is the Alembic Config object, which provides
@@ -19,14 +19,9 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Override sqlalchemy.url with application settings
-db_url = settings.DATABASE_URL
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
-elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+"):
-    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-
-config.set_main_option("sqlalchemy.url", db_url)
+# Normalize database URL & PgBouncer/SSL args via shared helper
+sa_url, connect_args, _is_sqlite = prepare_async_database_url(settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", sa_url.render_as_string(hide_password=False).replace("%", "%%"))
 ensure_sqlite_dir(settings.DATABASE_URL)
 
 
@@ -53,10 +48,10 @@ def do_run_migrations(connection: Connection) -> None:
 async def run_async_migrations() -> None:
     """In this scenario we need to create an Engine
     and associate a connection with the context."""
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_async_engine(
+        sa_url,
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:

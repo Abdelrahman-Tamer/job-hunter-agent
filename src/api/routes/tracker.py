@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import contains_eager, defer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db_session
@@ -26,17 +26,23 @@ class NoteCreateDTO(BaseModel):
 @router.get("", response_model=List[Dict[str, Any]])
 async def list_tracked_jobs(
     status_filter: Optional[ApplicationStatus] = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db_session),
 ) -> List[Dict[str, Any]]:
     """List tracked opportunities."""
     stmt = (
         select(JobStatusTracker)
-        .options(joinedload(JobStatusTracker.job))
-        .join(Job)
+        .join(JobStatusTracker.job)
+        .options(
+            contains_eager(JobStatusTracker.job)
+            .defer(Job.description_text)
+            .defer(Job.description_html)
+        )
     )
     if status_filter:
         stmt = stmt.where(JobStatusTracker.status == status_filter)
-    stmt = stmt.order_by(JobStatusTracker.updated_at.desc())
+    stmt = stmt.order_by(JobStatusTracker.updated_at.desc()).limit(limit).offset(offset)
 
     res = await db.execute(stmt)
     trackers = res.scalars().all()

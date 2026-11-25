@@ -8,6 +8,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select, and_, or_, delete, func, not_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer, selectinload
 
 from src.core.config import settings
 from src.core.database import get_db_session
@@ -93,20 +94,26 @@ async def list_jobs(
         if seg_upper == "EGYPT":
             filters.append(
                 or_(
-                    Job.raw_payload["opportunity_segment"].as_string() == "EGYPT",
+                    Job.opportunity_segment == "EGYPT",
                     Job.job_track == JobTrack.FRONTEND_EGYPT,
-                    Job.raw_location.ilike("%egypt%"),
-                    Job.raw_location.ilike("%cairo%"),
-                    Job.raw_location.ilike("%alexandria%"),
-                    Job.raw_location.ilike("%giza%"),
+                    and_(
+                        Job.opportunity_segment == "OTHER",
+                        or_(
+                            Job.raw_location.ilike("%egypt%"),
+                            Job.raw_location.ilike("%cairo%"),
+                            Job.raw_location.ilike("%alexandria%"),
+                            Job.raw_location.ilike("%giza%"),
+                        ),
+                    ),
                 )
             )
         elif seg_upper in ("REMOTE_GCC_ABROAD", "GCC", "REMOTE_GCC", "REMOTE_ABROAD"):
             filters.append(
                 or_(
-                    Job.raw_payload["opportunity_segment"].as_string() == "REMOTE_GCC_ABROAD",
+                    Job.opportunity_segment == "REMOTE_GCC_ABROAD",
                     Job.job_track == JobTrack.FRONTEND_REMOTE_GCC,
                     and_(
+                        Job.opportunity_segment == "OTHER",
                         Job.workplace_type == WorkplaceType.REMOTE,
                         Job.eligibility.in_([
                             GeographicEligibility.REMOTE_WORLDWIDE,
@@ -123,29 +130,9 @@ async def list_jobs(
                 )
             )
         else:
-            filters.append(Job.raw_payload["opportunity_segment"].as_string() == seg_upper)
+            filters.append(Job.opportunity_segment == seg_upper)
     if is_social_post is not None:
-        if is_social_post:
-            filters.append(
-                or_(
-                    Job.source_name.ilike("%social%"),
-                    Job.source_name.ilike("%linkedin%"),
-                    Job.raw_payload["is_social_post"].as_string().in_(["true", "True", "1"]),
-                    Job.raw_payload["is_social_post"].as_boolean() == True,
-                )
-            )
-        else:
-            filters.append(
-                and_(
-                    not_(Job.source_name.ilike("%social%")),
-                    not_(Job.source_name.ilike("%linkedin%")),
-                    or_(
-                        Job.raw_payload == None,
-                        Job.raw_payload["is_social_post"].as_string().is_(None),
-                        Job.raw_payload["is_social_post"].as_string().not_in(["true", "True", "1"]),
-                    ),
-                )
-            )
+        filters.append(Job.is_social_post == bool(is_social_post))
     if keyword:
         filters.append(
             or_(
@@ -171,11 +158,16 @@ async def list_jobs(
     count_stmt = select(func.count(Job.id)).where(and_(*filters))
     total_count = (await db.execute(count_stmt)).scalar_one()
 
-    # Fetch page
+    # Fetch page (defer heavy body text/html blobs; explicitly load tracker)
     stmt = (
         select(Job)
+        .options(
+            defer(Job.description_text),
+            defer(Job.description_html),
+            selectinload(Job.tracker),
+        )
         .where(and_(*filters))
-        .order_by(Job.match_score.desc(), Job.first_seen_at.desc())
+        .order_by(Job.match_score.desc(), Job.first_seen_at.desc(), Job.id.desc())
         .offset(offset)
         .limit(limit)
     )
@@ -224,7 +216,7 @@ async def get_job_detail(
     db: AsyncSession = Depends(get_db_session),
 ) -> JobDetailDTO:
     """Get full details of a specific job opportunity."""
-    stmt = select(Job).where(Job.id == job_id)
+    stmt = select(Job).options(selectinload(Job.tracker)).where(Job.id == job_id)
     res = await db.execute(stmt)
     j = res.scalar_one_or_none()
     if not j:
@@ -306,21 +298,32 @@ async def generate_outreach_messages(
         raise HTTPException(status_code=404, detail="Job not found")
 
     profile = await get_or_create_candidate_profile(db)
+    job_id_val = j.id
+    company = j.company
+    title = j.title
+    description_text = j.description_text or ""
+    candidate_name = profile.full_name or "Abdelrahman Emam"
+    candidate_title = profile.priority_target or "Frontend Developer (Angular)"
+    skills = list(profile.confirmed_skills or [])
+
+    # Release DB read transaction before external Gemini HTTP call
+    await db.rollback()
+
     gemini = GeminiJobExtractor()
     outreach = await gemini.generate_linkedin_outreach(
-        candidate_name=profile.full_name or "Abdelrahman Emam",
-        candidate_title=profile.priority_target or "Frontend Developer (Angular)",
-        skills=profile.confirmed_skills or [],
-        company=j.company,
-        job_title=j.title,
-        job_description=j.description_text or "",
+        candidate_name=candidate_name,
+        candidate_title=candidate_title,
+        skills=skills,
+        company=company,
+        job_title=title,
+        job_description=description_text,
     )
 
     return {
         "status": "success",
-        "job_id": j.id,
-        "company": j.company,
-        "title": j.title,
+        "job_id": job_id_val,
+        "company": company,
+        "title": title,
         "connection_note": outreach.get("connection_note", ""),
         "inmail_dm": outreach.get("inmail_dm", ""),
         "follow_up_note": outreach.get("follow_up_note", ""),
@@ -340,20 +343,32 @@ async def generate_cover_letter(
         raise HTTPException(status_code=404, detail="Job not found")
 
     profile = await get_or_create_candidate_profile(db)
+    job_id_val = j.id
+    company = j.company
+    title = j.title
+    description_text = j.description_text or ""
+    candidate_name = profile.full_name or "Abdelrahman Emam"
+    candidate_title = profile.priority_target or "Frontend Developer (Angular)"
+    skills = list(profile.confirmed_skills or [])
+    projects = list(profile.projects or [])
+
+    # Release DB read transaction before external Gemini HTTP call
+    await db.rollback()
+
     gemini = GeminiJobExtractor()
     cover_letter = await gemini.generate_cover_letter(
-        candidate_name=profile.full_name or "Abdelrahman Emam",
-        candidate_title=profile.priority_target or "Frontend Developer (Angular)",
-        skills=profile.confirmed_skills or [],
-        projects=profile.projects or [],
-        company=j.company,
-        job_title=j.title,
-        job_description=j.description_text or "",
+        candidate_name=candidate_name,
+        candidate_title=candidate_title,
+        skills=skills,
+        projects=projects,
+        company=company,
+        job_title=title,
+        job_description=description_text,
     )
 
     return {
         "status": "success",
-        "job_id": j.id,
+        "job_id": job_id_val,
         "cover_letter": cover_letter,
     }
 
