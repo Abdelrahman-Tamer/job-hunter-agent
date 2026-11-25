@@ -678,7 +678,7 @@ async def test_fast_radar_run_distinct_key_fast_sources_silent_empty_and_alerts_
     assert len(heavy_boards.fetch_calls) == 0
     assert len(wuzzuf_adapter.fetch_calls) == 1
     assert wuzzuf_adapter.fetch_calls[0]["query_config"].get("fast_mode") is True
-    assert wuzzuf_adapter.fetch_calls[0]["query_config"].get("freshness_tbs") == "qdr:d"
+    assert wuzzuf_adapter.fetch_calls[0]["query_config"].get("freshness_tbs") == "qdr:w"
     assert len(li_jobs_adapter.fetch_calls) == 1
     assert len(li_social_adapter.fetch_calls) == 1
     assert li_social_adapter.fetch_calls[0]["query_config"].get("fast_mode") is True

@@ -603,8 +603,10 @@ async def test_wuzzuf_serper_fallback_on_403_normal_mode_and_url_validation(monk
 
     assert 1 <= len(captured_serper) <= 2
     assert len(captured_serper) == 2
+    assert captured_serper[0].get("q") == 'site:wuzzuf.net/jobs/p ("frontend" OR "front-end" OR "angular")'
+    assert captured_serper[1].get("q") == 'site:wuzzuf.net/jobs/p ("angular" OR "react" OR "typescript") ("developer" OR "engineer")'
     for payload in captured_serper:
-        assert payload.get("tbs") == "qdr:d3"
+        assert payload.get("tbs") == "qdr:w"
         assert "site:wuzzuf.net/jobs/p" in payload.get("q", "")
 
     # Deduplicated across 2 queries -> only 2 valid /jobs/p/ URLs
@@ -635,8 +637,8 @@ async def test_wuzzuf_serper_fallback_on_403_normal_mode_and_url_validation(monk
 
 
 @pytest.mark.asyncio
-async def test_wuzzuf_serper_fallback_fast_mode_uses_1_query_and_qdr_d(monkeypatch):
-    """When WAF blocks SSR in fast_mode=True, WuzzufAdapter runs at most 1 Serper query with tbs=qdr:d."""
+async def test_wuzzuf_serper_fallback_fast_mode_uses_1_query_and_qdr_w(monkeypatch):
+    """When WAF blocks SSR in fast_mode=True, WuzzufAdapter runs at most 1 Serper query with tbs=qdr:w."""
     from src.sources.wuzzuf import WuzzufAdapter
 
     monkeypatch.setattr(settings, "SERPER_API_KEY", "test-wuzzuf-fast-key")
@@ -680,8 +682,8 @@ async def test_wuzzuf_serper_fallback_fast_mode_uses_1_query_and_qdr_d(monkeypat
             await adapter.http_client.close()
 
     assert len(captured_serper) == 1
-    assert captured_serper[0].get("tbs") == "qdr:d"
-    assert "site:wuzzuf.net/jobs/p" in captured_serper[0].get("q", "")
+    assert captured_serper[0].get("tbs") == "qdr:w"
+    assert captured_serper[0].get("q") == 'site:wuzzuf.net/jobs/p ("frontend" OR "front-end" OR "angular")'
     assert len(raw_jobs) == 1
 
     norm = adapter.normalize(raw_jobs[0])

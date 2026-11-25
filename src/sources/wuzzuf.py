@@ -50,8 +50,8 @@ class WuzzufAdapter(BaseSourceAdapter):
         "angular": "/a/Angular-Jobs-in-Egypt",
     }
     SERPER_FALLBACK_QUERIES: ClassVar[tuple[str, ...]] = (
-        'site:wuzzuf.net/jobs/p ("frontend" OR "front-end" OR "angular") ("egypt" OR "cairo" OR "alexandria" OR "remote")',
-        'site:wuzzuf.net/jobs/p ("angular" OR "react" OR "typescript") ("frontend" OR "web developer")',
+        'site:wuzzuf.net/jobs/p ("frontend" OR "front-end" OR "angular")',
+        'site:wuzzuf.net/jobs/p ("angular" OR "react" OR "typescript") ("developer" OR "engineer")',
     )
     MAX_PAGES_PER_QUERY: ClassVar[int] = 2
     MAX_JOBS_PER_QUERY: ClassVar[int] = 40
@@ -329,7 +329,7 @@ class WuzzufAdapter(BaseSourceAdapter):
         }
         max_queries = 1 if fast_mode else 2
         active_queries = self.SERPER_FALLBACK_QUERIES[:max_queries]
-        tbs = freshness_tbs or ("qdr:d" if fast_mode else getattr(settings, "SERPER_FRESHNESS_TBS", "qdr:d3"))
+        tbs = freshness_tbs or "qdr:w"
 
         fallback_items: list[RawJobData] = []
         for query in active_queries:

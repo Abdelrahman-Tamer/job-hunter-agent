@@ -282,8 +282,10 @@ class DailyPipelineRunner:
             s_name = meta.name
             s_start = datetime.now(UTC)
             try:
-                if fast_mode and s_name in ("linkedin_social", "wuzzuf"):
+                if fast_mode and s_name == "linkedin_social":
                     coro = adapter.fetch_jobs(query_config={"fast_mode": True, "freshness_tbs": "qdr:d"})
+                elif fast_mode and s_name == "wuzzuf":
+                    coro = adapter.fetch_jobs(query_config={"fast_mode": True, "freshness_tbs": "qdr:w"})
                 else:
                     coro = adapter.fetch_jobs()
                 raw_jobs = await asyncio.wait_for(coro, timeout=35.0)
