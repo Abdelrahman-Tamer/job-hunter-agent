@@ -24,7 +24,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.8-flash
       - key: DIGEST_CRON_HOUR
         value: "9"
       - key: DIGEST_CRON_MINUTE

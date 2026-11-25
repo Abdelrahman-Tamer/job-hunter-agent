@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # Gemini AI
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
     GEMINI_EXTRACTION_ENABLED: bool = True
     GEMINI_MAX_REQUESTS_PER_RUN: int = 25
 
