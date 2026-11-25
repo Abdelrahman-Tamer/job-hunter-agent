@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 import html
 from typing import Any, Dict, List, Optional
+from src.core.security import is_safe_url
 from src.models.enums import (
     EmploymentType,
     GeographicEligibility,
@@ -146,8 +147,8 @@ def format_job_card(job: Job) -> str:
     }.get(job.workplace_type, "Remote")
     lines.append(f"🌍 Region & Work Mode: <code>{loc_display}</code> (<b>{workplace_text}</b>)")
 
-    sen_display = job.seniority.value if job.seniority != SeniorityLevel.UNKNOWN else "Junior / Entry"
-    emp_display = job.employment_type.value if job.employment_type != EmploymentType.UNKNOWN else "Full-time"
+    sen_display = job.seniority.value if job.seniority and job.seniority != SeniorityLevel.UNKNOWN else "Junior / Entry"
+    emp_display = job.employment_type.value if job.employment_type and job.employment_type != EmploymentType.UNKNOWN else "Full-time"
     lines.append(f"📊 Level: <b>{sen_display}</b> | Type: <b>{emp_display}</b>")
 
     source_type_label = "Social Post (LinkedIn)" if is_social else f"Job Board ({escape(job.source_name)})"
@@ -168,6 +169,31 @@ def format_job_card(job: Job) -> str:
     app_url = job.original_application_url or job.source_url
     safe_app_url = html.escape(app_url or "", quote=True)
     lines.append(f"{date_label} • <a href=\"{safe_app_url}\">Direct Link ↗</a>")
+
+    payload = job.raw_payload or {}
+    contact_parts: List[str] = []
+    direct_email = str(payload.get("direct_email") or "").strip()
+    if direct_email:
+        contact_parts.append(f"📧 <code>{html.escape(direct_email, quote=True)}</code>")
+
+    whatsapp_contact = str(payload.get("whatsapp_contact") or "").strip()
+    if whatsapp_contact:
+        safe_wa_text = html.escape(whatsapp_contact, quote=True)
+        if whatsapp_contact.lower().startswith(("http://", "https://")) and is_safe_url(whatsapp_contact):
+            contact_parts.append(f'💬 <a href="{safe_wa_text}">WhatsApp ({safe_wa_text})</a>')
+        else:
+            contact_parts.append(f"💬 WhatsApp: <code>{safe_wa_text}</code>")
+
+    apply_form_url = str(payload.get("apply_form_url") or "").strip()
+    if apply_form_url:
+        safe_form = html.escape(apply_form_url, quote=True)
+        if apply_form_url.lower().startswith(("http://", "https://")) and is_safe_url(apply_form_url):
+            contact_parts.append(f'📝 <a href="{safe_form}">Apply Form ↗</a>')
+        else:
+            contact_parts.append(f"📝 Form: {safe_form}")
+
+    if contact_parts:
+        lines.append("📞 Direct Contact: " + " | ".join(contact_parts))
 
     skills = (job.required_skills or [])[:6]
     if skills:

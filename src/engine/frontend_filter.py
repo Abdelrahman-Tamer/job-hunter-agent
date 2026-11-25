@@ -117,7 +117,12 @@ JOB_SEEKER_PATTERNS = [
     r"\bcan anyone refer me\b",
     r"\blooking for any referral\b",
     r"\bjust graduated\b.*\blooking for\b",
-    r"(ابحث\s*عن\s*فرصة|أبحث\s*عن\s*فرصة|أبحث\s*عن\s*عمل|ابحث\s*عن\s*عمل|ابحث\s*عن\s*وظيفة|أبحث\s*عن\s*وظيفة|متاح\s*للعمل|أبحث\s*عن\s*تدريب|مهتم\s*بفرصة|مهتم\s*بالعمل|جاهز\s*للعمل)",
+    r"(?:أبحث|ابحث)\s*عن\s*(?:فرصة|عمل|وظيفة|تدريب|شغل)",
+    r"(?:بدور|أدور|ادور)\s*عل[ىي]\s*(?:شغل|عمل|وظيفة|فرصة)",
+    r"محتاج[ةه]?\s*(?:شغل|عمل|وظيفة|فرصة)",
+    r"خريج[ةه]?\s*(?:أبحث|ابحث|بدور)",
+    r"(?:متاح|جاهز)\s*للعمل",
+    r"مهتم\s*(?:بفرصة|بالعمل)",
 ]
 
 JOB_SEEKER_REGEX = re.compile("|".join(JOB_SEEKER_PATTERNS), re.IGNORECASE)
@@ -150,7 +155,9 @@ HIRING_INTENT_PATTERNS = [
     r"\bapply here\b",
     r"\binterested candidates can send\b",
     r"\bdm me (if interested|your cv|your resume)\b",
-    r"(نحن\s*نوظف|بنبحث\s*عن|مطلوب\s*للتعيين|مطلوب\s*مطور|وظيفة\s*شاغرة|فرصة\s*عمل|تدريب\s*متاح|ارسل\s*سيرتك\s*الذاتية|ارسال\s*السي\s*في|شاغر\s*وظيفي|مطلوب\s*مهندس|مطلوب\s*فرونت)",
+    r"(?:^|[\s:•\-|/])مطلوب(?=$|[\s:،.!])",
+    r"(?:نحن\s*نوظف|بنوظف|بنبحث\s*عن|مطلوب\s*للتعيين|مطلوب\s*للعمل|مطلوب\s*مطور|وظيفة\s*شاغرة|فرصة\s*عمل|تدريب\s*متاح|شاغر\s*وظيفي|مطلوب\s*مهندس|مطلوب\s*فرونت)",
+    r"(?:للتقديم|ابعت\s*(?:الـ?\s*)?(?:cv|السي\s*في|سي\s*في)|[أاإ]رس(?:ل|ال)\s*(?:ال)?سير(?:ة|تك)\s*الذاتية|ارسال\s*السي\s*في)",
 ]
 
 HIRING_INTENT_REGEX = re.compile("|".join(HIRING_INTENT_PATTERNS), re.IGNORECASE)
@@ -197,7 +204,24 @@ def is_hiring_intent_social_post(text: str) -> tuple[bool, str]:
 
     # Fallback for structured post snippets containing clear role + application indicators
     has_role = bool(FRONTEND_TITLE_REGEX.search(clean_text))
-    contact_terms = ["@", "apply", "careers", "mailto:", "link in", "linkedin.com/jobs"]
+    contact_terms = [
+        "@",
+        "apply",
+        "careers",
+        "mailto:",
+        "link in",
+        "linkedin.com/jobs",
+        "wa.me/",
+        "api.whatsapp.com",
+        "whatsapp",
+        "واتساب",
+        "واتس",
+        "forms.gle",
+        "docs.google.com/forms",
+        "tally.so",
+        "airtable.com",
+        "typeform.com",
+    ]
     has_contact = any(term in clean_text.lower() for term in contact_terms) or bool(
         re.search(r"\b(dm\s+(me|your|us)|dm\b|inbox\b)", clean_text, re.IGNORECASE)
     )

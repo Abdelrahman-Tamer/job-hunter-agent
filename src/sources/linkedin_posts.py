@@ -24,7 +24,8 @@ from dateutil import parser as date_parser
 
 from src.core.config import settings
 from src.core.logging import logger
-from src.core.security import canonicalize_url
+from src.core.security import canonicalize_url, is_safe_url
+from src.engine.frontend_filter import is_hiring_intent_social_post
 from src.models.enums import EmploymentType, SeniorityLevel, WorkplaceType
 from src.sources.base import (
     BaseSourceAdapter,
@@ -41,14 +42,48 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
     Supports multi-provider execution (Search API / Serper / SerpAPI / DuckDuckGo / Public Feeds).
     """
 
+    MAX_QUERIES_PER_RUN: ClassVar[int] = 8
     DEFAULT_QUERIES: ClassVar[list[str]] = [
-        # Query 1: Egypt Frontend Hiring Posts
-        'site:linkedin.com/posts ("frontend" OR "angular" OR "react" OR "vue") ("egypt" OR "cairo" OR "giza" OR "alexandria") ("hiring" OR "we are hiring" OR "looking for" OR "مطلوب")',
-        # Query 2: GCC & Remote Frontend Hiring Posts (English + Arabic)
-        'site:linkedin.com/posts ("frontend" OR "angular" OR "react" OR "vue" OR "واجهات") ("remote" OR "عن بعد" OR "saudi" OR "riyadh" OR "السعودية" OR "الرياض" OR "uae" OR "dubai" OR "الإمارات" OR "دبي" OR "qatar" OR "قطر" OR "gcc") ("hiring" OR "we are hiring" OR "مطلوب")',
-        # Query 3: Frontend Internships & Trainees (Egypt & Remote)
-        'site:linkedin.com/posts ("frontend" OR "angular" OR "react") ("intern" OR "internship" OR "trainee" OR "تدريب") ("egypt" OR "cairo" OR "remote" OR "مصر")',
+        # 1-2: English Egypt Frontend/Angular hiring posts (/posts + /feed/update)
+        'site:linkedin.com/posts ("we are hiring" OR "hiring" OR "looking for") ("frontend" OR "front-end" OR "angular") ("egypt" OR "cairo" OR "alexandria")',
+        'site:linkedin.com/feed/update ("we are hiring" OR "hiring" OR "looking for") ("frontend" OR "front-end" OR "angular") ("egypt" OR "cairo" OR "alexandria")',
+        # 3-4: English Remote / GCC / EMEA Frontend/Angular hiring posts
+        'site:linkedin.com/posts ("we are hiring" OR "hiring") ("frontend" OR "angular") ("remote" OR "emea" OR "gcc" OR "saudi" OR "dubai" OR "uae")',
+        'site:linkedin.com/feed/update ("we are hiring" OR "hiring") ("frontend" OR "angular") ("remote" OR "emea" OR "gcc" OR "saudi" OR "dubai" OR "uae")',
+        # 5-6: Direct-email hiring posts
+        'site:linkedin.com/posts ("frontend" OR "angular") ("send your cv" OR "drop your cv" OR "hr@" OR "careers@" OR "jobs@") ("egypt" OR "cairo" OR "remote" OR "dubai" OR "riyadh")',
+        'site:linkedin.com/feed/update ("frontend" OR "angular") ("send your cv" OR "drop your cv" OR "hr@" OR "careers@" OR "jobs@") ("egypt" OR "cairo" OR "remote" OR "dubai" OR "riyadh")',
+        # 7-8: Arabic Egyptian/MENA hiring posts
+        'site:linkedin.com/posts ("مطلوب" OR "بنوظف" OR "فرصة عمل" OR "ابعت الـ cv" OR "للتقديم") ("frontend" OR "front-end" OR "angular" OR "فرونت")',
+        'site:linkedin.com/feed/update ("مطلوب" OR "بنوظف" OR "فرصة عمل" OR "ابعت الـ cv" OR "للتقديم") ("frontend" OR "front-end" OR "angular" OR "فرونت")',
     ]
+
+    _EXCLUDED_EMAIL_LOCALS: ClassVar[set[str]] = {
+        "noreply",
+        "no-reply",
+        "donotreply",
+        "do-not-reply",
+    }
+    _EXCLUDED_EMAIL_EXTENSIONS: ClassVar[set[str]] = {
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "svg",
+        "webp",
+    }
+    _WHATSAPP_PHONE_REGEX: ClassVar[re.Pattern[str]] = re.compile(
+        r"(?:"
+        r"(?:whatsapp|whats\s*app|واتساب|واتس(?:\s*اب)?)"
+        r"[^\n\r]{0,30}?"
+        r"(?<!\d)((?:\+?20|0020)[\s-]*0?1[0125](?:[\s-]*\d){8}|01[0125](?:[\s-]*\d){8}|(?:\+|00)(?:966|971|974|965|973|968)(?:[\s-]*\d){8,9})(?!\d)"
+        r"|"
+        r"(?<!\d)((?:\+?20|0020)[\s-]*0?1[0125](?:[\s-]*\d){8}|01[0125](?:[\s-]*\d){8}|(?:\+|00)(?:966|971|974|965|973|968)(?:[\s-]*\d){8,9})(?!\d)"
+        r"[^\n\r]{0,20}?"
+        r"(?:whatsapp|whats\s*app|واتساب|واتس(?:\s*اب)?)"
+        r")",
+        re.IGNORECASE,
+    )
 
     def __init__(
         self,
@@ -71,14 +106,17 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
             fields_provided=["poster_name", "title", "post_url", "snippet", "location", "published_at"],
         )
 
+    def _resolve_search_api_key(self) -> str | None:
+        api_key = getattr(settings, "SOCIAL_SEARCH_API_KEY", None)
+        if api_key is None:
+            api_key = getattr(settings, "SERPER_API_KEY", None)
+        return api_key or None
+
     async def health_check(self) -> bool:
         """Verify social discovery health without throwing exceptions."""
         try:
-            # If search API key is configured (Serper / SerpAPI / CSE)
-            api_key = getattr(settings, "SOCIAL_SEARCH_API_KEY", None)
-            if api_key:
+            if self._resolve_search_api_key():
                 return True
-            # Check public search connectivity
             resp = await self.http_client.get("https://html.duckduckgo.com/html/", params={"q": "test"})
             return resp.status_code in (200, 302)
         except (httpx.HTTPError, ValueError) as exc:
@@ -92,30 +130,29 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
     ) -> list[RawJobData]:
         """Fetch raw LinkedIn hiring posts through configured search or syndication providers."""
         raw_items: list[RawJobData] = []
-        seen_urls = set()
+        seen_urls: set[str] = set()
 
-        api_key = getattr(settings, "SOCIAL_SEARCH_API_KEY", None)
+        api_key = self._resolve_search_api_key()
         provider = getattr(settings, "SOCIAL_SEARCH_PROVIDER", "auto").lower()
+
+        def _append_unique(items: list[RawJobData]) -> None:
+            for item in items:
+                canon = canonicalize_url(item.source_url)
+                if canon not in seen_urls:
+                    seen_urls.add(canon)
+                    raw_items.append(item)
 
         # Strategy A: Serper / SerpAPI if configured
         if api_key and (provider in ("serper", "auto")):
             try:
-                serper_items = await self._fetch_via_serper(api_key)
-                for item in serper_items:
-                    if item.source_url not in seen_urls:
-                        seen_urls.add(item.source_url)
-                        raw_items.append(item)
+                _append_unique(await self._fetch_via_serper(api_key))
             except (httpx.HTTPError, ValueError, KeyError, json.JSONDecodeError) as exc:
                 logger.warning(f"Serper search provider failed: {exc}. Trying fallback.")
 
         # Strategy B: DuckDuckGo public search (only if provider is auto or duckduckgo)
         if not raw_items and (provider in ("duckduckgo", "auto")):
             try:
-                ddg_items = await self._fetch_via_duckduckgo()
-                for item in ddg_items:
-                    if item.source_url not in seen_urls:
-                        seen_urls.add(item.source_url)
-                        raw_items.append(item)
+                _append_unique(await self._fetch_via_duckduckgo())
             except (httpx.HTTPError, ValueError, KeyError) as exc:
                 logger.warning(f"DuckDuckGo social search failed: {exc}")
 
@@ -123,16 +160,39 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
         feed_urls = getattr(settings, "SOCIAL_FEED_URLS", [])
         if feed_urls:
             try:
-                feed_items = await self._fetch_via_feeds(feed_urls)
-                for item in feed_items:
-                    if item.source_url not in seen_urls:
-                        seen_urls.add(item.source_url)
-                        raw_items.append(item)
+                _append_unique(await self._fetch_via_feeds(feed_urls))
             except (httpx.HTTPError, ValueError, KeyError) as exc:
                 logger.warning(f"Social RSS feed ingest failed: {exc}")
 
         logger.info(f"LinkedInSocialAdapter discovered {len(raw_items)} raw social hiring posts.")
         return raw_items
+
+    def _build_raw_job(
+        self,
+        title: str,
+        snippet: str,
+        link: str,
+        provider: str,
+        date_val: str = "",
+    ) -> RawJobData:
+        """Build a standardized RawJobData record for a discovered LinkedIn post."""
+        return RawJobData(
+            source_name="linkedin_social",
+            source_job_id=self._extract_linkedin_post_id(link),
+            source_url=link,
+            payload={
+                "title": title,
+                "snippet": snippet,
+                "link": link,
+                "date": date_val,
+                "provider": provider,
+            },
+        )
+
+    @staticmethod
+    def is_hiring_post(text: str) -> tuple[bool, str]:
+        """Evaluate bilingual Arabic + English hiring intent vs job-seeker posts."""
+        return is_hiring_intent_social_post(text)
 
     async def _fetch_via_serper(self, api_key: str) -> list[RawJobData]:
         """Execute Google Search queries via Serper API for LinkedIn posts."""
@@ -141,13 +201,13 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
             "X-API-KEY": api_key,
             "Content-Type": "application/json",
         }
-        recency = getattr(settings, "SOCIAL_SEARCH_RECENCY", "qdr:m")
+        freshness_tbs = getattr(settings, "SERPER_FRESHNESS_TBS", "qdr:d3")
 
-        for q in self.queries:
+        for q in self.queries[: self.MAX_QUERIES_PER_RUN]:
             try:
                 payload_json: dict[str, Any] = {"q": q, "num": 10}
-                if recency:
-                    payload_json["tbs"] = recency
+                if freshness_tbs:
+                    payload_json["tbs"] = freshness_tbs
                 resp = await self.http_client.post(
                     "https://google.serper.dev/search",
                     headers=headers,
@@ -162,24 +222,23 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
                 organic = data.get("organic", [])
                 for entry in organic:
                     link = entry.get("link", "")
-                    if self._is_linkedin_url(link, require_post_path=True):
-                        snippet = entry.get("snippet", "")
-                        title = entry.get("title", "")
-                        date_val = entry.get("date", "")
-                        results.append(
-                            RawJobData(
-                                source_name="linkedin_social",
-                                source_job_id=self._extract_linkedin_post_id(link),
-                                source_url=link,
-                                payload={
-                                    "title": title,
-                                    "snippet": snippet,
-                                    "link": link,
-                                    "date": date_val,
-                                    "provider": "serper",
-                                },
-                            )
+                    if not self._is_linkedin_url(link, require_post_path=True):
+                        continue
+                    snippet = entry.get("snippet", "")
+                    title = entry.get("title", "")
+                    is_hiring, _ = self.is_hiring_post(f"{title}\n{snippet}")
+                    if not is_hiring:
+                        continue
+                    date_val = entry.get("date", "")
+                    results.append(
+                        self._build_raw_job(
+                            title=title,
+                            snippet=snippet,
+                            link=link,
+                            provider="serper",
+                            date_val=date_val,
                         )
+                    )
             except (httpx.HTTPError, ValueError, KeyError, json.JSONDecodeError) as exc:
                 logger.debug(f"Serper query error for '{q}': {exc}")
         return results
@@ -187,7 +246,7 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
     async def _fetch_via_duckduckgo(self) -> list[RawJobData]:
         """Execute public DuckDuckGo HTML search for public LinkedIn posts."""
         results: list[RawJobData] = []
-        for q in self.queries:
+        for q in self.queries[: self.MAX_QUERIES_PER_RUN]:
             try:
                 resp = await self.http_client.post(
                     "https://html.duckduckgo.com/html/",
@@ -206,25 +265,22 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
                         continue
 
                     raw_href = a_tag.get("href", "")
-                    # DuckDuckGo wraps URLs in /l/?kh=-1&uddg=<actual_url>
                     actual_url = self._extract_ddg_target_url(raw_href)
                     if not actual_url or not self._is_linkedin_url(actual_url, require_post_path=True):
                         continue
 
                     title_text = a_tag.get_text(strip=True)
                     snippet_text = snip_tag.get_text(strip=True) if snip_tag else ""
+                    is_hiring, _ = self.is_hiring_post(f"{title_text}\n{snippet_text}")
+                    if not is_hiring:
+                        continue
 
                     results.append(
-                        RawJobData(
-                            source_name="linkedin_social",
-                            source_job_id=self._extract_linkedin_post_id(actual_url),
-                            source_url=actual_url,
-                            payload={
-                                "title": title_text,
-                                "snippet": snippet_text,
-                                "link": actual_url,
-                                "provider": "duckduckgo",
-                            },
+                        self._build_raw_job(
+                            title=title_text,
+                            snippet=snippet_text,
+                            link=actual_url,
+                            provider="duckduckgo",
                         )
                     )
             except (httpx.HTTPError, ValueError, KeyError) as exc:
@@ -245,20 +301,21 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
                 parsed = feedparser.parse(resp.text)
                 for entry in parsed.entries:
                     link = entry.get("link", "")
-                    if self._is_linkedin_url(link, require_post_path=False):
-                        results.append(
-                            RawJobData(
-                                source_name="linkedin_social",
-                                source_job_id=self._extract_linkedin_post_id(link),
-                                source_url=link,
-                                payload={
-                                    "title": entry.get("title", ""),
-                                    "snippet": entry.get("summary", ""),
-                                    "link": link,
-                                    "provider": "feed",
-                                },
-                            )
+                    if not self._is_linkedin_url(link, require_post_path=False):
+                        continue
+                    title_text = entry.get("title", "")
+                    snippet_text = entry.get("summary", "")
+                    is_hiring, _ = self.is_hiring_post(f"{title_text}\n{snippet_text}")
+                    if not is_hiring:
+                        continue
+                    results.append(
+                        self._build_raw_job(
+                            title=title_text,
+                            snippet=snippet_text,
+                            link=link,
+                            provider="feed",
                         )
+                    )
             except (httpx.HTTPError, ValueError, KeyError) as exc:
                 logger.debug(f"Social feed fetch failed for {feed_url}: {exc}")
         return results
@@ -314,6 +371,9 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
         # 7. Extract Publication Date / Relative Freshness
         published_at = self._extract_published_at(payload, combined_text)
 
+        # 8. Extract Direct Recruiter Contacts (email, WhatsApp, application forms)
+        direct_contacts = self._extract_direct_contacts(combined_text)
+
         return NormalizedJobData(
             source_name="linkedin_social",
             source_job_id=raw_job.source_job_id,
@@ -333,6 +393,7 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
             is_social_post=True,
             raw_payload={
                 **payload,
+                **direct_contacts,
                 "is_social_post": True,
                 "source_category": "SOCIAL_POST",
                 "extracted_title": title,
@@ -340,23 +401,102 @@ class LinkedInSocialAdapter(BaseSourceAdapter):
             },
         )
 
+    @classmethod
+    def _extract_direct_contacts(cls, text: str) -> dict[str, str]:
+        """Extract direct recruiter email, WhatsApp contact, and safe external form URL."""
+        contacts: dict[str, str] = {}
+        if not text:
+            return contacts
+
+        # 1. Direct recruiter email (excluding noreply/no-reply/example.com)
+        for match in re.finditer(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", text):
+            candidate = match.group(1).strip().rstrip(".,;:!?)")
+            local, _, domain = candidate.lower().partition("@")
+            tld = domain.rsplit(".", 1)[-1]
+            if (
+                local in cls._EXCLUDED_EMAIL_LOCALS
+                or local.startswith(("noreply+", "no-reply+"))
+                or domain == "example.com"
+                or domain.endswith(".example.com")
+                or tld in cls._EXCLUDED_EMAIL_EXTENSIONS
+            ):
+                continue
+            contacts["direct_email"] = candidate
+            break
+
+        # 2. WhatsApp link or phone number explicitly adjacent to WhatsApp / واتساب / واتس
+        wa_link_found = False
+        for match in re.finditer(r"https?://[^\s<>\"')\]]+", text, re.IGNORECASE):
+            url_cand = match.group(0).rstrip(".,;:!?)")
+            try:
+                parsed = urlparse(url_cand)
+            except ValueError:
+                continue
+            host = (parsed.hostname or "").lower()
+            if host in ("wa.me", "api.whatsapp.com") and is_safe_url(url_cand):
+                contacts["whatsapp_contact"] = url_cand
+                wa_link_found = True
+                break
+
+        if not wa_link_found:
+            wa_phone_match = cls._WHATSAPP_PHONE_REGEX.search(text)
+            if wa_phone_match:
+                raw_phone = wa_phone_match.group(1) or wa_phone_match.group(2) or ""
+                cleaned_phone = re.sub(r"[\s-]+", "", raw_phone).strip()
+                if cleaned_phone:
+                    contacts["whatsapp_contact"] = cleaned_phone
+
+        # 3. External application form URLs validated against allowlist + is_safe_url()
+        for match in re.finditer(r"https?://[^\s<>\"')\]]+", text, re.IGNORECASE):
+            url_cand = match.group(0).rstrip(".,;:!?)")
+            if cls._is_allowed_apply_form_url(url_cand):
+                contacts["apply_form_url"] = url_cand
+                break
+
+        return contacts
+
+    @staticmethod
+    def _is_allowed_apply_form_url(url: str) -> bool:
+        """Strictly validate allowed external application form hosts and SSRF safety."""
+        if not url or not is_safe_url(url):
+            return False
+        try:
+            parsed = urlparse(url)
+        except ValueError:
+            return False
+        if parsed.scheme.lower() not in ("http", "https") or parsed.username or parsed.password:
+            return False
+        host = (parsed.hostname or "").lower().rstrip(".")
+        if host == "forms.gle":
+            return True
+        if host == "docs.google.com":
+            return parsed.path.startswith("/forms")
+        for allowed in ("tally.so", "airtable.com", "typeform.com"):
+            if host == allowed or host.endswith(f".{allowed}"):
+                return True
+        return False
+
     @staticmethod
     def _is_linkedin_url(url: str, require_post_path: bool = True) -> bool:
-        """Validate LinkedIn URLs via parsed scheme and hostname instead of substring checks."""
+        """Validate LinkedIn URLs via parsed scheme, strict hostname, path, and SSRF safety."""
         if not url:
             return False
         try:
             parsed = urlparse(url)
-        except Exception:
+        except ValueError:
             return False
         if parsed.scheme.lower() not in ("http", "https"):
             return False
-        hostname = (parsed.hostname or "").lower()
+        if parsed.username or parsed.password:
+            return False
+        hostname = (parsed.hostname or "").lower().rstrip(".")
         if not (hostname == "linkedin.com" or hostname.endswith(".linkedin.com")):
             return False
         if require_post_path:
-            return parsed.path.startswith("/posts") or parsed.path.startswith("/feed/update")
-        return True
+            path = parsed.path or ""
+            if not (path.startswith("/posts/") or path.startswith("/feed/update/")):
+                return False
+        return is_safe_url(url)
 
     def _extract_linkedin_post_id(self, url: str) -> str:
         """Extract deterministic ID from LinkedIn post URL."""

@@ -5,6 +5,7 @@ import httpx
 
 from src.core.config import settings
 from src.core.logging import logger
+from src.sources.ats_dork import GlobalAtsDorkAdapter
 from src.sources.base import BaseSourceAdapter, SourceMetadata
 from src.sources.egypt_community import EgyptCommunityAdapter
 from src.sources.greenhouse import GreenhouseAdapter
@@ -15,6 +16,7 @@ from src.sources.linkedin_posts import LinkedInSocialAdapter
 from src.sources.remotive import RemotiveAdapter
 from src.sources.rss import RSSAdapter
 from src.sources.workable import WorkableAdapter
+from src.sources.wuzzuf import WuzzufAdapter
 
 
 class SourceRegistry:
@@ -64,6 +66,12 @@ def create_default_registry() -> SourceRegistry:
 
     if getattr(settings, "LINKEDIN_SOCIAL_ENABLED", True):
         registry.register(LinkedInSocialAdapter())
+
+    if getattr(settings, "WUZZUF_ENABLED", True):
+        registry.register(WuzzufAdapter())
+
+    if getattr(settings, "ATS_DORK_ENABLED", True):
+        registry.register(GlobalAtsDorkAdapter())
 
     if getattr(settings, "EGYPT_COMMUNITY_ENABLED", True):
         registry.register(EgyptCommunityAdapter())

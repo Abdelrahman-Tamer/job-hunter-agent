@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import List, Optional
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -58,9 +58,13 @@ class Settings(BaseSettings):
     LINKEDIN_SOCIAL_ENABLED: bool = True
     SOCIAL_SEARCH_PROVIDER: str = "auto"
     SOCIAL_SEARCH_API_KEY: Optional[str] = None
-    SOCIAL_SEARCH_RECENCY: str = "qdr:m"
+    SERPER_API_KEY: Optional[str] = None
+    SERPER_FRESHNESS_TBS: str = "qdr:d3"
+    SOCIAL_SEARCH_RECENCY: str = "qdr:d3"
     SOCIAL_FEED_URLS: List[str] = Field(default_factory=list)
 
+    WUZZUF_ENABLED: bool = True
+    ATS_DORK_ENABLED: bool = True
     EGYPT_COMMUNITY_ENABLED: bool = True
     JOBICY_ENABLED: bool = True
     WORKABLE_ENABLED: bool = True
@@ -90,6 +94,15 @@ class Settings(BaseSettings):
     DEFAULT_HTTP_TIMEOUT: float = 15.0
     MAX_CONCURRENT_SOURCE_REQUESTS: int = 4
     SOURCE_RETRY_COUNT: int = 3
+
+    @model_validator(mode="after")
+    def _sync_serper_keys(self) -> "Settings":
+        """Keep SERPER_API_KEY and SOCIAL_SEARCH_API_KEY synchronized when one is configured."""
+        if not self.SERPER_API_KEY and self.SOCIAL_SEARCH_API_KEY:
+            self.SERPER_API_KEY = self.SOCIAL_SEARCH_API_KEY
+        elif not self.SOCIAL_SEARCH_API_KEY and self.SERPER_API_KEY:
+            self.SOCIAL_SEARCH_API_KEY = self.SERPER_API_KEY
+        return self
 
 
 settings = Settings()

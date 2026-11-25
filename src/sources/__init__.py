@@ -1,5 +1,6 @@
 """Job source adapters package."""
 
+from src.sources.ats_dork import GlobalAtsDorkAdapter
 from src.sources.base import (
     BaseSourceAdapter,
     NormalizedJobData,
@@ -16,6 +17,7 @@ from src.sources.registry import SourceRegistry, create_default_registry
 from src.sources.remotive import RemotiveAdapter
 from src.sources.rss import RSSAdapter
 from src.sources.workable import WorkableAdapter
+from src.sources.wuzzuf import WuzzufAdapter
 
 __all__ = [
     "BaseSourceAdapter",
@@ -23,6 +25,8 @@ __all__ = [
     "RawJobData",
     "NormalizedJobData",
     "EgyptCommunityAdapter",
+    "WuzzufAdapter",
+    "GlobalAtsDorkAdapter",
     "JobicyAdapter",
     "WorkableAdapter",
     "HimalayasAdapter",
