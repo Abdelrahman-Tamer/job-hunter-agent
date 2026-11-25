@@ -12,7 +12,6 @@ import respx
 import httpx
 from sqlalchemy import select
 
-from src.core.database import async_session_factory
 from src.engine.gemini_extractor import GeminiJobExtractor
 from src.models import (
     ApplicationStatus,
@@ -134,72 +133,72 @@ async def test_job_expiry_detector_dead_marker_and_404():
 
 
 @pytest.mark.asyncio
-async def test_follow_up_reminder_workflow():
+async def test_follow_up_reminder_workflow(db_session):
     """Verify that applied jobs schedule follow-ups and service triggers reminders when due."""
-    async with async_session_factory() as session:
-        # Create dummy source and job
-        uid = uuid.uuid4().hex[:8]
-        source = Source(
-            name=f"TEST_SRC_FOLLOWUP_{uid}",
-            source_type="API",
-            base_url="https://test.com",
-            doc_url="https://test.com",
-            rate_limit_req_per_minute=60,
-            attribution_text="Test source attribution",
-        )
-        session.add(source)
-        await session.flush()
+    session = db_session
+    # Create dummy source and job
+    uid = uuid.uuid4().hex[:8]
+    source = Source(
+        name=f"TEST_SRC_FOLLOWUP_{uid}",
+        source_type="API",
+        base_url="https://test.com",
+        doc_url="https://test.com",
+        rate_limit_req_per_minute=60,
+        attribution_text="Test source attribution",
+    )
+    session.add(source)
+    await session.flush()
 
-        job = Job(
-            source_id=source.id,
-            source_name=source.name,
-            source_job_id=f"fu-job-{uid}",
-            source_url="https://test.com/jobs/1",
-            canonical_url_hash=f"hash-fu-{uid}",
-            original_application_url="https://test.com/apply/1",
-            company="FollowUp Corp",
-            title="Frontend Specialist",
-            description_text="Angular test role",
-            first_seen_at=datetime.now(timezone.utc),
-        )
-        session.add(job)
-        await session.flush()
+    job = Job(
+        source_id=source.id,
+        source_name=source.name,
+        source_job_id=f"fu-job-{uid}",
+        source_url="https://test.com/jobs/1",
+        canonical_url_hash=f"hash-fu-{uid}",
+        original_application_url="https://test.com/apply/1",
+        company="FollowUp Corp",
+        title="Frontend Specialist",
+        description_text="Angular test role",
+        first_seen_at=datetime.now(timezone.utc),
+    )
+    session.add(job)
+    await session.flush()
 
-        # Create tracker due for follow-up (applied 5 days ago)
-        applied_time = datetime.now(timezone.utc) - timedelta(days=6)
-        tracker = JobStatusTracker(
-            job_id=job.id,
-            status=ApplicationStatus.APPLIED,
-            applied_at=applied_time,
-            follow_up_at=applied_time + timedelta(days=5),  # 1 day in the past = DUE
-            follow_up_sent=False,
-        )
-        session.add(tracker)
-        await session.commit()
+    # Create tracker due for follow-up (applied 5 days ago)
+    applied_time = datetime.now(timezone.utc) - timedelta(days=6)
+    tracker = JobStatusTracker(
+        job_id=job.id,
+        status=ApplicationStatus.APPLIED,
+        applied_at=applied_time,
+        follow_up_at=applied_time + timedelta(days=5),  # 1 day in the past = DUE
+        follow_up_sent=False,
+    )
+    session.add(tracker)
+    await session.commit()
 
-        # Mock telegram client to test dispatch without sending live Telegram network requests
-        class MockTelegram:
-            is_configured = True
-            sent_messages = []
-            async def send_message(self, chat_id, text, reply_markup=None):
-                self.sent_messages.append({"chat_id": chat_id, "text": text, "reply_markup": reply_markup})
-                return {"ok": True, "result": {"message_id": 999}}
+    # Mock telegram client to test dispatch without sending live Telegram network requests
+    class MockTelegram:
+        is_configured = True
+        sent_messages = []
+        async def send_message(self, chat_id, text, reply_markup=None):
+            self.sent_messages.append({"chat_id": chat_id, "text": text, "reply_markup": reply_markup})
+            return {"ok": True, "result": {"message_id": 999}}
 
-        mock_tg = MockTelegram()
-        gemini = GeminiJobExtractor(api_key="")
+    mock_tg = MockTelegram()
+    gemini = GeminiJobExtractor(api_key="")
 
-        sent_count = await check_and_send_followup_reminders(
-            session=session,
-            telegram=mock_tg,  # type: ignore
-            gemini=gemini,
-            target_chat_id=12345678,
-        )
+    sent_count = await check_and_send_followup_reminders(
+        session=session,
+        telegram=mock_tg,  # type: ignore
+        gemini=gemini,
+        target_chat_id=12345678,
+    )
 
-        assert sent_count >= 1
-        assert len(mock_tg.sent_messages) >= 1
-        assert "Follow-Up Reminder" in mock_tg.sent_messages[0]["text"]
-        assert "FollowUp Corp" in mock_tg.sent_messages[0]["text"]
+    assert sent_count >= 1
+    assert len(mock_tg.sent_messages) >= 1
+    assert "Follow-Up Reminder" in mock_tg.sent_messages[0]["text"]
+    assert "FollowUp Corp" in mock_tg.sent_messages[0]["text"]
 
-        # Check DB updated
-        await session.refresh(tracker)
-        assert tracker.follow_up_sent is True
+    # Check DB updated
+    await session.refresh(tracker)
+    assert tracker.follow_up_sent is True

@@ -136,6 +136,11 @@ class ResilientHttpClient:
 
                     # Handle 429 Too Many Requests
                     if response.status_code == 429:
+                        last_exception = httpx.HTTPStatusError(
+                            f"Rate limited (HTTP 429) for {url}",
+                            request=response.request,
+                            response=response,
+                        )
                         wait_time = self._compute_retry_wait(attempt, response.headers.get("Retry-After"))
                         logger.warning(
                             f"Rate limited on {url} (HTTP 429). Waiting {wait_time:.1f}s before attempt {attempt}/{self.max_retries}"
@@ -159,7 +164,7 @@ class ResilientHttpClient:
 
             if last_exception:
                 raise last_exception
-            raise RuntimeError(f"HTTP GET request failed after {self.max_retries} attempts: {url}")
+            raise httpx.HTTPError(f"HTTP GET request failed after {self.max_retries} attempts: {url}")
 
     async def post(
         self,
@@ -189,6 +194,11 @@ class ResilientHttpClient:
                     )
 
                     if response.status_code == 429:
+                        last_exception = httpx.HTTPStatusError(
+                            f"Rate limited (HTTP 429) for {url}",
+                            request=response.request,
+                            response=response,
+                        )
                         wait_time = self._compute_retry_wait(attempt, response.headers.get("Retry-After"))
                         logger.warning(
                             f"Rate limited on {url} (HTTP 429). Waiting {wait_time:.1f}s before attempt {attempt}/{self.max_retries}"
@@ -211,4 +221,4 @@ class ResilientHttpClient:
 
             if last_exception:
                 raise last_exception
-            raise RuntimeError(f"HTTP POST request failed after {self.max_retries} attempts: {url}")
+            raise httpx.HTTPError(f"HTTP POST request failed after {self.max_retries} attempts: {url}")

@@ -26,6 +26,97 @@ from src.models.profile import CandidateProfile
 from src.engine.track_classifier import classify_job_track
 
 
+_SKILL_ALIASES: Dict[str, str] = {
+    "html5": "html",
+    "css3": "css",
+    "reactjs": "react",
+    "react.js": "react",
+    "angularjs": "angular",
+    "angular.js": "angular",
+    "vuejs": "vue",
+    "vue.js": "vue",
+    "nodejs": "node",
+    "node.js": "node",
+    "nextjs": "next.js",
+    "nuxtjs": "nuxt",
+    "nuxt.js": "nuxt",
+    "tailwindcss": "tailwind",
+    "tailwind css": "tailwind",
+    "bootstrap 5": "bootstrap",
+    "bootstrap 4": "bootstrap",
+    "restful apis": "rest",
+    "rest apis": "rest",
+    "rest api": "rest",
+}
+
+_KNOWN_SCAN_TECHS: List[str] = [
+    "angular",
+    "typescript",
+    "javascript",
+    "html",
+    "css",
+    "rxjs",
+    "ngrx",
+    "react",
+    "vue",
+    "node",
+    "python",
+    "docker",
+    "git",
+    "graphql",
+]
+
+_RECOGNIZED_TECH_SKILLS = set(_KNOWN_SCAN_TECHS) | set(_SKILL_ALIASES.keys()) | set(_SKILL_ALIASES.values()) | {
+    "scss",
+    "sass",
+    "svelte",
+    "sveltekit",
+    "redux",
+    "pinia",
+    "vuex",
+    "firebase",
+    "supabase",
+    "github",
+    "vite",
+    "webpack",
+    "jest",
+    "karma",
+    "jasmine",
+    "cypress",
+    "playwright",
+    "json",
+    "httpclient",
+    "next.js",
+}
+
+
+def _normalize_skill_name(skill: str) -> str:
+    s = skill.lower().strip()
+    return _SKILL_ALIASES.get(s, s)
+
+
+def _skills_match(job_skill: str, confirmed_skill: str) -> bool:
+    """Compare two skill names using canonical aliases and strict word boundaries (no raw substring overlap)."""
+    njs = _normalize_skill_name(job_skill)
+    ncs = _normalize_skill_name(confirmed_skill)
+    if not njs or not ncs:
+        return False
+    if njs == ncs:
+        return True
+
+    # Explicit cross-framework guards (e.g. React vs React Native, Java vs JavaScript)
+    if {njs, ncs} == {"java", "javascript"}:
+        return False
+    if ("react" in (njs, ncs)) and ("react native" in (njs, ncs) or "react-native" in (njs, ncs)):
+        return False
+
+    # Boundary-delimited containment only (prevents "react" matching "reactive forms", "c" matching "c#", etc.)
+    for shorter, longer in ((njs, ncs), (ncs, njs)):
+        if len(shorter) >= 3 and re.search(rf"(?<![\w.#+-]){re.escape(shorter)}(?![\w.#+-])", longer):
+            return True
+    return False
+
+
 class ScoreBreakdown(BaseModel):
     role_relevance: float = 0.0
     confirmed_skills: float = 0.0
@@ -223,9 +314,13 @@ class MatchingEngine:
             # 2. Confirmed Skills / Tech overlap (max 25)
             confirmed_set = {s.lower().strip() for s in (profile.confirmed_skills or [])}
             all_job_skills = {s.lower().strip() for s in job_skills}
-            if len(all_job_skills) < 2:
-                for tech in ["angular", "typescript", "javascript", "html", "css", "rxjs", "ngrx", "react", "vue", "node", "python", "docker", "git", "graphql"]:
-                    if re.search(rf"\b{re.escape(tech)}\b", desc_lower) or re.search(rf"\b{re.escape(tech)}\b", title_lower):
+            recognized_tag_count = sum(
+                1 for s in all_job_skills if s in _RECOGNIZED_TECH_SKILLS or _normalize_skill_name(s) in _RECOGNIZED_TECH_SKILLS
+            )
+            if recognized_tag_count < 2:
+                for tech in _KNOWN_SCAN_TECHS:
+                    pattern = r"\breact(?![\s-]*native)\b" if tech == "react" else rf"\b{re.escape(tech)}\b"
+                    if re.search(pattern, desc_lower) or re.search(pattern, title_lower):
                         all_job_skills.add(tech)
 
             if not confirmed_set:
@@ -236,12 +331,7 @@ class MatchingEngine:
                 matched_confirmed = set()
                 for js in all_job_skills:
                     for cs in confirmed_set:
-                        if js == cs:
-                            matched_confirmed.add(js)
-                            break
-                        if len(js) >= 3 and (js in cs or cs in js):
-                            if (js == "java" and "javascript" in cs) or (cs == "java" and "javascript" in js):
-                                continue
+                        if _skills_match(js, cs):
                             matched_confirmed.add(js)
                             break
 

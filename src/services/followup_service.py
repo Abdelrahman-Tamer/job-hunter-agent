@@ -102,11 +102,16 @@ It has been <b>5 days</b> since you submitted your application! Following up now
         }
 
         try:
-            await telegram.send_message(
+            res = await telegram.send_message(
                 chat_id=recipient_chat_id,
                 text=msg,
                 reply_markup=markup,
             )
+            sent_ok = bool(res.get("ok")) if isinstance(res, dict) else bool(res)
+            if not sent_ok:
+                err_desc = res.get("description") if isinstance(res, dict) else "unknown error"
+                logger.error(f"Telegram failed to deliver 5-day follow-up reminder for Job #{job.id}: {err_desc}")
+                continue
             t.follow_up_sent = True
             t.follow_up_note = followup_text
             reminders_sent += 1

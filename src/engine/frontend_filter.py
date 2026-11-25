@@ -22,7 +22,7 @@ FRONTEND_TITLE_PATTERNS = [
     r"\b(frontend|front-end|front end|web frontend|client-side|client side)\b",
     # Frameworks & Core Web Tech
     r"\b(angular|angularjs|ngrx|rxjs)\b",
-    r"\b(react(?!\s*native)|reactjs|react\.js|nextjs|next\.js)\b",
+    r"\b(react(?![\s-]*native)|reactjs|react\.js|nextjs|next\.js)\b",
     r"\b(vue|vuejs|vue\.js|nuxt|nuxtjs|nuxt\.js)\b",
     r"\b(svelte|sveltekit)\b",
     # UI Engineering & Web Development
@@ -58,7 +58,7 @@ HARD_REJECT_TITLE_PATTERNS = [
     r"\b(database administrator|dba|sql developer|oracle developer|database engineer)\b",
     r"(باك\s*اند|باك\s*إند|مطور\s*باك|مطور\s*خلفي|مهندس\s*خلفي|مهندس\s*باك|بايثون|جافا|دوت\s*نت|نود|لارافيل|بي\s*اتش\s*بي)",
     # Mobile Only
-    r"\b(ios|android|flutter|react native|swift|kotlin|mobile|mobile app|mobile application)\s*(developer|engineer|software engineer|lead|architect|specialist)?\b",
+    r"\b(ios|android|flutter|react[\s-]+native|swift|kotlin|mobile|mobile app|mobile application)\s*(developer|engineer|software engineer|lead|architect|specialist)?\b",
     r"(مطور\s*تطبيقات|مهندس\s*تطبيقات|فلاتر|اندرويد|أندرويد|ايفون|آيفون|تطبيقات\s*الجوال|مطور\s*موبايل)",
     # DevOps, SRE, Cloud, Infrastructure
     r"\b(devops|devsecops|cloud engineer|cloud architect|sre|site reliability|infrastructure engineer|sysadmin|system administrator|platform engineer|kubernetes)\b",
@@ -70,7 +70,7 @@ HARD_REJECT_TITLE_PATTERNS = [
     r"\b(data scientist|data engineer|data analyst|machine learning|deep learning|ai engineer|artificial intelligence|nlp engineer|computer vision|bi developer|big data|analytics engineer)\b",
     r"(ذكاء\s*اصطناعي|علم\s*البيانات|تحليل\s*البيانات|مهندس\s*بيانات|تعلم\s*الآلة|بيانات\s*ضخمة)",
     # Graphic / UI-UX Design Only (Without Frontend Coding)
-    r"\b(?:ui\s*[/&]\s*ux|ux\s*[/&]\s*ui)(?:\s+(?:designer|researcher|specialist|lead|architect))?\b",
+    r"\b(?:ui\s*[/&]\s*ux|ux\s*[/&]\s*ui)\s+(?:designer|researcher|specialist|lead|architect)\b",
     r"\b(?:ui|ux)\s+(?:designer|researcher)\b",
     r"\b(?:product designer|graphic designer|visual designer|figma designer|motion designer|brand designer|web designer)\b",
     r"(مصمم\s*واجهات|مصمم\s*جرافيك|تصميم\s*واجهات|مصمم\s*منتجات|يو\s*اي\s*يو\s*اكس)",

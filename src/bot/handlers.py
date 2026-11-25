@@ -90,6 +90,19 @@ class TelegramBotDispatcher:
         """Enforce strict allowlist check: authorized only if TELEGRAM_OWNER_ID matches."""
         return bool(self.owner_id and user_id and user_id == self.owner_id)
 
+    async def _send_chunked(
+        self,
+        chat_id: int,
+        text: str,
+        reply_markup: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Split long HTML messages safely via chunk_message and attach reply_markup on the final chunk."""
+        chunks = chunk_message(text)
+        last_idx = len(chunks) - 1
+        for idx, chunk in enumerate(chunks):
+            markup = reply_markup if idx == last_idx else None
+            await self.client.send_message(chat_id=chat_id, text=chunk, reply_markup=markup)
+
     async def handle_update(self, update: Dict[str, Any], session: AsyncSession) -> None:
         """Route incoming message or callback query."""
         if "message" in update:
@@ -268,7 +281,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
 
 <i>Tap any interactive button below:</i>"""
         markup = build_main_menu_keyboard()
-        await self.client.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+        await self._send_chunked(chat_id=chat_id, text=text, reply_markup=markup)
 
     async def _cmd_open_dashboard(self, chat_id: int) -> None:
         markup = {
@@ -493,7 +506,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
                 ]
             ]
         }
-        await self.client.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+        await self._send_chunked(chat_id=chat_id, text=text, reply_markup=markup)
 
     async def _cmd_settings(self, chat_id: int, session: AsyncSession) -> None:
         profile = await get_or_create_candidate_profile(session)
@@ -522,7 +535,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
                 ]
             ]
         }
-        await self.client.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+        await self._send_chunked(chat_id=chat_id, text=text, reply_markup=markup)
 
     async def _cmd_toggle_digest(self, chat_id: int, enabled: bool, session: AsyncSession) -> None:
         profile = await get_or_create_candidate_profile(session)
@@ -633,7 +646,7 @@ Candidate: <b>{escape(profile.full_name or 'Abdelrahman Emam')}</b>
                 ]
             ]
         }
-        await self.client.send_message(
+        await self._send_chunked(
             chat_id=chat_id,
             text="\n".join(applied_lines),
             reply_markup=applied_markup,
@@ -709,7 +722,10 @@ All previous listings have been purged.
 
         start_time = datetime.now(timezone.utc)
         from src.scheduler.runner import DailyPipelineRunner
-        runner = DailyPipelineRunner()
+        runner = DailyPipelineRunner(
+            telegram_client=self.client,
+            gemini_extractor=self.gemini,
+        )
         run_record = await runner.execute_daily_run(
             session,
             force=True,
@@ -750,7 +766,8 @@ All previous listings have been purged.
         else:
             await self.client.send_message(chat_id=chat_id, text=final_summary)
 
-        if top_jobs:
+        already_notified = getattr(run_record, "jobs_notified", 0) > 0
+        if top_jobs and not already_notified:
             await self.client.send_message(
                 chat_id=chat_id,
                 text=f"📋 <b>Top {len(top_jobs)} verified matches for your profile:</b>",
@@ -760,7 +777,7 @@ All previous listings have been purged.
                 card_html = format_job_card(job)
                 markup = build_job_inline_keyboard(job, tracker_status=tracker_status)
                 await self.client.send_message(chat_id=chat_id, text=card_html, reply_markup=markup)
-        else:
+        elif not top_jobs and not already_notified:
             no_jobs_markup = {
                 "inline_keyboard": [
                     [
@@ -821,7 +838,7 @@ All previous listings have been purged.
                 ]
             ]
         }
-        await self.client.send_message(chat_id=chat_id, text=help_text, reply_markup=markup)
+        await self._send_chunked(chat_id=chat_id, text=help_text, reply_markup=markup)
 
     async def _handle_callback(self, query: Dict[str, Any], session: AsyncSession) -> None:
         user_id = query.get("from", {}).get("id")
@@ -1010,7 +1027,7 @@ All previous listings have been purged.
                     ]
                 ]
             }
-            await self.client.send_message(chat_id=chat_id, text=msg, reply_markup=dm_markup)
+            await self._send_chunked(chat_id=chat_id, text=msg, reply_markup=dm_markup)
         elif action == "resume":
             await self.client.answer_callback_query(query_id, text="📄 Synthesizing tailored ATS PDF resume...")
             await self.client.send_chat_action(chat_id, "upload_document")
@@ -1090,7 +1107,7 @@ All previous listings have been purged.
                 )
         elif action == "why":
             breakdown_text = format_match_breakdown(job)
-            await self.client.send_message(chat_id=chat_id, text=breakdown_text)
+            await self._send_chunked(chat_id=chat_id, text=breakdown_text)
             await self.client.answer_callback_query(query_id, text="📊 Match analytics loaded!")
         elif action == "cover":
             await self.client.answer_callback_query(query_id, text="✍️ Generating tailored cover letter...")
@@ -1125,7 +1142,7 @@ All previous listings have been purged.
                     ]
                 ]
             }
-            await self.client.send_message(chat_id=chat_id, text=msg, reply_markup=cover_markup)
+            await self._send_chunked(chat_id=chat_id, text=msg, reply_markup=cover_markup)
         elif action == "interview":
             await self.client.answer_callback_query(query_id, text="🎯 Predicting interview questions...")
             await self.client.send_chat_action(chat_id, "typing")
@@ -1157,7 +1174,7 @@ All previous listings have been purged.
                     ]
                 ]
             }
-            await self.client.send_message(chat_id=chat_id, text=msg, reply_markup=interview_markup)
+            await self._send_chunked(chat_id=chat_id, text=msg, reply_markup=interview_markup)
 
     async def _handle_filter_query(self, chat_id: int, key: str, session: AsyncSession) -> None:
         """Filter and display active opportunities based on user-selected criteria."""
@@ -1231,20 +1248,23 @@ All previous listings have been purged.
                     Job.raw_location.ilike("%قطر%"),
                     Job.raw_location.ilike("%الكويت%"),
                 ),
-                not_(
-                    or_(
-                        Job.job_track == JobTrack.FRONTEND_EGYPT,
-                        Job.raw_location.ilike("%egypt%"),
-                        Job.raw_location.ilike("%cairo%"),
-                        Job.raw_location.ilike("%giza%"),
-                        Job.raw_location.ilike("%alexandria%"),
-                        Job.raw_location.ilike("%smart village%"),
-                        Job.raw_location.ilike("%maadi%"),
-                        Job.raw_location.ilike("%مصر%"),
-                        Job.raw_location.ilike("%القاهرة%"),
-                        Job.raw_location.ilike("%الجيزة%"),
-                        Job.raw_location.ilike("%الاسكندرية%"),
-                    )
+                Job.job_track != JobTrack.FRONTEND_EGYPT,
+                or_(
+                    Job.raw_location.is_(None),
+                    not_(
+                        or_(
+                            Job.raw_location.ilike("%egypt%"),
+                            Job.raw_location.ilike("%cairo%"),
+                            Job.raw_location.ilike("%giza%"),
+                            Job.raw_location.ilike("%alexandria%"),
+                            Job.raw_location.ilike("%smart village%"),
+                            Job.raw_location.ilike("%maadi%"),
+                            Job.raw_location.ilike("%مصر%"),
+                            Job.raw_location.ilike("%القاهرة%"),
+                            Job.raw_location.ilike("%الجيزة%"),
+                            Job.raw_location.ilike("%الاسكندرية%"),
+                        )
+                    ),
                 ),
             )
         elif key == "social":

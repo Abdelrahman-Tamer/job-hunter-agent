@@ -1,7 +1,7 @@
 """RSS/Atom syndication feed adapter."""
 
+import calendar
 from datetime import datetime, timezone
-import time
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
@@ -88,7 +88,7 @@ class RSSAdapter(BaseSourceAdapter):
         parsed_date = entry.get("published_parsed")
         if parsed_date:
             try:
-                published_at = datetime.fromtimestamp(time.mktime(parsed_date), tz=timezone.utc)
+                published_at = datetime.fromtimestamp(calendar.timegm(parsed_date), tz=timezone.utc)
             except Exception:
                 published_at = None
 

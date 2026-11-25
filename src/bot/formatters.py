@@ -355,17 +355,28 @@ def chunk_message(text: str, max_chars: int = 3800) -> List[str]:
     if len(text) <= max_chars:
         return [text]
 
+    # Reserve headroom for closing/reopening balanced HTML tags (e.g. <code>...</code>)
+    reserve = 32 if max_chars > 100 else 0
+    limit = max(1, max_chars - reserve)
+
+    normalized_lines: List[str] = []
+    for raw_line in text.split("\n"):
+        if len(raw_line) <= limit:
+            normalized_lines.append(raw_line)
+        else:
+            for idx in range(0, len(raw_line), limit):
+                normalized_lines.append(raw_line[idx : idx + limit])
+
     chunks: List[str] = []
-    lines = text.split("\n")
     current_chunk: List[str] = []
     current_len = 0
 
-    for line in lines:
-        line_len = len(line) + 1
-        if current_len + line_len > max_chars and current_chunk:
+    for line in normalized_lines:
+        line_len = len(line) + (1 if current_chunk else 0)
+        if current_len + line_len > limit and current_chunk:
             chunks.append("\n".join(current_chunk))
             current_chunk = [line]
-            current_len = line_len
+            current_len = len(line)
         else:
             current_chunk.append(line)
             current_len += line_len
@@ -373,4 +384,26 @@ def chunk_message(text: str, max_chars: int = 3800) -> List[str]:
     if current_chunk:
         chunks.append("\n".join(current_chunk))
 
-    return chunks
+    # Preserve valid Telegram HTML for multi-line <code> / <pre> blocks across split chunks
+    balanced_chunks: List[str] = []
+    carry_open_tags: List[str] = []
+    for chunk in chunks:
+        if carry_open_tags:
+            chunk = "".join(f"<{tag}>" for tag in carry_open_tags) + chunk
+
+        open_tags: List[str] = []
+        for tag in ("pre", "code"):
+            opens = chunk.count(f"<{tag}>")
+            closes = chunk.count(f"</{tag}>")
+            if opens > closes:
+                open_tags.extend([tag] * (opens - closes))
+
+        if open_tags:
+            closing_suffix = "".join(f"</{tag}>" for tag in reversed(open_tags))
+            if len(chunk) + len(closing_suffix) <= max_chars:
+                chunk = chunk + closing_suffix
+
+        balanced_chunks.append(chunk)
+        carry_open_tags = open_tags
+
+    return balanced_chunks

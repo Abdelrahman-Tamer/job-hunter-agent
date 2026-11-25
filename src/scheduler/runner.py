@@ -1,11 +1,12 @@
 """Daily ingestion, scoring, and notification pipeline runner."""
 
 import asyncio
+import weakref
 import zoneinfo
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +51,31 @@ def _clamp(val: str | None, limit: int) -> str | None:
     return val[:limit] if val is not None else None
 
 
+_PIPELINE_RUN_LOCKS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock]" = weakref.WeakKeyDictionary()
+
+
+def _get_pipeline_run_lock() -> asyncio.Lock:
+    """Return an event-loop-scoped single-flight lock to serialize concurrent pipeline runs."""
+    loop = asyncio.get_running_loop()
+    lock = _PIPELINE_RUN_LOCKS.get(loop)
+    if lock is None:
+        lock = asyncio.Lock()
+        _PIPELINE_RUN_LOCKS[loop] = lock
+    return lock
+
+
+def _parse_telegram_send_result(res: Any) -> tuple[bool, int | None, str | None]:
+    """Extract (sent_ok, telegram_message_id, error_details) from TelegramClient.send_message result."""
+    if isinstance(res, dict):
+        ok = bool(res.get("ok"))
+        result_obj = res.get("result")
+        msg_id = result_obj.get("message_id") if isinstance(result_obj, dict) else None
+        err = None if ok else str(res.get("description") or "Telegram send_message returned ok=False")
+        return ok, msg_id, err
+    ok = bool(res)
+    return ok, None, None if ok else "Telegram send_message failed"
+
+
 class DailyPipelineRunner:
     """Orchestrates the 09:00 Africa/Cairo daily job discovery and matching pipeline."""
 
@@ -80,43 +106,84 @@ class DailyPipelineRunner:
     ) -> DailyRun:
         """
         Execute all 11 steps of the daily job discovery and notification pipeline.
-        Enforces database-level idempotency lock via DailyRun.run_key.
+        Enforces single-flight locking and database-level idempotency via DailyRun.run_key.
         """
-        date_str = self.get_cairo_date_key()
-        run_key = f"daily-digest-{date_str}"
-        started_at = datetime.now(UTC)
-        GeminiJobExtractor.reset_quota_status()
+        async with _get_pipeline_run_lock():
+            date_str = self.get_cairo_date_key()
+            run_key = f"daily-digest-{date_str}"
+            started_at = datetime.now(UTC)
+            GeminiJobExtractor.reset_quota_status()
 
-        # -------------------------------------------------------------
-        # Step 1: Database-backed run lock / unique daily run key
-        # -------------------------------------------------------------
-        stmt_run = select(DailyRun).where(DailyRun.run_key == run_key)
-        res_run = await session.execute(stmt_run)
-        daily_run = res_run.scalar_one_or_none()
+            # -------------------------------------------------------------
+            # Step 1: Database-backed run lock / unique daily run key
+            # -------------------------------------------------------------
+            stmt_run = select(DailyRun).where(DailyRun.run_key == run_key)
+            res_run = await session.execute(stmt_run)
+            daily_run = res_run.scalar_one_or_none()
 
-        if daily_run:
-            if daily_run.status == RunStatus.COMPLETED and not force:
-                logger.info(f"Daily run {run_key} has already completed successfully. Skipping to prevent duplicate digest.")
-                return daily_run
-            if daily_run.status == RunStatus.IN_PROGRESS and not force:
-                elapsed = (started_at - daily_run.started_at).total_seconds() if daily_run.started_at else 9999
-                if elapsed < 900:  # 15 minutes lock window
-                    logger.warning(f"Daily run {run_key} is currently in progress ({int(elapsed)}s ago). Skipping concurrent run.")
+            if daily_run:
+                if daily_run.status == RunStatus.COMPLETED and not force:
+                    logger.info(f"Daily run {run_key} has already completed successfully. Skipping to prevent duplicate digest.")
                     return daily_run
-                logger.warning(f"Daily run {run_key} was stale IN_PROGRESS ({int(elapsed)}s ago). Recovering and restarting.")
-            daily_run.status = RunStatus.IN_PROGRESS
-            daily_run.started_at = started_at
-        else:
-            daily_run = DailyRun(
-                run_date=date_str,
-                run_key=run_key,
-                status=RunStatus.IN_PROGRESS,
-                started_at=started_at,
-            )
-            session.add(daily_run)
+                if daily_run.status == RunStatus.IN_PROGRESS and not force:
+                    prev_started = daily_run.started_at
+                    if prev_started and prev_started.tzinfo is None:
+                        prev_started = prev_started.replace(tzinfo=UTC)
+                    elapsed = (started_at - prev_started).total_seconds() if prev_started else 9999
+                    if elapsed < 900:  # 15 minutes lock window
+                        logger.warning(f"Daily run {run_key} is currently in progress ({int(elapsed)}s ago). Skipping concurrent run.")
+                        return daily_run
+                    logger.warning(f"Daily run {run_key} was stale IN_PROGRESS ({int(elapsed)}s ago). Recovering and restarting.")
+                daily_run.status = RunStatus.IN_PROGRESS
+                daily_run.started_at = started_at
+                daily_run.error_message = None
+            else:
+                daily_run = DailyRun(
+                    run_date=date_str,
+                    run_key=run_key,
+                    status=RunStatus.IN_PROGRESS,
+                    started_at=started_at,
+                )
+                session.add(daily_run)
 
-        await session.commit()
-        await session.refresh(daily_run)
+            await session.commit()
+            await session.refresh(daily_run)
+            daily_run_id = daily_run.id
+
+            try:
+                return await self._execute_pipeline_body(
+                    session=session,
+                    daily_run=daily_run,
+                    date_str=date_str,
+                    run_key=run_key,
+                    target_chat_id=target_chat_id,
+                    progress_callback=progress_callback,
+                )
+            except Exception as exc:
+                logger.error(f"Daily run {run_key} failed with unhandled error: {exc}", exc_info=True)
+                try:
+                    await session.rollback()
+                    failed_run = (
+                        await session.execute(select(DailyRun).where(DailyRun.id == daily_run_id))
+                    ).scalar_one_or_none()
+                    if failed_run:
+                        failed_run.status = RunStatus.FAILED
+                        failed_run.completed_at = datetime.now(UTC)
+                        failed_run.error_message = str(exc)[:2000]
+                        await session.commit()
+                except Exception as persist_exc:  # noqa: BLE001
+                    logger.error(f"Failed to persist FAILED status for {run_key}: {persist_exc}")
+                raise
+
+    async def _execute_pipeline_body(
+        self,
+        session: AsyncSession,
+        daily_run: DailyRun,
+        date_str: str,
+        run_key: str,
+        target_chat_id: int | None = None,
+        progress_callback: Any | None = None,
+    ) -> DailyRun:
 
         # -------------------------------------------------------------
         # Step 2: Load profile and active source config
@@ -433,10 +500,16 @@ class DailyPipelineRunner:
         # -------------------------------------------------------------
         notified_count = 0
         if recipient_chat_id and profile.digest_enabled:
-            # Query un-notified jobs (active and not expired)
+            # Query active, un-expired jobs without an existing SENT notification
             stmt_unnotified = (
                 select(Job)
-                .outerjoin(NotificationLog, Job.id == NotificationLog.job_id)
+                .outerjoin(
+                    NotificationLog,
+                    and_(
+                        Job.id == NotificationLog.job_id,
+                        NotificationLog.status == NotificationStatus.SENT,
+                    ),
+                )
                 .where(
                     Job.is_active == True,
                     Job.is_expired == False,
@@ -493,13 +566,16 @@ Time: 09:00 AM (Africa/Cairo)
                     zero_text += f"• {s_name}: {s_met['status']} ({s_met['fetched']} scanned)\n"
 
                 zero_text += "\nYour next automatic scan will run tomorrow at 09:00 AM Cairo time. You can trigger an immediate scan anytime with /run."
-                await self.telegram.send_message(chat_id=recipient_chat_id, text=zero_text)
+                zero_res = await self.telegram.send_message(chat_id=recipient_chat_id, text=zero_text)
+                zero_ok, zero_msg_id, zero_err = _parse_telegram_send_result(zero_res)
 
                 n_log = NotificationLog(
                     run_id=daily_run.id,
                     notification_type=NotificationType.ZERO_RESULTS,
                     telegram_chat_id=recipient_chat_id,
-                    status=NotificationStatus.SENT,
+                    telegram_message_id=zero_msg_id,
+                    status=NotificationStatus.SENT if zero_ok else NotificationStatus.FAILED,
+                    error_details=zero_err,
                 )
                 session.add(n_log)
                 await session.commit()
@@ -516,10 +592,11 @@ Discovered <b>{total_digest_jobs}</b> new verified Frontend opportunities:
                 await self.telegram.send_message(chat_id=recipient_chat_id, text=intro_text)
 
                 # Function to send section cards
-                async def dispatch_section(title_banner: str, job_list: list[Job]):
+                async def dispatch_section(title_banner: str, job_list: list[Job]) -> int:
                     if not job_list:
-                        return
+                        return 0
                     await self.telegram.send_message(chat_id=recipient_chat_id, text=title_banner)
+                    sent_in_section = 0
                     for j in job_list:
                         card = format_job_card(j)
                         markup = build_job_inline_keyboard(j)
@@ -528,36 +605,38 @@ Discovered <b>{total_digest_jobs}</b> new verified Frontend opportunities:
                             text=card,
                             reply_markup=markup,
                         )
-                        msg_id = msg_res.get("result", {}).get("message_id")
+                        sent_ok, msg_id, err_details = _parse_telegram_send_result(msg_res)
 
-                        # Step 10: Persist NotificationLog
+                        # Step 10: Persist NotificationLog truthfully
                         n_log = NotificationLog(
                             run_id=daily_run.id,
                             job_id=j.id,
                             notification_type=NotificationType.DAILY_DIGEST,
                             telegram_chat_id=recipient_chat_id,
                             telegram_message_id=msg_id,
-                            status=NotificationStatus.SENT,
+                            status=NotificationStatus.SENT if sent_ok else NotificationStatus.FAILED,
+                            error_details=err_details,
                         )
                         session.add(n_log)
                         await session.commit()
+                        if sent_ok:
+                            sent_in_section += 1
                         await asyncio.sleep(0.5)
+                    return sent_in_section
 
                 # Dispatch Section 1: Egypt Frontend
                 if sec_egypt:
-                    await dispatch_section(
+                    notified_count += await dispatch_section(
                         f"🇪🇬 <b>القسم الأول: فرص الواجهات الأمامية داخل مصر — Egypt ({len(sec_egypt)}):</b>\n<i>(Cairo, Giza, Alexandria & Remote Egypt • On-site | Hybrid | Remote)</i>\n─────────────────────────",
                         sec_egypt,
                     )
 
                 # Dispatch Section 2: Remote Abroad / GCC Frontend
                 if sec_remote_gcc:
-                    await dispatch_section(
+                    notified_count += await dispatch_section(
                         f"🌐 <b>القسم الثاني: فرص ريموت الخليج والدولية — Remote Abroad / GCC ({len(sec_remote_gcc)}):</b>\n<i>(Saudi Arabia, UAE, Qatar, Kuwait & International • Strictly Remote Only)</i>\n─────────────────────────",
                         sec_remote_gcc,
                     )
-
-                notified_count = total_digest_jobs
 
         # -------------------------------------------------------------
         # Step 10.5: Dispatch 5-day post-application follow-up reminders

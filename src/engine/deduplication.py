@@ -62,9 +62,41 @@ class DeduplicationEngine:
             return job, "CANONICAL_URL_MATCH"
 
         # 3. Fuzzy match: same company + exact normalized title + location
+        GENERIC_COMPANIES = {
+            "linkedin hiring network",
+            "hiring network",
+            "confidential",
+            "stealth",
+            "stealth startup",
+            "unknown",
+            "unknown company",
+            "remote company",
+        }
+        GENERIC_TITLES = {
+            "frontend engineer",
+            "frontend engineering role",
+            "software engineer",
+            "software developer",
+            "developer",
+            "engineer",
+        }
+        GENERIC_LOCATIONS = {
+            "",
+            "location unspecified",
+            "unspecified",
+            "unknown",
+            "n/a",
+        }
         norm_company = normalize_string_key(normalized.company)
         norm_title = normalize_string_key(normalized.title)
-        if norm_company and norm_title:
+        new_loc = normalize_string_key(normalized.raw_location or "")
+        if (
+            norm_company
+            and norm_title
+            and norm_company not in GENERIC_COMPANIES
+            and norm_title not in GENERIC_TITLES
+            and new_loc not in GENERIC_LOCATIONS
+        ):
             stmt_fuzzy = select(Job).where(
                 Job.company.ilike(f"%{norm_company}%"),
                 Job.title.ilike(f"%{norm_title}%"),
@@ -73,7 +105,8 @@ class DeduplicationEngine:
             candidates = res_fuzzy.scalars().all()
             for cand in candidates:
                 cand_loc = normalize_string_key(cand.raw_location or "")
-                new_loc = normalize_string_key(normalized.raw_location or "")
+                if cand_loc in GENERIC_LOCATIONS:
+                    continue
                 if cand_loc == new_loc or ("remote" in cand_loc and "remote" in new_loc):
                     return cand, "FUZZY_COMPANY_TITLE_LOCATION_MATCH"
 

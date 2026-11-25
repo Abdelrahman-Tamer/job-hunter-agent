@@ -106,15 +106,19 @@ class WorkableAdapter(BaseSourceAdapter):
 
         city = item.get("city") or ""
         country = item.get("country") or ""
-        raw_loc = f"{city}, {country}".strip(", ") or "Cairo, Egypt"
+        raw_loc = f"{city}, {country}".strip(", ") or None
 
         # Workplace type
         is_telecommuting = bool(item.get("telecommuting", False))
-        workplace_type = WorkplaceType.HYBRID
+        workplace_type = WorkplaceType.UNKNOWN
         if is_telecommuting:
             workplace_type = WorkplaceType.REMOTE
-        elif "onsite" in raw_loc.lower():
+        elif raw_loc and "remote" in raw_loc.lower():
+            workplace_type = WorkplaceType.REMOTE
+        elif raw_loc and ("onsite" in raw_loc.lower() or "on-site" in raw_loc.lower()):
             workplace_type = WorkplaceType.ON_SITE
+        elif raw_loc and "hybrid" in raw_loc.lower():
+            workplace_type = WorkplaceType.HYBRID
 
         # Seniority
         title_lower = title.lower()
@@ -140,7 +144,8 @@ class WorkableAdapter(BaseSourceAdapter):
             if re.search(rf"\b{re.escape(tech)}\b", title_lower):
                 skills.append(tech.title())
 
-        desc_text = item.get("description") or f"{title} at {company} in {raw_loc}."
+        loc_desc = f" in {raw_loc}" if raw_loc else ""
+        desc_text = item.get("description") or f"{title} at {company}{loc_desc}."
         if "<" in desc_text:
             desc_text = BeautifulSoup(desc_text, "html.parser").get_text(separator=" ", strip=True)
 
@@ -155,7 +160,7 @@ class WorkableAdapter(BaseSourceAdapter):
             description_text=desc_text,
             description_html=item.get("description"),
             raw_location=raw_loc,
-            country_codes=["EG"] if any(k in raw_loc.lower() for k in ["egypt", "cairo", "giza", "alexandria"]) else [],
+            country_codes=["EG"] if (raw_loc and any(k in raw_loc.lower() for k in ["egypt", "cairo", "giza", "alexandria"])) else [],
             workplace_type=workplace_type,
             seniority=seniority,
             employment_type=employment_type,

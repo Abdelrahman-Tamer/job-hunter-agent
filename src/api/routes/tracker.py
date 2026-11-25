@@ -67,6 +67,10 @@ async def update_job_status(
     db: AsyncSession = Depends(get_db_session),
 ) -> Dict[str, Any]:
     """Update application tracking status."""
+    job_exists = (await db.execute(select(Job.id).where(Job.id == job_id))).scalar_one_or_none()
+    if not job_exists:
+        raise HTTPException(status_code=404, detail="Job not found")
+
     stmt = select(JobStatusTracker).where(JobStatusTracker.job_id == job_id)
     res = await db.execute(stmt)
     tracker = res.scalar_one_or_none()
@@ -82,10 +86,12 @@ async def update_job_status(
             tracker.applied_at = datetime.now(timezone.utc)
         if dto.follow_up_at:
             tracker.follow_up_at = dto.follow_up_at
-            tracker.follow_up_sent = False
-        elif not tracker.follow_up_at:
+        else:
             tracker.follow_up_at = datetime.now(timezone.utc) + timedelta(days=5)
-            tracker.follow_up_sent = False
+        tracker.follow_up_sent = False
+    else:
+        tracker.follow_up_at = None
+        tracker.follow_up_sent = False
 
     await db.commit()
     return {
@@ -119,6 +125,10 @@ async def get_notes(
     db: AsyncSession = Depends(get_db_session),
 ) -> List[Dict[str, Any]]:
     """Fetch candidate notes for a job."""
+    job_exists = (await db.execute(select(Job.id).where(Job.id == job_id))).scalar_one_or_none()
+    if not job_exists:
+        raise HTTPException(status_code=404, detail="Job not found")
+
     stmt = select(ApplicationNote).where(ApplicationNote.job_id == job_id).order_by(ApplicationNote.created_at.desc())
     res = await db.execute(stmt)
     notes = res.scalars().all()

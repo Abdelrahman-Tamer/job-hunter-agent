@@ -10,7 +10,7 @@ SENSITIVE_PATTERNS = [
     re.compile(r"bot\d+:[A-Za-z0-9_-]+"),
     re.compile(r"(api[_-]?key|token|secret|password|authorization)['\":\s=]+([a-zA-Z0-9_\-\.]{8,})", re.IGNORECASE),
     re.compile(r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)", re.IGNORECASE),
-    re.compile(r"(\+?\d{1,3}[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}"),
+    re.compile(r"(?<![\d.])(?:\+\d{1,3}[-.\s]?(?:\(?\d{2,4}\)?[-.\s]?)\d{3,4}[-.\s]?\d{3,4}|\(\d{3}\)[-.\s]?\d{3}[-.\s]?\d{4}|\b01[0125][-.\s]?\d{4}[-.\s]?\d{4}\b|\b\d{3}[-\s]\d{3}[-\s]\d{4}\b)(?![\d.])"),
 ]
 
 

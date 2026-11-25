@@ -6,20 +6,28 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import settings
 from src.core.database import get_db_session
 from src.core.logging import logger
 from src.core.security import canonicalize_url, is_safe_url
 from src.engine.deduplication import DeduplicationEngine, compute_url_hash
 from src.engine.eligibility import GeographicEligibilityEngine
 from src.engine.matching import MatchingEngine
+from src.engine.track_classifier import classify_job_track
 from src.models import (
     CandidateProfile,
     GeographicEligibility,
     Job,
     JobStatusTracker,
+    JobTrack,
     Source,
     WorkplaceType,
 )
+
+
+def _clamp(val: Optional[str], limit: int) -> Optional[str]:
+    """Clamp string values to column limits before SQL persistence."""
+    return val[:limit] if val is not None else None
 from src.services.profile_service import get_or_create_candidate_profile
 from src.sources.base import NormalizedJobData
 from src.sources.registry import SourceRegistry, create_default_registry
@@ -128,10 +136,29 @@ async def ingest_user_alert(
         await db.refresh(source_rec)
 
     # Classify & score
+    job_track = classify_job_track(
+        title=dto.title,
+        description=dto.description_text,
+        seniority=norm.seniority,
+        employment_type=norm.employment_type,
+        workplace_type=dto.workplace_type,
+        raw_location=dto.location,
+        remote_scope=norm.remote_scope,
+        required_experience_years=norm.required_experience_years,
+        skills=dto.skills,
+    )
+
     geo_engine = GeographicEligibilityEngine(candidate_country=profile.country)
     eligibility, elig_reason = geo_engine.classify(
         raw_location=dto.location,
         workplace_type=dto.workplace_type,
+        description_text=dto.description_text,
+    )
+    opportunity_segment = geo_engine.classify_segment(
+        raw_location=dto.location,
+        workplace_type=dto.workplace_type,
+        remote_scope=norm.remote_scope,
+        eligibility=eligibility,
         description_text=dto.description_text,
     )
 
@@ -146,28 +173,44 @@ async def ingest_user_alert(
         published_at=None,
         required_experience_years=None,
         profile=profile,
+        job_track=job_track,
     )
+
+    raw_payload = {
+        "opportunity_segment": opportunity_segment.value,
+        "workplace_type": dto.workplace_type.value,
+        "ingestion_channel": "user_alert",
+    }
 
     job_rec = Job(
         source_id=source_rec.id,
-        source_name=dto.source_name,
-        source_job_id=norm.source_job_id,
-        source_url=dto.application_url,
-        canonical_url_hash=url_hash,
-        original_application_url=dto.application_url,
-        company=dto.company,
-        title=dto.title,
+        source_name=_clamp(dto.source_name, 100) or "user_alert",
+        source_job_id=_clamp(norm.source_job_id, 255) or "",
+        source_url=_clamp(dto.application_url, 1024) or "",
+        canonical_url_hash=url_hash[:64],
+        original_application_url=_clamp(dto.application_url, 1024) or "",
+        company=_clamp(dto.company, 255) or "Unknown",
+        title=_clamp(dto.title, 255) or "",
         description_text=dto.description_text,
-        raw_location=dto.location,
+        raw_location=_clamp(dto.location, 255),
         workplace_type=dto.workplace_type,
+        remote_scope=_clamp(norm.remote_scope, 255),
+        required_skills=dto.skills or [],
+        job_track=job_track,
+        is_active=(
+            eligibility != GeographicEligibility.NOT_ELIGIBLE
+            and job_track != JobTrack.OTHER
+            and match_res.score >= settings.MATCH_THRESHOLD_STORE
+        ),
         eligibility=eligibility,
-        eligibility_reason=elig_reason,
+        eligibility_reason=_clamp(elig_reason, 500) or "",
         match_score=match_res.score,
         match_band=match_res.band,
         score_breakdown=match_res.breakdown.model_dump(),
         match_reasons=match_res.reasons,
         skill_gaps=match_res.skill_gaps,
         match_confidence=match_res.confidence,
+        raw_payload=raw_payload,
     )
     db.add(job_rec)
     await db.flush()

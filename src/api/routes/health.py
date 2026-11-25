@@ -2,6 +2,7 @@
 
 from typing import Any, Dict
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +26,7 @@ async def health_check() -> Dict[str, Any]:
 @router.get("/ready", status_code=status.HTTP_200_OK)
 async def readiness_check(
     db: AsyncSession = Depends(get_db_session),
-) -> Dict[str, Any]:
+) -> Any:
     """Readiness probe checking database connectivity."""
     db_ok = False
     try:
@@ -34,9 +35,18 @@ async def readiness_check(
     except Exception:
         db_ok = False
 
+    if not db_ok:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "not_ready",
+                "database_connected": False,
+            },
+        )
+
     return {
-        "status": "ready" if db_ok else "not_ready",
-        "database_connected": db_ok,
+        "status": "ready",
+        "database_connected": True,
     }
 
 

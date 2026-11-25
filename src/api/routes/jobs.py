@@ -112,8 +112,13 @@ async def list_jobs(
                             GeographicEligibility.REMOTE_WORLDWIDE,
                             GeographicEligibility.REMOTE_REGION_POSSIBLE,
                         ]),
-                        not_(Job.raw_location.ilike("%egypt%")),
-                        not_(Job.raw_location.ilike("%cairo%")),
+                        or_(
+                            Job.raw_location.is_(None),
+                            and_(
+                                not_(Job.raw_location.ilike("%egypt%")),
+                                not_(Job.raw_location.ilike("%cairo%")),
+                            ),
+                        ),
                     ),
                 )
             )

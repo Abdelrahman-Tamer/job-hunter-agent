@@ -68,12 +68,17 @@ def classify_job_track(
     if has_egypt:
         return JobTrack.FRONTEND_EGYPT
 
-    has_gcc = bool(GCC_LOC_PATTERN.search(full_loc)) or bool(GCC_LOC_PATTERN.search(desc_sample[:500]))
+    has_gcc_in_loc = bool(GCC_LOC_PATTERN.search(full_loc))
+    has_gcc = has_gcc_in_loc or bool(GCC_LOC_PATTERN.search(desc_sample[:500]))
     if workplace_type == WorkplaceType.REMOTE and (has_gcc or "worldwide" in full_loc or "emea" in full_loc):
         return JobTrack.FRONTEND_REMOTE_GCC
 
-    # Non-remote roles (on-site / hybrid) outside Egypt must be strictly rejected as OTHER
-    if workplace_type in (WorkplaceType.ON_SITE, WorkplaceType.HYBRID) and not has_egypt and (has_gcc or full_loc.strip()):
+    # Reject non-remote (on-site, hybrid, or unknown workplace) roles located outside Egypt
+    loc_clean = full_loc.strip()
+    is_worldwide_or_remote_label = any(w in loc_clean for w in ("worldwide", "global", "anywhere", "remote"))
+    if workplace_type in (WorkplaceType.ON_SITE, WorkplaceType.HYBRID) and not has_egypt and (has_gcc or bool(loc_clean)):
+        return JobTrack.OTHER
+    if workplace_type != WorkplaceType.REMOTE and not has_egypt and (has_gcc_in_loc or (bool(loc_clean) and not is_worldwide_or_remote_label)):
         return JobTrack.OTHER
 
     # Step 4: Default positive frontend match

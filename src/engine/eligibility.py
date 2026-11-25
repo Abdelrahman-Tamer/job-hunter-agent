@@ -266,7 +266,10 @@ class GeographicEligibilityEngine:
         # 7. Remote with ambiguous or missing scope
         if workplace_type == WorkplaceType.REMOTE:
             # If scope contains country names other than Egypt/Gulf (e.g. "Germany", "United States", "UK")
-            if any(country in full_text for country in ["united states", "usa", "uk", "germany", "france", "canada", "australia"]):
+            if any(
+                re.search(rf"\b{re.escape(country)}\b", full_text)
+                for country in ["united states", "usa", "uk", "germany", "france", "canada", "australia"]
+            ):
                 return (
                     GeographicEligibility.NOT_ELIGIBLE,
                     f"Remote role restricted to other specific country: {raw_location or remote_scope}.",
