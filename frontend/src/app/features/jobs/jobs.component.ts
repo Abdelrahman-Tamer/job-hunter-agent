@@ -10,7 +10,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { Subject, catchError, of, switchMap } from 'rxjs';
@@ -19,113 +18,76 @@ import { TelegramService } from '../../core/services/telegram.service';
 import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
 import { JobDrawerComponent } from '../../core/components/job-drawer/job-drawer.component';
-import { UiBadgeComponent } from '../../shared/ui/ui-badge.component';
-import { UiButtonComponent } from '../../shared/ui/ui-button.component';
-import { UiSkeletonComponent } from '../../shared/ui/ui-skeleton.component';
-import { UiEmptyStateComponent } from '../../shared/ui/ui-empty-state.component';
+import {
+  UiArchitecturalMotifComponent,
+  UiBadgeComponent,
+  UiButtonComponent,
+  UiCardComponent,
+  UiEmptyStateComponent,
+  UiMatchPillComponent,
+  UiSkeletonComponent,
+} from '../../core/components/ui';
 import {
   ApplicationStatus,
   JobSummary,
+  JobTrack,
   WorkplaceType,
 } from '../../core/models/job.model';
+
+type SortOption = 'score' | 'recent' | 'direct';
+type StatusFilter = 'ALL' | 'SAVED' | 'APPLIED';
 
 @Component({
   selector: 'app-jobs',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     IconComponent,
     JobDrawerComponent,
+    UiArchitecturalMotifComponent,
     UiBadgeComponent,
     UiButtonComponent,
-    UiSkeletonComponent,
+    UiCardComponent,
     UiEmptyStateComponent,
+    UiMatchPillComponent,
+    UiSkeletonComponent,
   ],
   template: `
     <div class="jobs-radar-view">
-      <!-- Sticky Command Bar & Filter Header -->
-      <header class="radar-command-bar">
-        <!-- Top Controls: Regional Segment & Source Category -->
-        <div class="command-row-top">
-          <!-- Regional Segmented Control -->
-          <div class="segmented-control regional-segmented" role="tablist" aria-label="Regional segment filter">
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="selectedSegment() === ''"
-              [class.active]="selectedSegment() === ''"
-              (click)="setSegment('')"
-              class="segment-tab-btn"
-            >
-              <span>All Regions</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="selectedSegment() === 'EGYPT'"
-              [class.active]="selectedSegment() === 'EGYPT'"
-              (click)="setSegment('EGYPT')"
-              class="segment-tab-btn"
-            >
-              <span class="region-flag">🇪🇬</span>
-              <span>Egypt Frontend</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="selectedSegment() === 'REMOTE_GCC_ABROAD'"
-              [class.active]="selectedSegment() === 'REMOTE_GCC_ABROAD'"
-              (click)="setSegment('REMOTE_GCC_ABROAD')"
-              class="segment-tab-btn"
-            >
-              <span class="region-flag">🌍</span>
-              <span>Remote GCC & Abroad</span>
-            </button>
+      <!-- Architectural Hero Header -->
+      <header class="feed-hero">
+        <ui-architectural-motif variant="header" />
+
+        <div class="hero-inner">
+          <div class="hero-copy">
+            <h1 class="hero-title">Opportunities</h1>
+            <p class="hero-subtitle">
+              Verified frontend engineering roles scored against your skills and geographic eligibility.
+            </p>
           </div>
 
-          <!-- Source Category Toggle -->
-          <div class="segmented-control source-segmented" role="tablist" aria-label="Source category filter">
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="selectedSourceType() === 'ALL'"
-              [class.active]="selectedSourceType() === 'ALL'"
-              (click)="setSourceType('ALL')"
-              class="segment-tab-btn sm"
-            >
-              <span>All Sources</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="selectedSourceType() === 'SOCIAL'"
-              [class.active]="selectedSourceType() === 'SOCIAL'"
-              (click)="setSourceType('SOCIAL')"
-              class="segment-tab-btn sm social-tab"
-            >
-              <app-icon name="message-square" [size]="11"></app-icon>
-              <span>LinkedIn Social</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="selectedSourceType() === 'BOARDS'"
-              [class.active]="selectedSourceType() === 'BOARDS'"
-              (click)="setSourceType('BOARDS')"
-              class="segment-tab-btn sm"
-            >
-              <app-icon name="briefcase" [size]="11"></app-icon>
-              <span>Job Boards</span>
-            </button>
+          <div class="hero-telemetry">
+            <ui-badge tone="neutral" size="md" [mono]="true">
+              {{ total() }} verified
+            </ui-badge>
+            @if (directContactOnPage() > 0) {
+              <ui-badge tone="copper" size="sm" [mono]="true">
+                {{ directContactOnPage() }} direct contact
+              </ui-badge>
+            }
+            <ui-badge tone="emerald" size="sm" [dot]="true">
+              Cairo 09:00 Radar
+            </ui-badge>
           </div>
         </div>
+      </header>
 
-        <!-- Bottom Controls: Search & Secondary Filters -->
-        <div class="command-row-bottom">
+      <!-- Frosted Filter Command Bar -->
+      <section class="radar-command-bar" aria-label="Search and filter opportunities">
+        <div class="command-search-row">
           <!-- Search input with ⌘K hint -->
           <div class="search-box-wrap">
-            <app-icon name="search" [size]="14" class="search-lens"></app-icon>
+            <app-icon name="search" [size]="15" class="search-lens" />
             <input
               #searchInput
               type="search"
@@ -135,290 +97,438 @@ import {
               class="search-input"
               aria-label="Search opportunities"
             />
-            <button
-              *ngIf="searchKeyword"
-              type="button"
-              (click)="clearSearch()"
-              class="search-clear-btn"
-              aria-label="Clear search"
-            >
-              <app-icon name="x" [size]="12"></app-icon>
-            </button>
-            <span class="kbd-shortcut-hint" *ngIf="!searchKeyword">⌘K</span>
+            @if (searchKeyword) {
+              <button
+                type="button"
+                (click)="clearSearch()"
+                class="search-clear-btn"
+                aria-label="Clear search"
+              >
+                <app-icon name="x" [size]="13" />
+              </button>
+            } @else {
+              <span class="kbd-shortcut-hint" aria-hidden="true">⌘K</span>
+            }
           </div>
 
-          <div class="filters-actions-wrap">
-            <!-- Workplace Type Dropdown -->
-            <div class="filter-select-wrap">
-              <select
-                [(ngModel)]="selectedWorkplace"
-                (change)="applyFilters()"
-                class="filter-select"
-                aria-label="Workplace type"
-              >
-                <option value="">All Workplaces</option>
-                <option value="REMOTE">Remote</option>
-                <option value="HYBRID">Hybrid</option>
-                <option value="ON_SITE">On-site</option>
-              </select>
-            </div>
-
-            <!-- Min Score Dropdown -->
-            <div class="filter-select-wrap">
-              <select
-                [(ngModel)]="selectedMinScore"
-                (change)="applyFilters()"
-                class="filter-select"
-                aria-label="Minimum score"
-              >
-                <option value="0">Any Fit Score</option>
-                <option value="60">Fit 60%+</option>
-                <option value="75">Fit 75%+</option>
-                <option value="85">Fit 85%+ (Top Tier)</option>
-              </select>
-            </div>
-
-            <!-- Filter Reset Button (visible when filters active) -->
-            <button
-              *ngIf="hasActiveFilters()"
-              type="button"
-              (click)="resetFilters()"
-              class="reset-filters-btn"
-              title="Reset all filters"
+          <!-- Secondary Select Controls & Sort -->
+          <div class="filters-select-group">
+            <select
+              [(ngModel)]="selectedTrack"
+              (change)="applyFilters()"
+              class="filter-select"
+              aria-label="Role track"
             >
-              <app-icon name="refresh" [size]="12"></app-icon>
-              <span>Reset</span>
+              <option value="">All Tracks</option>
+              <option value="FRONTEND_EGYPT">Frontend Egypt</option>
+              <option value="FRONTEND_REMOTE_GCC">Remote GCC</option>
+              <option value="WEB_ANGULAR">Web &amp; Angular</option>
+              <option value="FRONTEND_INTERN">Frontend Intern</option>
+              <option value="NO_EXP_REMOTE">No-Exp Remote</option>
+            </select>
+
+            <select
+              [(ngModel)]="selectedWorkplace"
+              (change)="applyFilters()"
+              class="filter-select"
+              aria-label="Workplace type"
+            >
+              <option value="">All Workplaces</option>
+              <option value="REMOTE">Remote</option>
+              <option value="HYBRID">Hybrid</option>
+              <option value="ON_SITE">On-site</option>
+            </select>
+
+            <select
+              [(ngModel)]="selectedMinScore"
+              (change)="applyFilters()"
+              class="filter-select"
+              aria-label="Minimum fit score"
+            >
+              <option value="0">Any Fit Score</option>
+              <option value="60">Fit 60%+</option>
+              <option value="75">Fit 75%+</option>
+              <option value="85">Fit 85%+</option>
+            </select>
+
+            <select
+              [ngModel]="sortBy()"
+              (ngModelChange)="setSort($event)"
+              class="filter-select sort-select"
+              aria-label="Sort opportunities"
+            >
+              <option value="score">Sort: Highest Match</option>
+              <option value="recent">Sort: Most Recent</option>
+              <option value="direct">Sort: Direct Contact</option>
+            </select>
+
+            @if (hasActiveFilters()) {
+              <ui-button
+                variant="ghost"
+                size="sm"
+                ariaLabel="Reset all filters"
+                (clicked)="resetFilters()"
+              >
+                <app-icon name="refresh" [size]="12" />
+                <span>Reset</span>
+              </ui-button>
+            }
+          </div>
+        </div>
+
+        <!-- Horizontal Scrollable Pill Filter Rail -->
+        <div class="pill-rail-wrap">
+          <div class="pill-rail-scroll" role="toolbar" aria-label="Quick category filters">
+            <!-- Segment Pills -->
+            <button
+              type="button"
+              [attr.aria-pressed]="selectedSegment() === ''"
+              [class.active]="selectedSegment() === ''"
+              (click)="setSegment('')"
+              class="filter-pill"
+            >
+              All Regions
+            </button>
+            <button
+              type="button"
+              [attr.aria-pressed]="selectedSegment() === 'EGYPT'"
+              [class.active]="selectedSegment() === 'EGYPT'"
+              (click)="setSegment('EGYPT')"
+              class="filter-pill"
+            >
+              Egypt
+            </button>
+            <button
+              type="button"
+              [attr.aria-pressed]="selectedSegment() === 'REMOTE_GCC_ABROAD'"
+              [class.active]="selectedSegment() === 'REMOTE_GCC_ABROAD'"
+              (click)="setSegment('REMOTE_GCC_ABROAD')"
+              class="filter-pill"
+            >
+              Remote &amp; GCC
+            </button>
+
+            <span class="pill-divider" aria-hidden="true"></span>
+
+            <!-- Source Category Pills -->
+            <button
+              type="button"
+              [attr.aria-pressed]="selectedSourceType() === 'ALL'"
+              [class.active]="selectedSourceType() === 'ALL'"
+              (click)="setSourceType('ALL')"
+              class="filter-pill"
+            >
+              All Sources
+            </button>
+            <button
+              type="button"
+              [attr.aria-pressed]="selectedSourceType() === 'SOCIAL'"
+              [class.active]="selectedSourceType() === 'SOCIAL'"
+              (click)="setSourceType('SOCIAL')"
+              class="filter-pill"
+            >
+              <app-icon name="message-square" [size]="12" />
+              <span>LinkedIn Social</span>
+            </button>
+            <button
+              type="button"
+              [attr.aria-pressed]="selectedSourceType() === 'BOARDS'"
+              [class.active]="selectedSourceType() === 'BOARDS'"
+              (click)="setSourceType('BOARDS')"
+              class="filter-pill"
+            >
+              <app-icon name="briefcase" [size]="12" />
+              <span>Job Boards</span>
+            </button>
+
+            <span class="pill-divider" aria-hidden="true"></span>
+
+            <!-- Direct Contact & Status Pills -->
+            <button
+              type="button"
+              [attr.aria-pressed]="directContactOnly()"
+              [class.active]="directContactOnly()"
+              [class.copper-active]="directContactOnly()"
+              (click)="toggleDirectContactFilter()"
+              class="filter-pill"
+            >
+              <app-icon name="mail" [size]="12" />
+              <span>Direct Contact</span>
+            </button>
+
+            <button
+              type="button"
+              [attr.aria-pressed]="statusFilter() === 'SAVED'"
+              [class.active]="statusFilter() === 'SAVED'"
+              (click)="toggleStatusFilter('SAVED')"
+              class="filter-pill"
+            >
+              <app-icon name="bookmark" [size]="12" />
+              <span>Saved</span>
+            </button>
+
+            <button
+              type="button"
+              [attr.aria-pressed]="statusFilter() === 'APPLIED'"
+              [class.active]="statusFilter() === 'APPLIED'"
+              (click)="toggleStatusFilter('APPLIED')"
+              class="filter-pill"
+            >
+              <app-icon name="check-circle" [size]="12" />
+              <span>Applied</span>
             </button>
           </div>
         </div>
 
-        <!-- Telemetry Status Bar -->
+        <!-- Telemetry Sub-Bar -->
         <div class="telemetry-bar">
-          <div class="telemetry-left">
-            <span class="results-count tabular-nums">
-              <strong>{{ total() }}</strong> verified opportunities
+          <div class="telemetry-left tabular-nums">
+            <span>
+              <strong>{{ displayedJobs().length }}</strong> shown
+              @if (hasLocalPageFilter()) {
+                <span>(filtered from {{ jobs().length }} on page)</span>
+              } @else {
+                <span>of {{ total() }} total</span>
+              }
             </span>
-            <span class="telemetry-dot">•</span>
-            <span class="telemetry-sub">Page {{ currentPage() }} of {{ totalPages() || 1 }}</span>
+            <span class="telemetry-dot" aria-hidden="true">/</span>
+            <span>Page {{ currentPage() }} of {{ totalPages() || 1 }}</span>
           </div>
 
-          <div class="telemetry-right">
-            <span class="live-status-pill">
-              <span class="live-dot-green"></span>
-              <span>Cairo 09:00 Radar</span>
-            </span>
-          </div>
+          @if (hasLocalPageFilter()) {
+            <button
+              type="button"
+              (click)="clearLocalPageFilters()"
+              class="inline-reset-link"
+            >
+              Clear page filter
+            </button>
+          }
         </div>
-      </header>
+      </section>
 
       <!-- Opportunities Feed Content -->
-      <main class="radar-feed-container">
-        <!-- Loading State: Smooth Skeleton Rows -->
-        <div *ngIf="isLoading()" class="feed-skeletons-list">
-          <div *ngFor="let i of [1, 2, 3, 4, 5]" class="skeleton-opportunity-row">
-            <ui-skeleton height="78px" rounded="sm"></ui-skeleton>
+      <section class="radar-feed-container" aria-label="Opportunities list">
+        <!-- Loading State -->
+        @if (isLoading()) {
+          <div class="feed-skeletons-list">
+            @for (item of [1, 2, 3, 4, 5]; track item) {
+              <ui-skeleton height="114px" rounded="lg" />
+            }
           </div>
-        </div>
-
-        <!-- Empty State -->
-        <div *ngIf="!isLoading() && jobs().length === 0" class="feed-empty-wrap">
+        } @else if (displayedJobs().length === 0) {
+          <!-- Empty State -->
           <ui-empty-state
             icon="briefcase"
             title="No Matching Opportunities Found"
-            subtitle="No roles match your current regional segment, search keywords, or fit criteria."
+            [subtitle]="
+              hasLocalPageFilter()
+                ? 'No roles on this page match your Direct Contact or status filter.'
+                : 'No roles match your current segment, track, search keywords, or fit criteria.'
+            "
           >
             <div action>
               <ui-button variant="secondary" size="sm" (clicked)="resetFilters()">
-                <app-icon name="refresh" [size]="13"></app-icon>
+                <app-icon name="refresh" [size]="13" />
                 <span>Reset Filters</span>
               </ui-button>
             </div>
           </ui-empty-state>
-        </div>
-
-        <!-- Opportunity Cards Feed -->
-        <div *ngIf="!isLoading() && jobs().length > 0" class="opportunities-list" role="feed">
-          <article
-            *ngFor="let job of jobs()"
-            (click)="openDrawer(job)"
-            class="opportunity-row-card"
-            tabindex="0"
-            (keydown.enter)="openDrawer(job)"
-            [attr.aria-label]="job.title + ' at ' + job.company"
-          >
-            <!-- Left: Match Score Column -->
-            <div class="card-score-col">
+        } @else {
+          <!-- Opportunity Cards Feed -->
+          <div class="opportunities-list" role="feed">
+            @for (job of displayedJobs(); track job.id; let idx = $index) {
               <div
-                class="score-badge tabular-nums"
-                [attr.data-band]="getScoreBand(job.match_score)"
-                [title]="'Match Score: ' + roundScore(job.match_score) + '%'"
+                class="job-card-motion"
+                [style.animation-delay]="(idx < 10 ? idx * 30 : 0) + 'ms'"
               >
-                {{ roundScore(job.match_score) }}%
+                <ui-card
+                  variant="elevated"
+                  padding="md"
+                  [interactive]="true"
+                  class="opportunity-card"
+                  tabindex="0"
+                  role="article"
+                  [attr.aria-label]="job.title + ' at ' + job.company"
+                  (click)="openDrawer(job)"
+                  (keydown.enter)="openDrawer(job)"
+                >
+                  <div class="job-card-grid">
+                    <!-- Left / Primary Info Column -->
+                    <div class="job-primary-col">
+                      <div class="job-title-header">
+                        <h3 class="role-title" dir="auto">{{ job.title }}</h3>
+                      </div>
+
+                      <div class="job-company-line">
+                        <span class="company-name" dir="auto">{{ job.company }}</span>
+
+                        @if (job.raw_location) {
+                          <span class="meta-sep" aria-hidden="true">/</span>
+                          <span class="meta-inline">
+                            <app-icon name="map-pin" [size]="12" />
+                            <span class="location-text" dir="auto">{{ job.raw_location }}</span>
+                          </span>
+                        }
+
+                        <span class="meta-sep" aria-hidden="true">/</span>
+                        <span class="time-relative tabular-nums">
+                          {{ formatRelativeDate(job.published_at || job.first_seen_at) }}
+                        </span>
+
+                        @if (job.poster_name) {
+                          <span class="poster-tag">
+                            <app-icon name="user" [size]="11" />
+                            <span>{{ job.poster_name }}</span>
+                          </span>
+                        }
+                      </div>
+
+                      <!-- Signal Chips Row -->
+                      <div class="signals-row">
+                        @if (hasDirectContact(job)) {
+                          <ui-badge tone="copper" size="sm">
+                            <app-icon name="mail" [size]="11" />
+                            <span>{{ getDirectContactLabel(job) }}</span>
+                          </ui-badge>
+                        }
+
+                        @if (job.is_social_post) {
+                          <ui-badge tone="glass" size="sm" [dot]="true">
+                            LinkedIn Social
+                          </ui-badge>
+                        } @else if (job.origin_board) {
+                          <ui-badge tone="glass" size="sm">
+                            {{ job.origin_board }}
+                          </ui-badge>
+                        }
+
+                        <ui-badge
+                          [tone]="job.workplace_type === 'REMOTE' ? 'emerald' : 'neutral'"
+                          size="sm"
+                        >
+                          {{ formatWorkplace(job.workplace_type) }}
+                        </ui-badge>
+
+                        <ui-badge tone="neutral" size="sm">
+                          {{ formatTrackOrSegment(job) }}
+                        </ui-badge>
+
+                        @if (job.tracker_status && job.tracker_status !== 'DISCOVERED') {
+                          <ui-badge
+                            [tone]="job.tracker_status === 'APPLIED' || job.tracker_status === 'OFFER' ? 'emerald' : 'copper'"
+                            size="sm"
+                          >
+                            {{ formatStatus(job.tracker_status) }}
+                          </ui-badge>
+                        }
+                      </div>
+
+                      <!-- Skills Row -->
+                      @if (job.required_skills && job.required_skills.length > 0) {
+                        <div class="skills-preview-group">
+                          @for (skill of job.required_skills.slice(0, 4); track skill) {
+                            <span class="skill-chip">{{ skill }}</span>
+                          }
+                          @if (job.required_skills.length > 4) {
+                            <span class="skill-chip overflow tabular-nums">
+                              +{{ job.required_skills.length - 4 }}
+                            </span>
+                          }
+                        </div>
+                      }
+                    </div>
+
+                    <!-- Right / Signal & Actions Column -->
+                    <div class="job-signal-col" (click)="$event.stopPropagation()">
+                      <ui-match-pill
+                        [score]="roundScore(job.match_score)"
+                        size="md"
+                      />
+
+                      <div class="card-actions-row">
+                        <button
+                          type="button"
+                          (click)="toggleSave(job, $event)"
+                          class="quick-action-btn bookmark-btn"
+                          [class.saved]="job.tracker_status === 'SAVED'"
+                          [disabled]="savingJobIds().has(job.id)"
+                          [title]="job.tracker_status === 'SAVED' ? 'Remove from Saved' : 'Save opportunity'"
+                          [attr.aria-label]="job.tracker_status === 'SAVED' ? 'Remove from Saved' : 'Save opportunity'"
+                        >
+                          <app-icon
+                            [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'"
+                            [size]="15"
+                          />
+                        </button>
+
+                        @if (job.original_application_url) {
+                          <a
+                            [href]="job.original_application_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            (click)="onDirectApply(job, $event)"
+                            class="quick-action-btn apply-btn"
+                            title="Open application link"
+                            aria-label="Open application link"
+                          >
+                            <app-icon name="external-link" [size]="15" />
+                          </a>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </ui-card>
               </div>
-            </div>
-
-            <!-- Middle: Main Information Block -->
-            <div class="card-main-col">
-              <!-- Title & Header Row -->
-              <div class="card-title-row">
-                <h3 class="role-title" dir="auto">{{ job.title }}</h3>
-
-                <div class="badges-row">
-                  <ui-badge
-                    *ngIf="job.is_social_post"
-                    variant="social"
-                    size="sm"
-                    [dot]="true"
-                  >
-                    LinkedIn Post
-                  </ui-badge>
-                  <ui-badge
-                    *ngIf="job.opportunity_segment === 'EGYPT'"
-                    variant="default"
-                    size="sm"
-                  >
-                    Egypt
-                  </ui-badge>
-                  <ui-badge
-                    *ngIf="job.opportunity_segment === 'REMOTE_GCC_ABROAD'"
-                    variant="brand"
-                    size="sm"
-                  >
-                    Remote Abroad
-                  </ui-badge>
-                  @if (hasDirectContact(job)) {
-                    <ui-badge variant="success" size="sm">
-                      <app-icon name="mail" [size]="10" />
-                      <span>{{ job.direct_email ? 'Direct Email' : 'Direct Contact' }}</span>
-                    </ui-badge>
-                  }
-                  @if (job.origin_board && !job.is_social_post) {
-                    <ui-badge variant="default" size="sm">
-                      {{ job.origin_board }}
-                    </ui-badge>
-                  }
-                </div>
-              </div>
-
-              <!-- Company & Poster Row -->
-              <div class="card-company-row">
-                <span class="company-name" dir="auto">{{ job.company }}</span>
-                <span *ngIf="job.poster_name" class="poster-tag">
-                  <app-icon name="user" [size]="10"></app-icon>
-                  <span>Shared by <strong>{{ job.poster_name }}</strong></span>
-                </span>
-                <span class="time-relative tabular-nums">
-                  • {{ formatRelativeDate(job.published_at || job.first_seen_at) }}
-                </span>
-              </div>
-
-              <!-- Metadata & Skills Row -->
-              <div class="card-meta-row">
-                <div class="meta-tags-group">
-                  <span class="meta-tag workplace" [attr.data-workplace]="job.workplace_type">
-                    <app-icon name="building" [size]="11"></app-icon>
-                    <span>{{ formatWorkplace(job.workplace_type) }}</span>
-                  </span>
-
-                  <span class="meta-tag location" *ngIf="job.raw_location">
-                    <app-icon name="map-pin" [size]="11"></app-icon>
-                    <span class="location-text" dir="auto">{{ job.raw_location }}</span>
-                  </span>
-                </div>
-
-                <!-- Skills Pills (Max 4 + Overflow) -->
-                <div class="skills-preview-group" *ngIf="job.required_skills && job.required_skills.length > 0">
-                  <span
-                    *ngFor="let skill of job.required_skills.slice(0, 4)"
-                    class="skill-chip"
-                  >
-                    {{ skill }}
-                  </span>
-                  <span
-                    *ngIf="job.required_skills.length > 4"
-                    class="skill-chip overflow"
-                  >
-                    +{{ job.required_skills.length - 4 }}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Right: Quick Hover Actions -->
-            <div class="card-actions-col" (click)="$event.stopPropagation()">
-              <button
-                type="button"
-                (click)="toggleSave(job, $event)"
-                class="quick-action-btn bookmark-btn"
-                [class.saved]="job.tracker_status === 'SAVED'"
-                [title]="job.tracker_status === 'SAVED' ? 'Remove from Saved' : 'Save opportunity'"
-                aria-label="Toggle bookmark"
-              >
-                <app-icon
-                  [name]="job.tracker_status === 'SAVED' ? 'check' : 'bookmark'"
-                  [size]="14"
-                ></app-icon>
-              </button>
-
-              <a
-                *ngIf="job.original_application_url"
-                [href]="job.original_application_url"
-                target="_blank"
-                rel="noopener noreferrer"
-                (click)="onDirectApply(job, $event)"
-                class="quick-action-btn apply-btn"
-                title="Direct Apply"
-                aria-label="Direct apply on portal"
-              >
-                <app-icon name="external-link" [size]="14"></app-icon>
-              </a>
-            </div>
-          </article>
-        </div>
+            }
+          </div>
+        }
 
         <!-- Pagination Controls -->
-        <footer *ngIf="!isLoading() && total() > 0" class="radar-pagination-bar">
-          <div class="pagination-info tabular-nums">
-            Showing {{ ((currentPage() - 1) * limit) + 1 }}-{{ Math.min(currentPage() * limit, total()) }} of {{ total() }}
-          </div>
+        @if (!isLoading() && total() > 0) {
+          <footer class="radar-pagination-bar">
+            <div class="pagination-info tabular-nums">
+              Showing {{ ((currentPage() - 1) * limit) + 1 }}-{{ Math.min(currentPage() * limit, total()) }} of {{ total() }}
+            </div>
 
-          <div class="pagination-buttons">
-            <button
-              type="button"
-              (click)="goToPage(currentPage() - 1)"
-              [disabled]="currentPage() <= 1"
-              class="page-nav-btn"
-              aria-label="Previous page"
-            >
-              <app-icon name="chevron-left" [size]="14"></app-icon>
-              <span>Prev</span>
-            </button>
+            <div class="pagination-buttons">
+              <ui-button
+                variant="secondary"
+                size="sm"
+                [disabled]="currentPage() <= 1"
+                ariaLabel="Previous page"
+                (clicked)="goToPage(currentPage() - 1)"
+              >
+                <app-icon name="chevron-left" [size]="14" />
+                <span>Prev</span>
+              </ui-button>
 
-            <span class="page-indicator tabular-nums">
-              {{ currentPage() }} / {{ totalPages() }}
-            </span>
+              <span class="page-indicator tabular-nums">
+                {{ currentPage() }} / {{ totalPages() || 1 }}
+              </span>
 
-            <button
-              type="button"
-              (click)="goToPage(currentPage() + 1)"
-              [disabled]="currentPage() >= totalPages()"
-              class="page-nav-btn"
-              aria-label="Next page"
-            >
-              <span>Next</span>
-              <app-icon name="chevron-right" [size]="14"></app-icon>
-            </button>
-          </div>
-        </footer>
-      </main>
+              <ui-button
+                variant="secondary"
+                size="sm"
+                [disabled]="currentPage() >= totalPages()"
+                ariaLabel="Next page"
+                (clicked)="goToPage(currentPage() + 1)"
+              >
+                <span>Next</span>
+                <app-icon name="chevron-right" [size]="14" />
+              </ui-button>
+            </div>
+          </footer>
+        }
+      </section>
 
-      <!-- Rebuilt Slide-Over Drawer -->
+      <!-- Elevated Frosted Slide-Over Drawer -->
       <app-job-drawer
         [isOpen]="isDrawerOpen()"
         [job]="selectedJob()"
         (closeDrawer)="closeDrawer()"
         (statusUpdated)="onStatusUpdated($event)"
-      ></app-job-drawer>
+      />
     </div>
   `,
   styles: [`
@@ -432,109 +542,92 @@ import {
       flex-direction: column;
       gap: var(--space-4);
       width: 100%;
-      max-width: 1240px;
+      max-width: 1120px;
       margin: 0 auto;
     }
 
     /* ==========================================================================
-       Sticky Command Bar & Filter Header
+       Architectural Hero Header
        ========================================================================== */
-    .radar-command-bar {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      background-color: var(--bg-glass-1);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-sm);
-      padding: var(--space-3) var(--space-4);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2-5);
-      box-shadow: var(--surface-highlight), var(--shadow-sm);
+    .feed-hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular), var(--shadow-sm);
+      padding: var(--space-5) var(--space-6);
     }
 
-    .command-row-top {
+    .hero-inner {
+      position: relative;
+      z-index: 1;
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: space-between;
-      gap: var(--space-3);
+      gap: var(--space-4);
       flex-wrap: wrap;
     }
 
-    /* Segmented Controls */
-    .segmented-control {
-      display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-sm);
-      padding: 3px;
-      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      max-width: 62ch;
     }
 
-    .segment-tab-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 12px;
-      background: transparent;
-      border: 1px solid transparent;
-      border-radius: var(--radius-xs);
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      cursor: pointer;
-      user-select: none;
-      transition: all var(--motion-fast);
-      white-space: nowrap;
-      outline: none;
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: var(--text-h1);
+      font-weight: 700;
+      letter-spacing: var(--tracking-tight);
+      color: var(--ink-primary);
+      margin: 0;
     }
 
-    .segment-tab-btn:hover {
-      color: var(--text-primary);
-      background-color: var(--bg-surface-hover);
+    .hero-subtitle {
+      font-size: var(--text-sm);
+      color: var(--ink-secondary);
+      line-height: 1.5;
+      margin: 0;
     }
 
-    .segment-tab-btn:active {
-      transform: scale(0.98);
-    }
-
-    .segment-tab-btn.active {
-      background-color: var(--bg-surface-1);
-      color: var(--text-primary);
-      border-color: var(--border-default);
-      font-weight: 600;
-      box-shadow: var(--surface-highlight-sm), var(--shadow-xs);
-    }
-
-    .segment-tab-btn.sm {
-      padding: 4px 10px;
-      font-size: 11px;
-    }
-
-    .segment-tab-btn.social-tab.active {
-      color: var(--sky-400);
-    }
-
-    .region-flag {
-      font-size: 13px;
-      line-height: 1;
-    }
-
-    /* Command Row Bottom: Search & Selects */
-    .command-row-bottom {
+    .hero-telemetry {
       display: flex;
       align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    /* ==========================================================================
+       Frosted Filter Command Bar
+       ========================================================================== */
+    .radar-command-bar {
+      position: sticky;
+      top: 12px;
+      z-index: 40;
+      background-color: var(--surface-glass);
+      backdrop-filter: var(--blur-glass);
+      -webkit-backdrop-filter: var(--blur-glass);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular), var(--shadow-sm);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3-5) var(--space-4);
+      display: flex;
+      flex-direction: column;
       gap: var(--space-3);
+    }
+
+    .command-search-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2-5);
       flex-wrap: wrap;
     }
 
     .search-box-wrap {
-      flex: 1;
-      min-width: 260px;
+      flex: 1 1 280px;
+      min-width: 0;
       position: relative;
       display: flex;
       align-items: center;
@@ -542,45 +635,60 @@ import {
 
     .search-lens {
       position: absolute;
-      left: 10px;
-      color: var(--text-tertiary);
+      left: 12px;
+      color: var(--ink-muted);
       pointer-events: none;
     }
 
     .search-input {
       width: 100%;
-      height: 34px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-xs);
-      padding: 0 32px 0 32px;
-      font-size: 13px;
-      color: var(--text-primary);
-      transition: border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
+      height: 38px;
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      padding: 0 38px 0 36px;
+      font-family: var(--font-sans);
+      font-size: var(--text-sm);
+      color: var(--ink-primary);
+      transition:
+        border-color var(--dur-fast) var(--ease-spring),
+        background-color var(--dur-fast) var(--ease-spring),
+        box-shadow var(--dur-fast) var(--ease-spring);
     }
+
+    .search-input:hover {
+      border-color: var(--border-strong);
+    }
+
     .search-input:focus {
       outline: none;
-      border-color: var(--brand-primary);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
-      background-color: var(--bg-surface-1);
+      border-color: var(--accent-copper);
+      box-shadow: 0 0 0 2px var(--accent-copper-focus);
+      background-color: var(--surface-elevated);
     }
+
     .search-input::placeholder {
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
     }
 
     .search-clear-btn {
       position: absolute;
-      right: 8px;
+      right: 4px;
+      min-width: 32px;
+      min-height: 32px;
       background: transparent;
       border: none;
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
       cursor: pointer;
-      display: flex;
-      padding: 2px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       border-radius: var(--radius-xs);
+      transition: color var(--dur-fast) var(--ease-spring);
     }
+
     .search-clear-btn:hover {
-      color: var(--text-primary);
+      color: var(--ink-primary);
     }
 
     .kbd-shortcut-hint {
@@ -589,70 +697,124 @@ import {
       font-family: var(--font-mono);
       font-size: 10px;
       font-weight: 600;
-      color: var(--text-tertiary);
-      background: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: 3px;
-      padding: 1px 5px;
+      color: var(--ink-muted);
+      background: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-xs);
+      padding: 2px 6px;
       pointer-events: none;
     }
 
-    .filters-actions-wrap {
+    .filters-select-group {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-    }
-
-    .filter-select-wrap {
-      position: relative;
+      flex-wrap: wrap;
     }
 
     .filter-select {
-      height: 34px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-xs);
+      height: 38px;
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
       padding: 0 10px;
-      font-size: 12px;
+      font-family: var(--font-sans);
+      font-size: var(--text-xs);
       font-weight: 500;
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
       cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .filter-select:hover {
-      border-color: var(--border-strong);
-      color: var(--text-primary);
-    }
-    .filter-select:focus {
-      outline: none;
-      border-color: var(--brand-primary);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
+      transition:
+        border-color var(--dur-fast) var(--ease-spring),
+        color var(--dur-fast) var(--ease-spring),
+        background-color var(--dur-fast) var(--ease-spring);
     }
 
-    .reset-filters-btn {
+    .filter-select:hover {
+      border-color: var(--border-strong);
+      color: var(--ink-primary);
+    }
+
+    .filter-select:focus {
+      outline: none;
+      border-color: var(--accent-copper);
+      box-shadow: 0 0 0 2px var(--accent-copper-focus);
+      background-color: var(--surface-elevated);
+    }
+
+    /* Horizontal Scrollable Pill Rail */
+    .pill-rail-wrap {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .pill-rail-scroll {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1-5);
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px 0;
+    }
+
+    .pill-rail-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .filter-pill {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      height: 34px;
-      padding: 0 10px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-      color: var(--text-secondary);
-      font-size: 12px;
+      gap: 5px;
+      flex-shrink: 0;
+      min-height: 34px;
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-hairline);
+      background-color: var(--surface-subtle);
+      color: var(--ink-secondary);
+      font-family: var(--font-sans);
+      font-size: var(--text-xs);
       font-weight: 500;
+      white-space: nowrap;
       cursor: pointer;
-      transition: all var(--motion-fast);
+      transition:
+        background-color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring),
+        color var(--dur-fast) var(--ease-spring),
+        transform var(--dur-fast) var(--ease-spring);
     }
-    .reset-filters-btn:hover {
-      background-color: var(--bg-surface-3);
-      color: var(--text-primary);
+
+    .filter-pill:hover {
+      background-color: var(--surface-elevated);
       border-color: var(--border-strong);
+      color: var(--ink-primary);
     }
-    .reset-filters-btn:active {
-      transform: scale(0.98);
+
+    .filter-pill:active {
+      transform: scale(0.975);
+    }
+
+    .filter-pill.active {
+      background-color: var(--surface-elevated);
+      border-color: var(--border-strong);
+      color: var(--ink-primary);
+      font-weight: 600;
+      box-shadow: var(--border-specular-sm), var(--shadow-xs);
+    }
+
+    .filter-pill.copper-active {
+      background-color: var(--accent-copper-soft);
+      border-color: var(--border-copper);
+      color: var(--accent-copper-text);
+    }
+
+    .pill-divider {
+      width: 1px;
+      height: 18px;
+      background-color: var(--border-hairline);
+      flex-shrink: 0;
+      margin: 0 2px;
     }
 
     /* Telemetry Sub-Bar */
@@ -660,295 +822,250 @@ import {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-top: var(--space-2);
-      border-top: 1px solid var(--border-subtle);
-      font-size: 11px;
-      color: var(--text-tertiary);
+      gap: var(--space-2);
+      padding-top: var(--space-2-5);
+      border-top: 1px solid var(--border-hairline);
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
     }
 
     .telemetry-left {
       display: flex;
       align-items: center;
-      gap: 6px;
-    }
-    .results-count strong {
-      color: var(--text-primary);
-    }
-    .telemetry-dot {
-      color: var(--text-tertiary);
+      gap: var(--space-2);
+      flex-wrap: wrap;
     }
 
-    .live-status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-family: var(--font-mono);
-      font-size: 10px;
+    .telemetry-left strong {
+      color: var(--ink-primary);
       font-weight: 600;
-      color: var(--text-secondary);
     }
-    .live-dot-green {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background-color: var(--emerald-500);
-      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+
+    .telemetry-dot {
+      color: var(--border-strong);
+    }
+
+    .inline-reset-link {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--accent-copper-text);
+      padding: 4px 8px;
+      border-radius: var(--radius-xs);
+      transition: background-color var(--dur-fast) var(--ease-spring);
+    }
+
+    .inline-reset-link:hover {
+      background-color: var(--accent-copper-soft);
     }
 
     /* ==========================================================================
-       Opportunities Feed
+       Opportunities Feed & Staggered Motion
        ========================================================================== */
     .radar-feed-container {
       display: flex;
       flex-direction: column;
-      gap: var(--space-2);
+      gap: var(--space-3);
       width: 100%;
     }
 
     .feed-skeletons-list {
       display: flex;
       flex-direction: column;
-      gap: var(--space-2);
+      gap: var(--space-3);
     }
 
     .opportunities-list {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--space-3);
     }
 
-    /* Row Card */
-    .opportunity-row-card {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-3) var(--space-4);
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      transition: transform var(--motion-fast), border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
-      position: relative;
+    .job-card-motion {
+      animation: studioFadeUp var(--dur-base) var(--ease-spring) both;
+    }
+
+    .opportunity-card {
       outline: none;
     }
 
-    .opportunity-row-card:hover {
-      background-color: var(--bg-surface-2);
-      border-color: var(--border-strong);
-      box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
-      transform: translateY(-1px);
+    .opportunity-card:focus-visible {
+      outline: 2px solid var(--accent-copper);
+      outline-offset: 2px;
     }
 
-    .opportunity-row-card:focus-visible {
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
+    .job-card-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-4);
+      align-items: start;
     }
 
-    /* Score Column */
-    .card-score-col {
-      flex-shrink: 0;
-    }
-
-    .score-badge {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 44px;
-      height: 32px;
-      border-radius: var(--radius-xs);
-      font-size: 12px;
-      font-weight: 700;
-      border: 1px solid var(--border-default);
-      background-color: var(--bg-surface-2);
-      box-shadow: var(--surface-highlight-sm);
-    }
-
-    .score-badge[data-band="emerald"] {
-      border-color: var(--emerald-border);
-      background-color: var(--emerald-bg);
-      color: var(--emerald-400);
-    }
-    .score-badge[data-band="indigo"] {
-      border-color: var(--brand-border-subtle);
-      background-color: var(--brand-bg-subtle);
-      color: var(--brand-accent);
-    }
-    .score-badge[data-band="amber"] {
-      border-color: var(--amber-border);
-      background-color: var(--amber-bg);
-      color: var(--amber-400);
-    }
-    .score-badge[data-band="muted"] {
-      color: var(--text-tertiary);
-    }
-
-    /* Main Info Column */
-    .card-main-col {
-      flex: 1;
+    .job-primary-col {
       min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: var(--space-2);
     }
 
-    .card-title-row {
+    .job-title-header {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: var(--space-2);
-      flex-wrap: wrap;
     }
 
     .role-title {
       margin: 0;
-      font-size: 14px;
+      font-family: var(--font-display);
+      font-size: var(--text-md);
       font-weight: 600;
-      color: var(--text-primary);
-      letter-spacing: -0.015em;
+      letter-spacing: var(--tracking-snug);
+      color: var(--ink-primary);
       line-height: 1.35;
     }
 
-    .badges-row {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      flex-wrap: wrap;
-      max-width: 100%;
-    }
-
-    .card-company-row {
-      font-size: 12px;
-      color: var(--text-secondary);
+    .job-company-line {
       display: flex;
       align-items: center;
-      gap: 5px;
       flex-wrap: wrap;
+      gap: 6px;
+      font-size: var(--text-sm);
+      color: var(--ink-secondary);
     }
+
     .company-name {
-      font-weight: 500;
-      color: var(--text-primary);
-    }
-    .poster-tag {
-      background: var(--sky-bg);
-      border: 1px solid var(--sky-border);
-      color: var(--sky-400);
-      border-radius: var(--radius-xs);
-      padding: 1px 6px;
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 11px;
-    }
-    .poster-tag strong {
-      color: var(--text-primary);
-    }
-    .time-relative {
-      color: var(--text-tertiary);
+      font-weight: 600;
+      color: var(--ink-primary);
     }
 
-    /* Meta & Skills Row */
-    .card-meta-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      margin-top: 3px;
-      flex-wrap: wrap;
+    .meta-sep {
+      color: var(--ink-muted);
     }
 
-    .meta-tags-group {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-2);
-      font-size: 11px;
-    }
-
-    .meta-tag {
+    .meta-inline {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      color: var(--text-tertiary);
-    }
-    .meta-tag.workplace[data-workplace="REMOTE"] {
-      color: var(--brand-accent);
-      font-weight: 500;
+      color: var(--ink-secondary);
+      min-width: 0;
     }
 
     .location-text {
-      max-width: 160px;
+      max-width: 200px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    /* Skill Chips */
-    .skills-preview-group {
+    .time-relative {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
+    }
+
+    .poster-tag {
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background-color: var(--semantic-steel-soft);
+      border: 1px solid var(--semantic-steel-border);
+      color: var(--semantic-steel-text);
+      font-size: var(--text-xs);
+      font-weight: 500;
+    }
+
+    .signals-row {
+      display: flex;
+      align-items: center;
       flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .skills-preview-group {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding-top: 2px;
     }
 
     .skill-chip {
-      font-size: 10px;
       font-family: var(--font-mono);
+      font-size: 11px;
       font-weight: 500;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-subtle);
-      border-radius: 3px;
-      padding: 1px 6px;
-      color: var(--text-secondary);
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-xs);
+      padding: 2px 7px;
+      color: var(--ink-secondary);
     }
 
     .skill-chip.overflow {
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
       border-style: dashed;
     }
 
-    /* Actions Column */
-    .card-actions-col {
+    /* Right / Signal Column */
+    .job-signal-col {
       display: flex;
-      align-items: center;
-      gap: 4px;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--space-3);
       flex-shrink: 0;
     }
 
+    .card-actions-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .quick-action-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: var(--radius-xs);
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      color: var(--text-secondary);
+      min-width: 38px;
+      min-height: 38px;
+      border-radius: var(--radius-sm);
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular-sm);
+      color: var(--ink-secondary);
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       text-decoration: none;
-      transition: all var(--motion-fast);
-      outline: none;
+      transition:
+        background-color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring),
+        color var(--dur-fast) var(--ease-spring),
+        transform var(--dur-fast) var(--ease-spring);
     }
 
-    .quick-action-btn:hover {
-      background-color: var(--bg-surface-3);
-      color: var(--text-primary);
+    .quick-action-btn:hover:not(:disabled) {
+      background-color: var(--surface-elevated);
       border-color: var(--border-strong);
-      transform: scale(1.05);
+      color: var(--ink-primary);
     }
 
-    .quick-action-btn:active {
-      transform: scale(0.95);
+    .quick-action-btn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    .quick-action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .quick-action-btn.bookmark-btn.saved {
-      color: var(--emerald-400);
-      background-color: var(--emerald-bg);
-      border-color: var(--emerald-border);
+      color: var(--semantic-emerald-text);
+      background-color: var(--semantic-emerald-soft);
+      border-color: var(--semantic-emerald-border);
     }
 
     .quick-action-btn.apply-btn:hover {
-      color: var(--brand-accent);
+      color: var(--accent-copper-text);
+      border-color: var(--border-copper);
     }
 
     /* ==========================================================================
@@ -958,17 +1075,19 @@ import {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: var(--space-3);
+      flex-wrap: wrap;
       padding: var(--space-3) var(--space-4);
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-sm);
-      margin-top: var(--space-2);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular-sm);
+      border-radius: var(--radius-md);
+      margin-top: var(--space-1);
     }
 
     .pagination-info {
-      font-size: 12px;
-      color: var(--text-tertiary);
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
     }
 
     .pagination-buttons {
@@ -977,94 +1096,79 @@ import {
       gap: var(--space-2);
     }
 
-    .page-nav-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      height: 30px;
-      padding: 0 10px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-xs);
-      color: var(--text-secondary);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all var(--motion-fast);
-      outline: none;
-    }
-    .page-nav-btn:hover:not(:disabled) {
-      background-color: var(--bg-surface-3);
-      color: var(--text-primary);
-      border-color: var(--border-strong);
-    }
-    .page-nav-btn:active:not(:disabled) {
-      transform: scale(0.98);
-    }
-    .page-nav-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
     .page-indicator {
-      font-size: 12px;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--text-primary);
-      padding: 0 4px;
+      color: var(--ink-primary);
+      padding: 0 6px;
     }
 
-    @media (max-width: 768px) {
-      .radar-command-bar {
-        padding: var(--space-2-5) var(--space-3);
-      }
-      .command-row-top {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .segmented-control {
-        width: 100%;
-        flex-wrap: wrap;
-        gap: 4px;
-        overflow-x: visible;
-      }
-      .segment-tab-btn {
-        flex: 1 1 auto;
-        justify-content: center;
-        min-height: 36px;
-      }
-      .command-row-bottom {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .search-box-wrap {
-        min-width: 0;
-        width: 100%;
-      }
-      .filters-actions-wrap {
-        width: 100%;
-        justify-content: space-between;
-      }
-      .filter-select {
-        flex: 1;
-      }
-      .card-meta-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--space-1);
-      }
-      .card-actions-col {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-      }
-      .opportunity-row-card {
-        padding-right: 76px;
-      }
-    }
-
+    /* ==========================================================================
+       Mobile & Telegram Mini App Precision (<= 767px, 360x800)
+       ========================================================================== */
     @media (max-width: 767px) {
+      .feed-hero {
+        padding: var(--space-4);
+      }
+
       .radar-command-bar {
         position: static;
+        padding: var(--space-3);
+      }
+
+      .command-search-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .search-box-wrap {
+        flex: none;
+        width: 100%;
+      }
+
+      .search-input {
+        height: 44px;
+        font-size: var(--text-base);
+      }
+
+      .filters-select-group {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+      }
+
+      .filter-select {
+        height: 44px;
+        width: 100%;
+        min-width: 0;
+      }
+
+      .filter-pill {
+        min-height: 44px;
+        padding: 8px 14px;
+      }
+
+      .job-card-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-3);
+      }
+
+      .job-signal-col {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: var(--space-2-5);
+        border-top: 1px solid var(--border-hairline);
+      }
+
+      .quick-action-btn {
+        min-width: 44px;
+        min-height: 44px;
+      }
+
+      .location-text {
+        max-width: 140px;
       }
     }
   `],
@@ -1089,19 +1193,60 @@ export class JobsComponent implements OnInit {
   readonly limit = 20;
   readonly savingJobIds = signal<Set<number>>(new Set());
 
-  // Filter States
-  readonly selectedSegment = signal<string>(''); // '', 'EGYPT', 'REMOTE_GCC_ABROAD'
+  // Server-backed filter states
+  readonly selectedSegment = signal<string>('');
   readonly selectedSourceType = signal<'ALL' | 'SOCIAL' | 'BOARDS'>('ALL');
+  selectedTrack: JobTrack | '' = '';
   selectedWorkplace = '';
   selectedMinScore = '0';
   searchKeyword = '';
+
+  // Page-level filter & sort signals
+  readonly directContactOnly = signal<boolean>(false);
+  readonly statusFilter = signal<StatusFilter>('ALL');
+  readonly sortBy = signal<SortOption>('score');
 
   // Drawer state
   readonly isDrawerOpen = signal<boolean>(false);
   readonly selectedJob = signal<JobSummary | null>(null);
 
-  readonly totalPages = computed(() => {
-    return Math.ceil(this.total() / this.limit);
+  readonly totalPages = computed(() => Math.ceil(this.total() / this.limit));
+
+  readonly directContactOnPage = computed(
+    () => this.jobs().filter((j) => this.hasDirectContact(j)).length
+  );
+
+  readonly displayedJobs = computed<JobSummary[]>(() => {
+    let list = [...this.jobs()];
+
+    if (this.directContactOnly()) {
+      list = list.filter((j) => this.hasDirectContact(j));
+    }
+
+    const st = this.statusFilter();
+    if (st !== 'ALL') {
+      list = list.filter((j) => j.tracker_status === st);
+    }
+
+    const sortMode = this.sortBy();
+    if (sortMode === 'recent') {
+      list.sort((a, b) => {
+        const ta = new Date(a.published_at || a.first_seen_at).getTime();
+        const tb = new Date(b.published_at || b.first_seen_at).getTime();
+        return tb - ta;
+      });
+    } else if (sortMode === 'direct') {
+      list.sort((a, b) => {
+        const da = this.hasDirectContact(a) ? 1 : 0;
+        const db = this.hasDirectContact(b) ? 1 : 0;
+        if (db !== da) return db - da;
+        return b.match_score - a.match_score;
+      });
+    } else {
+      list.sort((a, b) => b.match_score - a.match_score);
+    }
+
+    return list;
   });
 
   // Global ⌘K / Ctrl+K search focus
@@ -1157,6 +1302,10 @@ export class JobsComponent implements OnInit {
       queryParams['segment'] = this.selectedSegment();
     }
 
+    if (this.selectedTrack) {
+      queryParams['track'] = this.selectedTrack;
+    }
+
     if (this.selectedSourceType() === 'SOCIAL') {
       queryParams['is_social_post'] = true;
     } else if (this.selectedSourceType() === 'BOARDS') {
@@ -1197,6 +1346,21 @@ export class JobsComponent implements OnInit {
     this.fetchJobs();
   }
 
+  toggleDirectContactFilter(): void {
+    this.telegram.haptic('selection');
+    this.directContactOnly.update((v) => !v);
+  }
+
+  toggleStatusFilter(target: 'SAVED' | 'APPLIED'): void {
+    this.telegram.haptic('selection');
+    this.statusFilter.update((cur) => (cur === target ? 'ALL' : target));
+  }
+
+  setSort(sort: SortOption): void {
+    this.telegram.haptic('selection');
+    this.sortBy.set(sort);
+  }
+
   applyFilters(): void {
     this.telegram.haptic('selection');
     this.currentPage.set(1);
@@ -1208,24 +1372,40 @@ export class JobsComponent implements OnInit {
     this.applyFilters();
   }
 
+  clearLocalPageFilters(): void {
+    this.telegram.haptic('selection');
+    this.directContactOnly.set(false);
+    this.statusFilter.set('ALL');
+  }
+
   resetFilters(): void {
     this.telegram.haptic('selection');
     this.selectedSegment.set('');
     this.selectedSourceType.set('ALL');
+    this.selectedTrack = '';
     this.selectedWorkplace = '';
     this.selectedMinScore = '0';
     this.searchKeyword = '';
+    this.directContactOnly.set(false);
+    this.statusFilter.set('ALL');
+    this.sortBy.set('score');
     this.currentPage.set(1);
     this.fetchJobs();
+  }
+
+  hasLocalPageFilter(): boolean {
+    return this.directContactOnly() || this.statusFilter() !== 'ALL';
   }
 
   hasActiveFilters(): boolean {
     return (
       this.selectedSegment() !== '' ||
       this.selectedSourceType() !== 'ALL' ||
+      this.selectedTrack !== '' ||
       this.selectedWorkplace !== '' ||
       this.selectedMinScore !== '0' ||
-      this.searchKeyword.trim() !== ''
+      this.searchKeyword.trim() !== '' ||
+      this.hasLocalPageFilter()
     );
   }
 
@@ -1294,7 +1474,6 @@ export class JobsComponent implements OnInit {
         },
         error: () => {
           this.clearSavingJobId(job.id);
-          // Rollback to explicit prior status
           this.jobs.update((list) =>
             list.map((j) => (j.id === job.id ? { ...j, tracker_status: prevStatus } : j))
           );
@@ -1327,15 +1506,14 @@ export class JobsComponent implements OnInit {
     return Boolean(job.direct_email || job.whatsapp_contact || job.apply_form_url);
   }
 
-  roundScore(score: number): number {
-    return Math.round(score);
+  getDirectContactLabel(job: JobSummary): string {
+    if (job.direct_email) return 'Direct Email';
+    if (job.whatsapp_contact) return 'WhatsApp Direct';
+    return 'Direct Contact';
   }
 
-  getScoreBand(score: number): 'emerald' | 'indigo' | 'amber' | 'muted' {
-    if (score >= 80) return 'emerald';
-    if (score >= 65) return 'indigo';
-    if (score >= 50) return 'amber';
-    return 'muted';
+  roundScore(score: number): number {
+    return Math.round(score);
   }
 
   formatWorkplace(w?: WorkplaceType): string {
@@ -1349,6 +1527,31 @@ export class JobsComponent implements OnInit {
       default:
         return 'Remote';
     }
+  }
+
+  formatTrackOrSegment(job: JobSummary): string {
+    switch (job.job_track) {
+      case 'FRONTEND_EGYPT':
+        return 'Egypt Frontend';
+      case 'FRONTEND_REMOTE_GCC':
+        return 'Remote GCC';
+      case 'WEB_ANGULAR':
+        return 'Web / Angular';
+      case 'FRONTEND_INTERN':
+        return 'Frontend Intern';
+      case 'NO_EXP_REMOTE':
+        return 'No-Exp Remote';
+      default:
+        return job.opportunity_segment === 'REMOTE_GCC_ABROAD'
+          ? 'Remote Abroad'
+          : job.opportunity_segment === 'EGYPT'
+            ? 'Egypt'
+            : 'Frontend';
+    }
+  }
+
+  formatStatus(status: ApplicationStatus): string {
+    return status.charAt(0) + status.slice(1).toLowerCase();
   }
 
   formatRelativeDate(dateStr?: string | null): string {

@@ -13,6 +13,9 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
   selector: 'ui-button',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class.is-full-width]': 'fullWidth()',
+  },
   template: `
     <button
       [type]="type()"
@@ -38,7 +41,13 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
       vertical-align: middle;
     }
 
+    :host(.is-full-width) {
+      display: flex;
+      width: 100%;
+    }
+
     .ui-btn {
+      width: 100%;
       position: relative;
       display: inline-flex;
       align-items: center;
@@ -203,6 +212,7 @@ export class UiButtonComponent {
   readonly size = input<ButtonSize>('md');
   readonly loading = input(false, { transform: booleanAttribute });
   readonly disabled = input(false, { transform: booleanAttribute });
+  readonly fullWidth = input(false, { transform: booleanAttribute });
   readonly type = input<'button' | 'submit' | 'reset'>('button');
   readonly ariaLabel = input<string | undefined>(undefined);
 

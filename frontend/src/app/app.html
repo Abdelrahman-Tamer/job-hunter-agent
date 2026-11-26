@@ -1,119 +1,128 @@
 <div class="app-shell" dir="ltr" [class.telegram-app]="telegram.isTelegram()">
-  <!-- Global Minimal Toast Notifications HUD -->
+  <!-- Global Toast Notifications HUD -->
   <aside class="toast-container" aria-live="polite" aria-label="System notifications">
-    <div
-      *ngFor="let toast of toastService.toasts()"
-      class="toast-pill"
-      [attr.data-type]="toast.type"
-      role="status"
-    >
-      <app-icon
-        [name]="toast.type === 'success' ? 'check-circle' : toast.type === 'error' ? 'alert-circle' : toast.type === 'warning' ? 'alert-circle' : 'info'"
-        [size]="14"
-        class="toast-glyph"
-      ></app-icon>
-      <span class="toast-message">{{ toast.message }}</span>
-      <button (click)="toastService.dismiss(toast.id)" class="toast-close-btn" aria-label="Dismiss notification">
-        <app-icon name="x" [size]="12"></app-icon>
-      </button>
-    </div>
+    @for (toast of toastService.toasts(); track toast.id) {
+      <div class="toast-pill" [attr.data-type]="toast.type" role="status">
+        <app-icon
+          [name]="toast.type === 'success' ? 'check-circle' : toast.type === 'error' ? 'alert-circle' : toast.type === 'warning' ? 'alert-circle' : 'info'"
+          [size]="14"
+          class="toast-glyph"
+        />
+        <span class="toast-message">{{ toast.message }}</span>
+        <button
+          type="button"
+          (click)="toastService.dismiss(toast.id)"
+          class="toast-close-btn"
+          aria-label="Dismiss notification"
+        >
+          <app-icon name="x" [size]="12" />
+        </button>
+      </div>
+    }
   </aside>
 
-  <!-- Desktop Fixed Sidebar Navigation (>= 768px) -->
-  <aside class="desktop-sidebar" role="navigation" aria-label="Main sidebar navigation">
+  <!-- Desktop Fixed Frosted Sidebar Navigation (>= 768px) -->
+  <aside class="desktop-sidebar" aria-label="Main sidebar navigation">
     <div class="sidebar-top">
       <a routerLink="/overview" class="brand-block" (click)="onTabClick()">
-        <div class="brand-glyph-box">
-          <app-icon name="radar" [size]="18" class="brand-radar"></app-icon>
-          <span class="live-dot" aria-hidden="true"></span>
-        </div>
+        <ui-brand-mark [size]="34" />
         <div class="brand-copy">
-          <span class="brand-title">Frontend Radar</span>
-          <span class="brand-subtitle">Autonomous Pipeline</span>
+          <span class="brand-title">Job Hunter</span>
+          <span class="brand-status-pill">
+            <span class="status-dot pulse" aria-hidden="true"></span>
+            <span>Studio Radar</span>
+          </span>
         </div>
       </a>
+
+      <nav class="sidebar-menu" aria-label="Primary workspace navigation">
+        @for (item of navItems; track item.path) {
+          <a
+            [routerLink]="item.path"
+            routerLinkActive="active"
+            (click)="onTabClick()"
+            class="sidebar-nav-link"
+          >
+            <div class="link-left">
+              <app-icon [name]="item.icon" [size]="15" class="link-icon" />
+              <span class="link-title">{{ item.label }}</span>
+            </div>
+            @if (item.shortcut) {
+              <span class="kbd-badge">{{ item.shortcut }}</span>
+            }
+          </a>
+        }
+      </nav>
     </div>
 
-    <nav class="sidebar-menu">
-      <div class="menu-section-label">PLATFORM</div>
-      <a
-        *ngFor="let item of navItems"
-        [routerLink]="item.path"
-        routerLinkActive="active"
-        (click)="onTabClick()"
-        class="sidebar-nav-link"
-      >
-        <div class="link-left">
-          <app-icon [name]="item.icon" [size]="15" class="link-icon"></app-icon>
-          <span class="link-title">{{ item.label }}</span>
-        </div>
-        <span class="kbd-badge" *ngIf="item.shortcut">{{ item.shortcut }}</span>
-      </a>
-    </nav>
-
     <div class="sidebar-bottom">
-      <!-- Sweep Trigger Action -->
-      <button
-        (click)="triggerQuickScan()"
+      <!-- Sweep Trigger CTA -->
+      <ui-button
+        variant="primary"
+        size="md"
+        [fullWidth]="true"
+        [loading]="isScanning()"
         [disabled]="isScanning()"
-        class="sidebar-action-btn sweep-btn"
-        title="Trigger immediate feed sweep"
-        aria-label="Sweep feeds"
+        ariaLabel="Sweep feeds"
+        (clicked)="triggerQuickScan()"
       >
-        <app-icon [name]="isScanning() ? 'refresh' : 'play'" [size]="13" [class.spin]="isScanning()"></app-icon>
+        <app-icon name="play" [size]="13" />
         <span>{{ isScanning() ? 'Sweeping...' : 'Sweep Feeds' }}</span>
-      </button>
+      </ui-button>
 
       <!-- Theme Toggle -->
       <button
+        type="button"
         (click)="toggleTheme()"
         class="sidebar-action-btn theme-btn"
-        [title]="theme.isDark() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+        [title]="theme.isDark() ? 'Switch to Daylight Pearl' : 'Switch to Studio Obsidian'"
         aria-label="Toggle theme"
       >
-        <app-icon [name]="theme.isDark() ? 'moon' : 'sun'" [size]="13"></app-icon>
-        <span>{{ theme.isDark() ? 'Dark Canvas' : 'Light Canvas' }}</span>
+        <app-icon [name]="theme.isDark() ? 'moon' : 'sun'" [size]="14" />
+        <span>{{ theme.isDark() ? 'Studio Obsidian' : 'Daylight Pearl' }}</span>
       </button>
 
-      <!-- System Status / Version Pill -->
+      <!-- System Telemetry Pill -->
       <div class="sidebar-status-card">
         <div class="status-row">
-          <span class="status-pulse-dot"></span>
-          <span class="status-label tabular-nums">Daily Radar • Cairo 09:00</span>
+          <span class="status-pulse-dot" aria-hidden="true"></span>
+          <span class="status-label tabular-nums">Cairo 09:00</span>
         </div>
         <span class="status-ver tabular-nums">v2.5</span>
       </div>
     </div>
   </aside>
 
-  <!-- Mobile Sticky Topbar (< 768px) -->
+  <!-- Mobile Sticky Frosted Topbar (< 768px) -->
   <header class="mobile-topbar" role="banner">
     <div class="mobile-topbar-inner">
       <a routerLink="/overview" class="mobile-brand" (click)="onTabClick()">
-        <div class="brand-glyph-box sm">
-          <app-icon name="radar" [size]="16" class="brand-radar"></app-icon>
-          <span class="live-dot" aria-hidden="true"></span>
+        <ui-brand-mark [size]="28" />
+        <div class="mobile-brand-copy">
+          <span class="mobile-brand-title">Job Hunter</span>
+          <span class="mobile-brand-tag">Studio Radar</span>
         </div>
-        <span class="mobile-brand-title">Frontend Radar</span>
       </a>
 
       <div class="mobile-actions">
         <button
+          type="button"
           (click)="triggerQuickScan()"
           [disabled]="isScanning()"
           class="mobile-tool-btn sweep"
           title="Sweep feeds"
           aria-label="Sweep feeds"
         >
-          <app-icon [name]="isScanning() ? 'refresh' : 'play'" [size]="14" [class.spin]="isScanning()"></app-icon>
+          <app-icon [name]="isScanning() ? 'refresh' : 'play'" [size]="15" [class.spin]="isScanning()" />
         </button>
         <button
+          type="button"
           (click)="toggleTheme()"
           class="mobile-tool-btn"
-          [title]="theme.isDark() ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+          [title]="theme.isDark() ? 'Switch to Daylight Pearl' : 'Switch to Studio Obsidian'"
           aria-label="Toggle theme"
         >
-          <app-icon [name]="theme.isDark() ? 'moon' : 'sun'" [size]="14"></app-icon>
+          <app-icon [name]="theme.isDark() ? 'moon' : 'sun'" [size]="15" />
         </button>
       </div>
     </div>
@@ -121,24 +130,25 @@
 
   <!-- Main View Content Area -->
   <main class="app-main-content" id="main-content" role="main">
-    <router-outlet></router-outlet>
+    <router-outlet />
   </main>
 
-  <!-- Mobile Bottom Navigation Dock (< 768px) -->
+  <!-- Mobile Floating Frosted-Glass Pill Dock (< 768px) -->
   <nav class="mobile-bottom-dock" aria-label="Mobile navigation">
     <div class="dock-container">
-      <a
-        *ngFor="let item of navItems"
-        [routerLink]="item.path"
-        routerLinkActive="active"
-        (click)="onTabClick()"
-        class="dock-link"
-      >
-        <div class="dock-icon-wrap">
-          <app-icon [name]="item.icon" [size]="18" class="dock-icon"></app-icon>
-        </div>
-        <span class="dock-text">{{ item.label }}</span>
-      </a>
+      @for (item of navItems; track item.path) {
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          (click)="onTabClick()"
+          class="dock-link"
+        >
+          <span class="dock-icon-wrap">
+            <app-icon [name]="item.icon" [size]="17" class="dock-icon" />
+          </span>
+          <span class="dock-text">{{ item.mobileLabel }}</span>
+        </a>
+      }
     </div>
   </nav>
 </div>

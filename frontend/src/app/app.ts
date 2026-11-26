@@ -1,16 +1,20 @@
 import { Component, DestroyRef, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { CommonModule } from '@angular/common';
 import { TelegramService } from './core/services/telegram.service';
 import { ThemeService } from './core/services/theme.service';
 import { ToastService } from './core/services/toast.service';
 import { ApiService } from './core/services/api.service';
 import { IconComponent, IconName } from './core/components/icon/icon.component';
+import {
+  UiBrandMarkComponent,
+  UiButtonComponent,
+} from './core/components/ui';
 
 interface NavItem {
   path: string;
   label: string;
+  mobileLabel: string;
   icon: IconName;
   shortcut: string;
 }
@@ -19,11 +23,12 @@ interface NavItem {
   selector: 'app-root',
   standalone: true,
   imports: [
-    CommonModule,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
     IconComponent,
+    UiBrandMarkComponent,
+    UiButtonComponent,
   ],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -39,11 +44,11 @@ export class App implements OnInit, OnDestroy {
   readonly isScanning = signal<boolean>(false);
 
   readonly navItems: NavItem[] = [
-    { path: '/overview', label: 'Overview', icon: 'layers', shortcut: 'G O' },
-    { path: '/jobs', label: 'Opportunities', icon: 'briefcase', shortcut: 'G J' },
-    { path: '/tracker', label: 'Tracker', icon: 'bookmark', shortcut: 'G T' },
-    { path: '/profile', label: 'Profile', icon: 'user', shortcut: 'G P' },
-    { path: '/settings', label: 'Settings', icon: 'settings', shortcut: 'G S' },
+    { path: '/overview', label: 'Overview', mobileLabel: 'Overview', icon: 'layers', shortcut: 'G O' },
+    { path: '/jobs', label: 'Opportunities', mobileLabel: 'Jobs', icon: 'briefcase', shortcut: 'G J' },
+    { path: '/tracker', label: 'Tracker', mobileLabel: 'Tracker', icon: 'bookmark', shortcut: 'G T' },
+    { path: '/profile', label: 'Profile', mobileLabel: 'Profile', icon: 'user', shortcut: 'G P' },
+    { path: '/settings', label: 'Settings', mobileLabel: 'Settings', icon: 'settings', shortcut: 'G S' },
   ];
 
   private focusListener?: () => void;
@@ -130,7 +135,6 @@ export class App implements OnInit, OnDestroy {
     const key = e.key.toLowerCase();
     const now = Date.now();
 
-    // Check if within 1.2s of pressing 'g'
     if (this.pendingSequence === 'g' && now - this.lastKeyTimestamp < 1200) {
       this.pendingSequence = null;
       const routes: Record<string, string> = {
@@ -161,7 +165,7 @@ export class App implements OnInit, OnDestroy {
     this.telegram.haptic('selection');
     this.theme.toggleTheme();
     this.toastService.show(
-      `Switched to ${this.theme.isDark() ? 'Dark Canvas' : 'Light Canvas'} mode`,
+      `Switched to ${this.theme.isDark() ? 'Studio Obsidian' : 'Daylight Pearl'}`,
       'info',
       2000
     );
