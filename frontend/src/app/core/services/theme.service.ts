@@ -41,11 +41,11 @@ export class ThemeService {
       const tg = window.Telegram.WebApp;
       try {
         if (theme === 'dark') {
-          tg.setHeaderColor?.('#111520');
-          tg.setBackgroundColor?.('#090c13');
+          tg.setHeaderColor?.('#0C0D10');
+          tg.setBackgroundColor?.('#0C0D10');
         } else {
-          tg.setHeaderColor?.('#f8fafc');
-          tg.setBackgroundColor?.('#f1f5f9');
+          tg.setHeaderColor?.('#F7F7F5');
+          tg.setBackgroundColor?.('#F7F7F5');
         }
       } catch {
         // Ignore in environments where Telegram WebApp bridge methods differ

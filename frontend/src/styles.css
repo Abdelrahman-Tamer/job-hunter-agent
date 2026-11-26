@@ -1,7 +1,333 @@
-@import "./tokens.css";
+/* =========================================================================
+   Studio Architectural Design System — Warm Copper Edition
+   Apple Craft × Framer Minimalism for Personal Developer Career Intelligence
+   ========================================================================= */
 
 /* =========================================================================
-   1. Universal Reset & Baseline
+   1. Dark Mode Tokens — Studio Obsidian (Default)
+   ========================================================================= */
+:root,
+[data-theme="dark"] {
+  /* Surfaces & Frosted Glass */
+  --surface-canvas: #0C0D10;
+  --surface-elevated: #14161B;
+  --surface-subtle: #1A1D24;
+  --surface-muted: #222630;
+  --surface-hover: rgba(255, 255, 255, 0.045);
+  --surface-active: rgba(255, 255, 255, 0.08);
+  --surface-glass: rgba(20, 22, 27, 0.78);
+  --surface-glass-strong: rgba(20, 22, 27, 0.90);
+  --blur-glass: blur(18px) saturate(150%);
+
+  /* Hairlines & Specular Edge Highlights */
+  --border-hairline: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-specular: inset 0 1px 0 0 rgba(255, 255, 255, 0.09);
+  --border-specular-sm: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.08);
+  --border-specular-hover: inset 0 1px 0 0 rgba(255, 255, 255, 0.14);
+  --border-copper: rgba(217, 93, 57, 0.28);
+
+  /* Ink Hierarchy */
+  --ink-primary: #F4F5F7;
+  --ink-secondary: #9CA3AF;
+  --ink-muted: #6B7280;
+  --ink-subtle: #525866;
+  --ink-inverse: #0C0D10;
+
+  /* Signature Accent — Warm Copper */
+  --accent-copper: #D95D39;
+  --accent-copper-hover: #C24E2D;
+  --accent-copper-active: #A94123;
+  --accent-copper-soft: rgba(217, 93, 57, 0.16);
+  --accent-copper-text: #EB7A57;
+  --accent-copper-focus: rgba(217, 93, 57, 0.36);
+
+  /* Semantic Palette (Strictly distinct from Warm Copper) */
+  --semantic-emerald: #10B981;
+  --semantic-emerald-text: #34D399;
+  --semantic-emerald-soft: rgba(16, 185, 129, 0.14);
+  --semantic-emerald-border: rgba(16, 185, 129, 0.28);
+
+  --semantic-amber: #F59E0B;
+  --semantic-amber-text: #FBBF24;
+  --semantic-amber-soft: rgba(245, 158, 11, 0.14);
+  --semantic-amber-border: rgba(245, 158, 11, 0.28);
+
+  --semantic-crimson: #F87171;
+  --semantic-crimson-text: #FCA5A5;
+  --semantic-crimson-soft: rgba(248, 113, 113, 0.14);
+  --semantic-crimson-border: rgba(248, 113, 113, 0.28);
+
+  --semantic-steel: #94A3B8;
+  --semantic-steel-text: #CBD5E1;
+  --semantic-steel-soft: rgba(148, 163, 184, 0.14);
+  --semantic-steel-border: rgba(148, 163, 184, 0.26);
+
+  /* Crisp Architectural Elevation Shadows (Dark) */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.58), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 20px 44px rgba(0, 0, 0, 0.72), 0 4px 12px rgba(0, 0, 0, 0.48);
+  --shadow-copper: 0 6px 20px rgba(217, 93, 57, 0.24), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-dock: 0 12px 36px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--border-hairline);
+
+  /* -----------------------------------------------------------------------
+     Legacy Token Aliases (Backwards-Compatible Mapping — Zero Breakage)
+     ----------------------------------------------------------------------- */
+  --bg-canvas: var(--surface-canvas);
+  --bg-surface-1: var(--surface-elevated);
+  --bg-surface-2: var(--surface-subtle);
+  --bg-surface-3: var(--surface-muted);
+  --bg-surface-hover: var(--surface-hover);
+  --bg-surface-active: var(--surface-active);
+  --bg-glass-1: var(--surface-glass);
+  --bg-glass-2: var(--surface-glass-strong);
+  --bg-dock: var(--surface-glass-strong);
+
+  --color-bg-canvas: var(--surface-canvas);
+  --color-bg-surface: var(--surface-elevated);
+  --color-bg-surface-1: var(--surface-elevated);
+  --color-bg-surface-2: var(--surface-subtle);
+  --color-bg-surface-elevated: var(--surface-subtle);
+  --color-bg-surface-muted: var(--surface-subtle);
+  --color-bg-surface-hover: var(--surface-hover);
+  --color-bg-glass: var(--surface-glass);
+
+  --border-subtle: var(--border-hairline);
+  --border-default: var(--border-hairline);
+  --border-focus: var(--accent-copper);
+  --color-border-subtle: var(--border-hairline);
+  --color-border-default: var(--border-hairline);
+  --color-border-hover: var(--border-strong);
+  --color-border-focus: var(--accent-copper);
+
+  --surface-highlight: var(--border-specular);
+  --surface-highlight-sm: var(--border-specular-sm);
+  --surface-highlight-hover: var(--border-specular-hover);
+
+  --text-primary: var(--ink-primary);
+  --text-secondary: var(--ink-secondary);
+  --text-tertiary: var(--ink-muted);
+  --text-muted: var(--ink-subtle);
+  --text-inverse: var(--ink-inverse);
+  --color-text-primary: var(--ink-primary);
+  --color-text-secondary: var(--ink-secondary);
+  --color-text-muted: var(--ink-muted);
+  --color-text-inverse: var(--ink-inverse);
+
+  --brand-primary: var(--accent-copper);
+  --brand-primary-hover: var(--accent-copper-hover);
+  --brand-primary-active: var(--accent-copper-active);
+  --brand-accent: var(--accent-copper-text);
+  --brand-bg-subtle: var(--accent-copper-soft);
+  --brand-border-subtle: var(--border-copper);
+  --brand-focus-ring: var(--accent-copper-focus);
+  --color-brand-primary: var(--accent-copper);
+  --color-brand-primary-hover: var(--accent-copper-hover);
+  --color-brand-accent: var(--accent-copper-text);
+  --color-brand-subtle: var(--accent-copper-soft);
+  --color-brand-border: var(--border-copper);
+
+  --emerald-500: var(--semantic-emerald);
+  --emerald-400: var(--semantic-emerald-text);
+  --emerald-bg: var(--semantic-emerald-soft);
+  --emerald-border: var(--semantic-emerald-border);
+  --color-success: var(--semantic-emerald);
+  --color-success-bg: var(--semantic-emerald-soft);
+  --color-success-text: var(--semantic-emerald-text);
+  --color-success-border: var(--semantic-emerald-border);
+
+  --amber-500: var(--semantic-amber);
+  --amber-400: var(--semantic-amber-text);
+  --amber-bg: var(--semantic-amber-soft);
+  --amber-border: var(--semantic-amber-border);
+  --color-warning: var(--semantic-amber);
+  --color-warning-bg: var(--semantic-amber-soft);
+  --color-warning-text: var(--semantic-amber-text);
+  --color-warning-border: var(--semantic-amber-border);
+
+  --rose-500: var(--semantic-crimson);
+  --rose-400: var(--semantic-crimson-text);
+  --rose-bg: var(--semantic-crimson-soft);
+  --rose-border: var(--semantic-crimson-border);
+  --color-error: var(--semantic-crimson);
+  --color-error-bg: var(--semantic-crimson-soft);
+  --color-error-text: var(--semantic-crimson-text);
+  --color-error-border: var(--semantic-crimson-border);
+  --color-danger: var(--semantic-crimson);
+
+  --sky-500: var(--semantic-steel);
+  --sky-400: var(--semantic-steel-text);
+  --sky-bg: var(--semantic-steel-soft);
+  --sky-border: var(--semantic-steel-border);
+  --color-info: var(--semantic-steel);
+  --color-info-bg: var(--semantic-steel-soft);
+  --color-info-text: var(--semantic-steel-text);
+  --color-info-border: var(--semantic-steel-border);
+
+  --cyan-500: var(--semantic-steel);
+  --cyan-400: var(--semantic-steel-text);
+  --cyan-bg: var(--semantic-steel-soft);
+  --cyan-border: var(--semantic-steel-border);
+
+  --shadow-glow-brand: var(--shadow-copper);
+  --shadow-glow-emerald: 0 0 20px rgba(16, 185, 129, 0.16);
+}
+
+/* =========================================================================
+   2. Light Mode Tokens — Daylight Pearl
+   ========================================================================= */
+[data-theme="light"] {
+  /* Surfaces & Frosted Glass */
+  --surface-canvas: #F7F7F5;
+  --surface-elevated: #FFFFFF;
+  --surface-subtle: #EFEFED;
+  --surface-muted: #E5E5E0;
+  --surface-hover: rgba(17, 19, 24, 0.04);
+  --surface-active: rgba(17, 19, 24, 0.075);
+  --surface-glass: rgba(255, 255, 255, 0.78);
+  --surface-glass-strong: rgba(255, 255, 255, 0.92);
+  --blur-glass: blur(18px) saturate(160%);
+
+  /* Architectural Hairlines & Specular Top Highlight */
+  --border-hairline: rgba(17, 19, 24, 0.08);
+  --border-strong: rgba(17, 19, 24, 0.15);
+  --border-specular: inset 0 1px 0 0 rgba(255, 255, 255, 0.92);
+  --border-specular-sm: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.9);
+  --border-specular-hover: inset 0 1px 0 0 rgba(255, 255, 255, 1);
+  --border-copper: rgba(217, 93, 57, 0.28);
+
+  /* Ink Hierarchy */
+  --ink-primary: #111318;
+  --ink-secondary: #525866;
+  --ink-muted: #7A8291;
+  --ink-subtle: #9AA1AE;
+  --ink-inverse: #FFFFFF;
+
+  /* Signature Accent — Warm Copper */
+  --accent-copper: #D95D39;
+  --accent-copper-hover: #C24E2D;
+  --accent-copper-active: #A94123;
+  --accent-copper-soft: rgba(217, 93, 57, 0.12);
+  --accent-copper-text: #B84524;
+  --accent-copper-focus: rgba(217, 93, 57, 0.30);
+
+  /* Semantic Palette */
+  --semantic-emerald: #0F9F6E;
+  --semantic-emerald-text: #0B7A54;
+  --semantic-emerald-soft: rgba(15, 159, 110, 0.11);
+  --semantic-emerald-border: rgba(15, 159, 110, 0.26);
+
+  --semantic-amber: #C27803;
+  --semantic-amber-text: #9A5B02;
+  --semantic-amber-soft: rgba(194, 120, 3, 0.11);
+  --semantic-amber-border: rgba(194, 120, 3, 0.26);
+
+  --semantic-crimson: #DC2626;
+  --semantic-crimson-text: #B91C1C;
+  --semantic-crimson-soft: rgba(220, 38, 38, 0.10);
+  --semantic-crimson-border: rgba(220, 38, 38, 0.25);
+
+  --semantic-steel: #475569;
+  --semantic-steel-text: #334155;
+  --semantic-steel-soft: rgba(71, 85, 105, 0.10);
+  --semantic-steel-border: rgba(71, 85, 105, 0.22);
+
+  /* Multi-Layered Soft Architectural Shadows (Light) */
+  --shadow-xs: 0 1px 2px rgba(17, 19, 24, 0.04);
+  --shadow-sm: 0 1px 3px rgba(17, 19, 24, 0.06), 0 1px 2px rgba(17, 19, 24, 0.03);
+  --shadow-md: 0 6px 18px rgba(17, 19, 24, 0.07), 0 2px 5px rgba(17, 19, 24, 0.04);
+  --shadow-lg: 0 18px 40px rgba(17, 19, 24, 0.10), 0 4px 10px rgba(17, 19, 24, 0.05);
+  --shadow-copper: 0 6px 18px rgba(217, 93, 57, 0.22), 0 1px 3px rgba(17, 19, 24, 0.08);
+  --shadow-dock: 0 10px 30px rgba(17, 19, 24, 0.09), 0 0 0 1px var(--border-hairline);
+
+  /* Legacy Aliases inherit automatically from :root semantic tokens;
+     explicitly refresh glow alias for Light */
+  --shadow-glow-emerald: 0 0 18px rgba(15, 159, 110, 0.14);
+}
+
+/* =========================================================================
+   3. Global Invariant Scales (Typography, Spacing, Radii, Motion, Layout)
+   ========================================================================= */
+:root {
+  /* Typography Families */
+  --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Letter-Spacing Tokens */
+  --tracking-tight: -0.03em;
+  --tracking-snug: -0.02em;
+  --tracking-normal: -0.005em;
+  --tracking-wide: 0.06em;
+
+  /* Fluid / Clamped Display & Heading Scale + Fixed UI Scale */
+  --text-display: clamp(1.625rem, 1.35rem + 1.1vw, 2.25rem);
+  --text-h1: clamp(1.375rem, 1.2rem + 0.7vw, 1.75rem);
+  --text-h2: clamp(1.125rem, 1.05rem + 0.35vw, 1.35rem);
+  --text-h3: clamp(0.95rem, 0.92rem + 0.2vw, 1.0625rem);
+
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  /* Spacing Scale */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-3-5: 14px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-full: 9999px;
+
+  /* Motion Curves & Durations (GPU-Composited) */
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --dur-fast: 150ms;
+  --dur-base: 240ms;
+  --dur-slow: 380ms;
+
+  /* Legacy Motion Aliases */
+  --ease-out-back: var(--ease-spring);
+  --duration-fast: var(--dur-fast);
+  --duration-base: var(--dur-base);
+  --duration-smooth: var(--dur-slow);
+
+  --motion-fast: var(--dur-fast) var(--ease-spring);
+  --motion-base: var(--dur-base) var(--ease-spring);
+  --motion-smooth: var(--dur-slow) var(--ease-spring);
+
+  /* Layout Constants */
+  --sidebar-width: 240px;
+  --header-height: 56px;
+  --bottom-dock-height: 64px;
+}
+
+/* =========================================================================
+   4. Universal Reset & Baseline
    ========================================================================= */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -31,15 +357,15 @@ body {
   overflow-y: visible;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--bg-canvas);
-  color: var(--text-primary);
+  background-color: var(--surface-canvas);
+  color: var(--ink-primary);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
   display: flex;
   flex-direction: column;
-  transition: background-color var(--motion-base), color var(--motion-base);
+  transition: background-color var(--dur-base) var(--ease-spring), color var(--dur-base) var(--ease-spring);
 }
 
 /* Telegram Mini App & WebApp Viewport Polish */
@@ -58,29 +384,48 @@ body.in-telegram {
 }
 
 /* =========================================================================
-   2. Typography & Text Hierarchy
+   5. Typography & Text Hierarchy
    ========================================================================= */
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-sans);
-  color: var(--text-primary);
+  font-family: var(--font-display);
+  color: var(--ink-primary);
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.025em;
+  line-height: 1.22;
+  letter-spacing: var(--tracking-snug);
 }
 
-h1 { font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.03em; }
-h2 { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.025em; }
-h3 { font-size: var(--text-lg); font-weight: 600; letter-spacing: -0.02em; }
-h4 { font-size: var(--text-md); font-weight: 600; letter-spacing: -0.015em; }
+h1 {
+  font-size: var(--text-h1);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+h2 {
+  font-size: var(--text-h2);
+  font-weight: 600;
+  letter-spacing: var(--tracking-snug);
+}
+
+h3 {
+  font-size: var(--text-h3);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+h4 {
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
 
 p {
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
   line-height: 1.55;
 }
 
 small {
   font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  color: var(--ink-muted);
 }
 
 code, kbd, samp, pre {
@@ -89,20 +434,25 @@ code, kbd, samp, pre {
 }
 
 /* =========================================================================
-   3. Accessible Focus Rings & Selection
+   6. Accessible Focus Rings, Selection & Caret
    ========================================================================= */
 :focus-visible {
-  outline: 2px solid var(--border-focus);
+  outline: 2px solid var(--accent-copper);
   outline-offset: 2px;
 }
 
 ::selection {
-  background-color: var(--brand-primary);
-  color: #ffffff;
+  background-color: var(--accent-copper);
+  color: #FFFFFF;
+}
+
+input,
+textarea {
+  caret-color: var(--accent-copper);
 }
 
 /* =========================================================================
-   4. Precision Custom Scrollbars
+   7. Precision Custom Scrollbars
    ========================================================================= */
 ::-webkit-scrollbar {
   width: 6px;
@@ -114,7 +464,7 @@ code, kbd, samp, pre {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-default);
+  background: var(--border-hairline);
   border-radius: var(--radius-full);
 }
 
@@ -122,24 +472,30 @@ code, kbd, samp, pre {
   background: var(--border-strong);
 }
 
-/* Custom Scrollbar Utility */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
+  background: var(--border-hairline);
   border-radius: var(--radius-full);
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--border-default);
+  background: var(--border-strong);
 }
 
 /* =========================================================================
-   5. Reusable Precision Cards & Surface Utilities
+   8. Reusable Typography, Surface & Motion Utilities
    ========================================================================= */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-tight);
 }
 
 .font-mono {
@@ -159,39 +515,43 @@ code, kbd, samp, pre {
   overflow: hidden;
 }
 
-/* Architectural Tactile Surface Card */
+/* Studio Architectural Surfaces */
 .surface-card,
 .card {
-  background-color: var(--bg-surface-1);
-  border: 1px solid var(--border-default);
-  box-shadow: var(--surface-highlight), var(--shadow-xs);
+  background-color: var(--surface-elevated);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--border-specular), var(--shadow-xs);
   border-radius: var(--radius-md);
-  transition: border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+  transition:
+    border-color var(--dur-fast) var(--ease-spring),
+    background-color var(--dur-fast) var(--ease-spring),
+    box-shadow var(--dur-fast) var(--ease-spring),
+    transform var(--dur-fast) var(--ease-spring);
 }
 
 .surface-card:hover,
 .card:hover {
   border-color: var(--border-strong);
-  box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
+  box-shadow: var(--border-specular-hover), var(--shadow-sm);
 }
 
 .glass-panel {
-  background-color: var(--bg-glass-1);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-default);
-  box-shadow: var(--surface-highlight-sm);
+  background-color: var(--surface-glass);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--border-specular-sm);
 }
 
-/* Live Status Pulse Dot */
+/* Live Status Dot */
 .status-dot,
 .status-pulse-dot {
   display: inline-block;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: var(--emerald-500);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  background-color: var(--semantic-emerald);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.48);
   position: relative;
   flex-shrink: 0;
 }
@@ -202,35 +562,76 @@ code, kbd, samp, pre {
   position: absolute;
   inset: -2px;
   border-radius: 50%;
-  border: 1px solid var(--emerald-500);
-  animation: pulse-ring 2.4s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+  border: 1px solid var(--semantic-emerald);
+  animation: pulse-ring 2.4s var(--ease-out-expo) infinite;
+}
+
+/* =========================================================================
+   9. Studio Motion Keyframes (GPU-Composited)
+   ========================================================================= */
+@keyframes studioFadeUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes studioShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes ringDraw {
+  from {
+    stroke-dashoffset: var(--ring-circumference, 44);
+  }
+  to {
+    stroke-dashoffset: var(--ring-offset, 0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse-ring {
-  0% { transform: scale(0.95); opacity: 0.8; }
+  0% { transform: scale(0.95); opacity: 0.75; }
   50% { transform: scale(1.6); opacity: 0; }
   100% { transform: scale(0.95); opacity: 0; }
 }
 
-/* Shimmer Skeleton Animation */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 
+.studio-fade-up {
+  animation: studioFadeUp var(--dur-base) var(--ease-spring) both;
+}
+
 .shimmer-active {
   background: linear-gradient(
     90deg,
-    var(--bg-surface-2) 25%,
-    var(--bg-surface-3) 50%,
-    var(--bg-surface-2) 75%
+    var(--surface-subtle) 25%,
+    var(--surface-muted) 50%,
+    var(--surface-subtle) 75%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.6s ease-in-out infinite;
+  animation: studioShimmer 1.6s ease-in-out infinite;
 }
 
 /* =========================================================================
-   6. Core Buttons Base & Tactile Micro-Interactions
+   10. Core Buttons Base & Tactile Micro-Interactions
    ========================================================================= */
 button {
   font-family: inherit;
@@ -249,7 +650,12 @@ button {
   font-weight: 500;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  transition: all var(--motion-fast);
+  transition:
+    background-color var(--dur-fast) var(--ease-spring),
+    border-color var(--dur-fast) var(--ease-spring),
+    color var(--dur-fast) var(--ease-spring),
+    box-shadow var(--dur-fast) var(--ease-spring),
+    transform var(--dur-fast) var(--ease-spring);
   text-decoration: none;
   user-select: none;
   white-space: nowrap;
@@ -257,53 +663,61 @@ button {
 }
 
 .btn:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.985);
 }
 
 .btn-primary {
-  background-color: var(--brand-primary);
-  color: #ffffff;
-  border-color: var(--brand-primary);
-  box-shadow: var(--surface-highlight-sm);
+  background-color: var(--accent-copper);
+  color: #FFFFFF;
+  border-color: var(--accent-copper);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), var(--shadow-xs);
+  font-weight: 600;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--brand-primary-hover);
-  border-color: var(--brand-primary-hover);
-  box-shadow: var(--shadow-glow-brand), var(--surface-highlight-sm);
+  background-color: var(--accent-copper-hover);
+  border-color: var(--accent-copper-hover);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), var(--shadow-copper);
+}
+
+.btn-primary:active:not(:disabled) {
+  background-color: var(--accent-copper-active);
+  border-color: var(--accent-copper-active);
 }
 
 .btn-secondary {
-  background-color: var(--bg-surface-2);
-  color: var(--text-primary);
-  border-color: var(--border-default);
-  box-shadow: var(--surface-highlight-sm);
+  background-color: var(--surface-glass);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  color: var(--ink-primary);
+  border-color: var(--border-hairline);
+  box-shadow: var(--border-specular-sm), var(--shadow-xs);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--bg-surface-3);
+  background-color: var(--surface-elevated);
   border-color: var(--border-strong);
 }
 
 .btn-ghost {
   background-color: transparent;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background-color: var(--bg-surface-hover);
-  color: var(--text-primary);
+  background-color: var(--surface-hover);
+  color: var(--ink-primary);
 }
 
 .btn-danger {
-  background-color: var(--rose-bg);
-  color: var(--rose-400);
-  border-color: var(--rose-border);
+  background-color: var(--semantic-crimson-soft);
+  color: var(--semantic-crimson-text);
+  border-color: var(--semantic-crimson-border);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: rgba(244, 63, 94, 0.2);
-  border-color: rgba(244, 63, 94, 0.4);
+  background-color: rgba(220, 38, 38, 0.2);
+  border-color: var(--semantic-crimson);
 }
 
 .btn-sm {
@@ -329,28 +743,31 @@ button {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
-  color: var(--text-tertiary);
-  background-color: var(--bg-surface-2);
-  border: 1px solid var(--border-default);
+  color: var(--ink-muted);
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-hairline);
   border-radius: var(--radius-xs);
-  box-shadow: var(--surface-highlight-sm);
+  box-shadow: var(--border-specular-sm);
   letter-spacing: 0.03em;
 }
 
 /* =========================================================================
-   7. Form Inputs & Select Controls
+   11. Form Inputs & Select Controls
    ========================================================================= */
 .form-input,
 .filter-select {
   font-family: inherit;
   font-size: var(--text-xs);
-  color: var(--text-primary);
-  background-color: var(--bg-surface-2);
-  border: 1px solid var(--border-default);
+  color: var(--ink-primary);
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-hairline);
   border-radius: var(--radius-sm);
   padding: 6px 10px;
   outline: none;
-  transition: border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
+  transition:
+    border-color var(--dur-fast) var(--ease-spring),
+    background-color var(--dur-fast) var(--ease-spring),
+    box-shadow var(--dur-fast) var(--ease-spring);
 }
 
 .form-input:hover,
@@ -360,9 +777,9 @@ button {
 
 .form-input:focus,
 .filter-select:focus {
-  border-color: var(--brand-primary);
-  box-shadow: 0 0 0 2px var(--brand-focus-ring);
-  background-color: var(--bg-surface-1);
+  border-color: var(--accent-copper);
+  box-shadow: 0 0 0 2px var(--accent-copper-focus);
+  background-color: var(--surface-elevated);
 }
 
 /* Inline Loading Spinner */
@@ -377,14 +794,8 @@ button {
   flex-shrink: 0;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* =========================================================================
-   8. Reduced Motion Safety Guardrail
+   12. Reduced Motion Safety Guardrail
    ========================================================================= */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -82,21 +82,21 @@
 }
 
 .toast-pill[data-type="success"] {
-  border-color: rgba(16, 185, 129, 0.35);
+  border-color: var(--semantic-emerald-border);
 }
 .toast-pill[data-type="success"] .toast-glyph {
   color: var(--emerald-400);
 }
 
 .toast-pill[data-type="error"] {
-  border-color: rgba(244, 63, 94, 0.35);
+  border-color: var(--semantic-crimson-border);
 }
 .toast-pill[data-type="error"] .toast-glyph {
   color: var(--rose-400);
 }
 
 .toast-pill[data-type="warning"] {
-  border-color: rgba(245, 158, 11, 0.35);
+  border-color: var(--semantic-amber-border);
 }
 .toast-pill[data-type="warning"] .toast-glyph {
   color: var(--amber-400);
@@ -351,8 +351,8 @@
   font-weight: 600;
 }
 .sidebar-action-btn.sweep-btn:hover {
-  background: rgba(99, 102, 241, 0.18);
-  border-color: var(--brand-primary);
+  background: var(--accent-copper-soft);
+  border-color: var(--accent-copper);
 }
 
 .sidebar-status-card {
