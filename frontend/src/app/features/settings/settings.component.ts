@@ -1,56 +1,234 @@
 import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
 import { ThemeService, ThemeMode } from '../../core/services/theme.service';
 import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
-import { UiBadgeComponent } from '../../shared/ui/ui-badge.component';
-import { UiButtonComponent } from '../../shared/ui/ui-button.component';
-import { CandidateProfile } from '../../core/models/job.model';
+import {
+  UiArchitecturalMotifComponent,
+  UiBadgeComponent,
+  UiButtonComponent,
+  UiCardComponent,
+} from '../../core/components/ui';
+import { CandidateProfile, SourceInfo } from '../../core/models/job.model';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, UiBadgeComponent, UiButtonComponent],
+  imports: [
+    FormsModule,
+    IconComponent,
+    UiArchitecturalMotifComponent,
+    UiBadgeComponent,
+    UiButtonComponent,
+    UiCardComponent,
+  ],
   template: `
     <div class="settings-view">
-      <!-- Header -->
-      <header class="settings-header">
-        <div>
-          <h1 class="page-title">Settings & System Controls</h1>
-          <p class="subtitle">Configure automated Telegram dispatches, matching thresholds, appearance, and security guardrails</p>
+      <!-- Architectural Header -->
+      <header class="settings-hero">
+        <ui-architectural-motif variant="header" />
+
+        <div class="hero-inner">
+          <div>
+            <h1 class="page-title">Settings &amp; Controls</h1>
+            <p class="subtitle">
+              Manage appearance, radar source adapters, Telegram digest thresholds, and database controls.
+            </p>
+          </div>
+          <ui-badge
+            [tone]="telegram.isTelegram() ? 'emerald' : 'glass'"
+            size="sm"
+            [dot]="true"
+          >
+            {{ telegram.isTelegram() ? 'Telegram Mini App Linked' : 'Web Studio Session' }}
+          </ui-badge>
         </div>
       </header>
 
-      <!-- Settings Stack -->
       <div class="settings-stack">
-        <!-- Section 1: Telegram Digest Preferences Card -->
-        <section class="surface-card settings-panel" aria-labelledby="delivery-title">
+        <!-- Section 1: Appearance & Visual System -->
+        <ui-card variant="elevated" padding="lg" aria-labelledby="theme-title">
           <div class="panel-header">
             <div class="panel-title-wrap">
-              <div class="panel-icon-box text-brand">
-                <app-icon name="bell" [size]="16"></app-icon>
+              <div class="panel-icon-box text-copper">
+                <app-icon name="sparkles" [size]="16" />
               </div>
               <div>
-                <h2 id="delivery-title" class="panel-title">Daily Telegram Dispatch</h2>
-                <p class="panel-desc">Autonomous morning briefings delivered to your verified Telegram chat</p>
+                <h2 id="theme-title" class="panel-title">Appearance &amp; Theme</h2>
+                <p class="panel-desc">Studio Obsidian &amp; Daylight Pearl surfaces stay synced with Telegram WebApp.</p>
               </div>
             </div>
-            <ui-badge [variant]="digestEnabled() ? 'success' : 'default'" [dot]="true">
+            <ui-badge tone="copper" size="sm" [dot]="true">
+              {{ theme.isDark() ? 'Studio Obsidian' : 'Daylight Pearl' }}
+            </ui-badge>
+          </div>
+
+          <div class="theme-grid">
+            <!-- Studio Obsidian Preview Card -->
+            <div
+              class="theme-card"
+              [class.active]="theme.isDark()"
+              (click)="selectTheme('dark')"
+              role="button"
+              tabindex="0"
+              [attr.aria-pressed]="theme.isDark()"
+              (keydown.enter)="selectTheme('dark')"
+              (keydown.space)="$event.preventDefault(); selectTheme('dark')"
+              aria-label="Select Studio Obsidian Dark Theme"
+            >
+              <div class="theme-card-top">
+                <div class="theme-icon-wrap dark-icon">
+                  <app-icon name="moon" [size]="16" />
+                </div>
+                <div class="theme-meta">
+                  <strong class="theme-name">Studio Obsidian</strong>
+                  <span class="theme-desc">Obsidian canvas with Warm Copper focal nodes</span>
+                </div>
+                <div class="theme-radio" [class.checked]="theme.isDark()">
+                  @if (theme.isDark()) {
+                    <app-icon name="check" [size]="11" />
+                  }
+                </div>
+              </div>
+
+              <div class="theme-preview dark-preview">
+                <div class="preview-bar">
+                  <span class="preview-dot dot-dark-bg"></span>
+                  <span class="preview-dot dot-dark-border"></span>
+                  <span class="preview-dot dot-copper"></span>
+                </div>
+                <div class="preview-chip dark-chip">#0C0D10 · Obsidian</div>
+              </div>
+            </div>
+
+            <!-- Daylight Pearl Preview Card -->
+            <div
+              class="theme-card"
+              [class.active]="!theme.isDark()"
+              (click)="selectTheme('light')"
+              role="button"
+              tabindex="0"
+              [attr.aria-pressed]="!theme.isDark()"
+              (keydown.enter)="selectTheme('light')"
+              (keydown.space)="$event.preventDefault(); selectTheme('light')"
+              aria-label="Select Daylight Pearl Light Theme"
+            >
+              <div class="theme-card-top">
+                <div class="theme-icon-wrap light-icon">
+                  <app-icon name="sun" [size]="16" />
+                </div>
+                <div class="theme-meta">
+                  <strong class="theme-name">Daylight Pearl</strong>
+                  <span class="theme-desc">Warm mineral canvas with crisp architectural hairlines</span>
+                </div>
+                <div class="theme-radio" [class.checked]="!theme.isDark()">
+                  @if (!theme.isDark()) {
+                    <app-icon name="check" [size]="11" />
+                  }
+                </div>
+              </div>
+
+              <div class="theme-preview light-preview">
+                <div class="preview-bar">
+                  <span class="preview-dot dot-light-bg"></span>
+                  <span class="preview-dot dot-light-border"></span>
+                  <span class="preview-dot dot-copper"></span>
+                </div>
+                <div class="preview-chip light-chip">#F7F7F5 · Pearl</div>
+              </div>
+            </div>
+          </div>
+        </ui-card>
+
+        <!-- Section 2: Radar Sources Health -->
+        <ui-card variant="elevated" padding="lg" aria-labelledby="sources-title">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <div class="panel-icon-box text-copper">
+                <app-icon name="database" [size]="16" />
+              </div>
+              <div>
+                <h2 id="sources-title" class="panel-title">Radar Sources &amp; Adapter Health</h2>
+                <p class="panel-desc">Active discovery pipelines across regional boards, LinkedIn surfaces, and global ATS feeds</p>
+              </div>
+            </div>
+
+            <div class="sources-header-actions">
+              <ui-badge tone="emerald" size="sm" [dot]="true" [mono]="true">
+                {{ enabledSourcesCount() }}/{{ sources().length }} Enabled
+              </ui-badge>
+              <ui-button
+                variant="secondary"
+                size="sm"
+                [loading]="isCheckingHealth()"
+                (clicked)="probeSourcesHealth()"
+              >
+                <app-icon name="activity" [size]="13" />
+                <span>{{ isCheckingHealth() ? 'Probing...' : 'Check Health' }}</span>
+              </ui-button>
+            </div>
+          </div>
+
+          <div class="sources-grid">
+            @for (src of sources(); track src.name) {
+              <div class="source-adapter-row">
+                <div class="source-row-left">
+                  <span class="source-dot" [class.enabled]="src.is_enabled" aria-hidden="true"></span>
+                  <div class="source-copy">
+                    <span class="source-name">{{ formatSourceName(src.name) }}</span>
+                    <span class="source-meta tabular-nums">
+                      {{ src.source_type }} · {{ src.rate_limit_per_min }}/min
+                      @if (src.last_sync_status) {
+                        <span>· {{ src.last_sync_status }}</span>
+                      }
+                    </span>
+                  </div>
+                </div>
+
+                <div class="source-row-badges">
+                  @if (healthMap()[src.name] !== undefined) {
+                    <ui-badge
+                      [tone]="healthMap()[src.name] ? 'emerald' : 'amber'"
+                      size="sm"
+                    >
+                      {{ healthMap()[src.name] ? 'Reachable' : 'Degraded' }}
+                    </ui-badge>
+                  }
+                  <ui-badge [tone]="src.is_enabled ? 'emerald' : 'neutral'" size="sm">
+                    {{ src.is_enabled ? 'Enabled' : 'Paused' }}
+                  </ui-badge>
+                </div>
+              </div>
+            }
+          </div>
+        </ui-card>
+
+        <!-- Section 3: Notification / Digest Thresholds & Telegram Sync -->
+        <ui-card variant="elevated" padding="lg" aria-labelledby="delivery-title">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <div class="panel-icon-box text-copper">
+                <app-icon name="bell" [size]="16" />
+              </div>
+              <div>
+                <h2 id="delivery-title" class="panel-title">Daily Telegram Dispatch &amp; Sync</h2>
+                <p class="panel-desc">Automated morning briefings and match score threshold configuration</p>
+              </div>
+            </div>
+            <ui-badge [tone]="digestEnabled() ? 'emerald' : 'neutral'" [dot]="true">
               {{ digestEnabled() ? 'Active Sweep' : 'Dispatch Paused' }}
             </ui-badge>
           </div>
 
           <div class="panel-body">
-            <!-- Setting: Digest Toggle -->
             <div class="setting-item">
               <div class="item-text">
                 <strong>Automated Morning Digest</strong>
-                <p>Receive a curated daily summary of high-affinity software engineering matches delivered straight to Telegram.</p>
+                <p>Receive a curated daily summary of high-affinity software engineering matches straight to Telegram.</p>
               </div>
               <div class="item-control">
                 <button
@@ -61,13 +239,12 @@ import { CandidateProfile } from '../../core/models/job.model';
                   [attr.aria-pressed]="digestEnabled()"
                   aria-label="Toggle automated daily digest"
                 >
-                  <app-icon [name]="digestEnabled() ? 'check' : 'clock'" [size]="13"></app-icon>
+                  <app-icon [name]="digestEnabled() ? 'check' : 'clock'" [size]="13" />
                   <span>{{ digestEnabled() ? 'Active' : 'Paused' }}</span>
                 </button>
               </div>
             </div>
 
-            <!-- Setting: Sweep Time -->
             <div class="setting-item">
               <div class="item-text">
                 <strong>Scheduled Sweep Time</strong>
@@ -86,11 +263,10 @@ import { CandidateProfile } from '../../core/models/job.model';
               </div>
             </div>
 
-            <!-- Setting: Match Threshold -->
             <div class="setting-item">
               <div class="item-text">
                 <strong>Minimum Match Score Threshold</strong>
-                <p>Only opportunities matching at or above this score are included in your morning digest.</p>
+                <p>Only opportunities matching at or above this threshold are included in your morning digest.</p>
               </div>
               <div class="item-control">
                 <div class="score-control-group">
@@ -109,239 +285,151 @@ import { CandidateProfile } from '../../core/models/job.model';
                 </div>
               </div>
             </div>
+
+            <div class="setting-item">
+              <div class="item-text">
+                <strong>Telegram WebApp Context</strong>
+                <p>
+                  @if (telegram.telegramUser(); as tgUser) {
+                    Connected as {{ tgUser.first_name }}@if (tgUser.username) { (&#64;{{ tgUser.username }}) } with native theme and haptic sync.
+                  } @else {
+                    Open via Telegram Mini App to activate native haptic feedback and seamless chat deep-links.
+                  }
+                </p>
+              </div>
+              <div class="item-control">
+                <ui-badge [tone]="telegram.isTelegram() ? 'emerald' : 'neutral'" size="sm">
+                  {{ telegram.isTelegram() ? 'Sync Active' : 'Standalone Browser' }}
+                </ui-badge>
+              </div>
+            </div>
           </div>
 
           <div class="panel-footer">
             <ui-button
-              [variant]="'primary'"
+              variant="primary"
+              size="md"
               [loading]="isSaving()"
               [disabled]="loadFailed() || isSaving()"
               (clicked)="saveSettings()"
             >
-              <app-icon name="check" [size]="14"></app-icon>
-              <span>{{ isSaving() ? 'Saving Preferences...' : 'Save Preferences' }}</span>
+              <app-icon name="check" [size]="14" />
+              <span>{{ isSaving() ? 'Saving...' : 'Save Preferences' }}</span>
             </ui-button>
           </div>
-        </section>
+        </ui-card>
 
-        <!-- Section 2: Appearance & Theme -->
-        <section class="surface-card settings-panel" aria-labelledby="theme-title">
-          <div class="panel-header">
-            <div class="panel-title-wrap">
-              <div class="panel-icon-box text-brand">
-                <app-icon name="sparkles" [size]="16"></app-icon>
-              </div>
-              <div>
-                <h2 id="theme-title" class="panel-title">Appearance & Visual System</h2>
-                <p class="panel-desc">Interface tokens adapt dynamically across both desktop and Telegram Mini App</p>
-              </div>
-            </div>
-            <ui-badge [variant]="'brand'" [dot]="true">
-              {{ theme.isDark() ? 'Dark Mode' : 'Light Mode' }}
-            </ui-badge>
-          </div>
-
-          <div class="panel-body">
-            <div class="theme-grid">
-              <!-- Dark Obsidian Card -->
-              <div
-                class="theme-card"
-                [class.active]="theme.isDark()"
-                (click)="selectTheme('dark')"
-                role="button"
-                tabindex="0"
-                [attr.aria-pressed]="theme.isDark()"
-                (keydown.enter)="selectTheme('dark')"
-                (keydown.space)="$event.preventDefault(); selectTheme('dark')"
-                aria-label="Select Dark Obsidian Theme"
-              >
-                <div class="theme-card-top">
-                  <div class="theme-icon-wrap dark-icon">
-                    <app-icon name="moon" [size]="16"></app-icon>
-                  </div>
-                  <div class="theme-meta">
-                    <strong class="theme-name">Dark Obsidian</strong>
-                    <span class="theme-desc">Obsidian canvas with crisp Indigo accent</span>
-                  </div>
-                  <div class="theme-radio" [class.checked]="theme.isDark()">
-                    <app-icon *ngIf="theme.isDark()" name="check" [size]="11"></app-icon>
-                  </div>
-                </div>
-
-                <div class="theme-preview dark-preview">
-                  <div class="preview-bar">
-                    <span class="preview-dot dot-dark-bg"></span>
-                    <span class="preview-dot dot-dark-border"></span>
-                    <span class="preview-dot dot-indigo-dark"></span>
-                  </div>
-                  <div class="preview-chip dark-chip">#09090B · Obsidian</div>
-                </div>
-              </div>
-
-              <!-- Light Titanium Card -->
-              <div
-                class="theme-card"
-                [class.active]="!theme.isDark()"
-                (click)="selectTheme('light')"
-                role="button"
-                tabindex="0"
-                [attr.aria-pressed]="!theme.isDark()"
-                (keydown.enter)="selectTheme('light')"
-                (keydown.space)="$event.preventDefault(); selectTheme('light')"
-                aria-label="Select Light Titanium Theme"
-              >
-                <div class="theme-card-top">
-                  <div class="theme-icon-wrap light-icon">
-                    <app-icon name="sun" [size]="16"></app-icon>
-                  </div>
-                  <div class="theme-meta">
-                    <strong class="theme-name">Light Titanium</strong>
-                    <span class="theme-desc">High-contrast clean silver & slate</span>
-                  </div>
-                  <div class="theme-radio" [class.checked]="!theme.isDark()">
-                    <app-icon *ngIf="!theme.isDark()" name="check" [size]="11"></app-icon>
-                  </div>
-                </div>
-
-                <div class="theme-preview light-preview">
-                  <div class="preview-bar">
-                    <span class="preview-dot dot-light-bg"></span>
-                    <span class="preview-dot dot-light-border"></span>
-                    <span class="preview-dot dot-indigo-light"></span>
-                  </div>
-                  <div class="preview-chip light-chip">#F8FAFC · Titanium</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Section 3: Privacy & Security Guardrails Card -->
-        <section class="surface-card settings-panel" aria-labelledby="privacy-title">
+        <!-- Section 4: Privacy & Security Guardrails -->
+        <ui-card variant="elevated" padding="lg" aria-labelledby="privacy-title">
           <div class="panel-header">
             <div class="panel-title-wrap">
               <div class="panel-icon-box text-emerald">
-                <app-icon name="shield-check" [size]="16"></app-icon>
+                <app-icon name="shield-check" [size]="16" />
               </div>
               <div>
-                <h2 id="privacy-title" class="panel-title">Privacy & Security Guardrails</h2>
-                <p class="panel-desc">Autonomous engine safety guarantees enforced at pipeline level</p>
+                <h2 id="privacy-title" class="panel-title">Privacy &amp; Security Guardrails</h2>
+                <p class="panel-desc">Safety guarantees enforced at pipeline level</p>
               </div>
             </div>
-            <ui-badge [variant]="'success'">Engine Enforced</ui-badge>
+            <ui-badge tone="emerald" size="sm">Engine Enforced</ui-badge>
           </div>
 
-          <div class="panel-body">
-            <div class="guardrail-grid">
-              <div class="guardrail-row">
-                <div class="guardrail-icon-box text-emerald">
-                  <app-icon name="check-circle" [size]="15"></app-icon>
-                </div>
-                <div class="guardrail-info">
-                  <strong>Zero Auto-Submission Guarantee</strong>
-                  <p>The agent never auto-submits job applications on your behalf without explicit manual review and deliberate confirmation.</p>
-                </div>
+          <div class="guardrail-grid">
+            <div class="guardrail-row">
+              <app-icon name="check-circle" [size]="15" class="text-emerald" />
+              <div class="guardrail-info">
+                <strong>Zero Auto-Submission Guarantee</strong>
+                <p>The agent never submits job applications automatically without your explicit action.</p>
               </div>
+            </div>
 
-              <div class="guardrail-row">
-                <div class="guardrail-icon-box text-emerald">
-                  <app-icon name="shield-check" [size]="15"></app-icon>
-                </div>
-                <div class="guardrail-info">
-                  <strong>Local PII Sanitization</strong>
-                  <p>CV files and personal contact identifiers are filtered and sanitized before parsing, keeping sensitive details private.</p>
-                </div>
-              </div>
-
-              <div class="guardrail-row">
-                <div class="guardrail-icon-box text-sky">
-                  <app-icon name="database" [size]="15"></app-icon>
-                </div>
-                <div class="guardrail-info">
-                  <strong>Direct ATS Ingestion & Anti-Hallucination</strong>
-                  <p>All job postings are crawled from verified employer ATS feeds (Greenhouse, Lever, RemoteOK, Arbeitnow) with deduplication.</p>
-                </div>
+            <div class="guardrail-row">
+              <app-icon name="shield-check" [size]="15" class="text-emerald" />
+              <div class="guardrail-info">
+                <strong>Local PII Sanitization</strong>
+                <p>Uploaded CV files and contact details are sanitized locally prior to skill extraction.</p>
               </div>
             </div>
           </div>
-        </section>
+        </ui-card>
 
-        <!-- Section 4: Danger Zone Card -->
-        <section class="surface-card settings-panel danger-panel" aria-labelledby="danger-title">
+        <!-- Section 5: Danger Zone -->
+        <ui-card variant="elevated" padding="lg" class="danger-panel" aria-labelledby="danger-title">
           <div class="panel-header danger-header">
             <div class="panel-title-wrap">
-              <div class="panel-icon-box danger-icon-box text-rose">
-                <app-icon name="alert-circle" [size]="16"></app-icon>
+              <div class="panel-icon-box danger-icon-box text-crimson">
+                <app-icon name="alert-circle" [size]="16" />
               </div>
               <div>
-                <h2 id="danger-title" class="panel-title text-rose">Danger Zone</h2>
+                <h2 id="danger-title" class="panel-title text-crimson">Danger Zone</h2>
                 <p class="panel-desc">Irreversible database purge and candidate profile re-initialization</p>
               </div>
             </div>
-            <ui-badge [variant]="'danger'">Irreversible</ui-badge>
+            <ui-badge tone="crimson" size="sm">Irreversible</ui-badge>
           </div>
 
-          <div class="panel-body">
-            <div class="danger-box">
-              <div class="danger-info">
-                <strong>Wipe Database & Reset Profile</strong>
-                <p>Permanently purges all scraped jobs, application tracker stages, interview notes, and notification records. Re-initializes profile from verified CV facts.</p>
+          <div class="danger-box">
+            <div class="danger-info">
+              <strong>Wipe Database &amp; Reset Profile</strong>
+              <p>Permanently purges all scraped jobs, tracker stages, notes, and notification logs.</p>
+            </div>
+
+            <div class="danger-action-flow">
+              <div class="admin-key-group">
+                <label for="adminKeyInput" class="admin-label">
+                  <app-icon name="lock" [size]="12" />
+                  <span>Admin Secret Key (X-Admin-Key)</span>
+                </label>
+                <input
+                  id="adminKeyInput"
+                  type="password"
+                  [(ngModel)]="adminKey"
+                  class="form-input admin-input"
+                  placeholder="Enter SECRET_KEY..."
+                  autocomplete="off"
+                />
               </div>
 
-              <div class="danger-action-flow">
-                <div class="admin-key-group">
-                  <label for="adminKeyInput" class="admin-label">
-                    <app-icon name="lock" [size]="12"></app-icon>
-                    <span>Admin Secret Key (X-Admin-Key)</span>
-                  </label>
-                  <input
-                    id="adminKeyInput"
-                    type="password"
-                    [(ngModel)]="adminKey"
-                    class="form-input admin-input"
-                    placeholder="Enter SECRET_KEY..."
-                    autocomplete="off"
-                  />
-                </div>
-
-                @if (!showWipeConfirm()) {
-                  <ui-button
-                    [variant]="'danger'"
-                    [disabled]="!adminKey.trim() || isWiping()"
-                    (clicked)="requestWipe()"
-                  >
-                    <app-icon name="trash" [size]="14"></app-icon>
-                    <span>Wipe Database & Reset</span>
-                  </ui-button>
-                } @else {
-                  <div class="confirm-box">
-                    <div class="confirm-warning">
-                      <app-icon name="alert-circle" [size]="14" class="text-rose"></app-icon>
-                      <span>Are you absolutely sure? All tracked jobs and logs will be permanently deleted.</span>
-                    </div>
-                    <div class="confirm-actions">
-                      <ui-button
-                        [variant]="'danger'"
-                        [loading]="isWiping()"
-                        (clicked)="executeWipe()"
-                      >
-                        <app-icon name="trash" [size]="14"></app-icon>
-                        <span>Yes, Permanently Wipe</span>
-                      </ui-button>
-                      <ui-button
-                        [variant]="'ghost'"
-                        [disabled]="isWiping()"
-                        (clicked)="cancelWipe()"
-                      >
-                        <span>Cancel</span>
-                      </ui-button>
-                    </div>
+              @if (!showWipeConfirm()) {
+                <ui-button
+                  variant="danger"
+                  size="md"
+                  [disabled]="!adminKey.trim() || isWiping()"
+                  (clicked)="requestWipe()"
+                >
+                  <app-icon name="trash" [size]="14" />
+                  <span>Wipe Database &amp; Reset</span>
+                </ui-button>
+              } @else {
+                <div class="confirm-box">
+                  <div class="confirm-warning">
+                    <app-icon name="alert-circle" [size]="14" class="text-crimson" />
+                    <span>Are you sure? All tracked jobs and logs will be permanently deleted.</span>
                   </div>
-                }
-              </div>
+                  <div class="confirm-actions">
+                    <ui-button
+                      variant="danger"
+                      size="md"
+                      [loading]="isWiping()"
+                      (clicked)="executeWipe()"
+                    >
+                      <app-icon name="trash" [size]="14" />
+                      <span>Yes, Permanently Wipe</span>
+                    </ui-button>
+                    <ui-button
+                      variant="ghost"
+                      size="md"
+                      [disabled]="isWiping()"
+                      (clicked)="cancelWipe()"
+                    >
+                      <span>Cancel</span>
+                    </ui-button>
+                  </div>
+                </div>
+              }
             </div>
           </div>
-        </section>
+        </ui-card>
       </div>
     </div>
   `,
@@ -356,26 +444,46 @@ import { CandidateProfile } from '../../core/models/job.model';
       flex-direction: column;
       gap: var(--space-4);
       width: 100%;
-      max-width: 1000px;
+      max-width: 1040px;
       margin: 0 auto;
       min-width: 0;
     }
 
-    .settings-header {
-      margin-bottom: var(--space-1);
+    /* Architectural Hero */
+    .settings-hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular), var(--shadow-sm);
+      padding: var(--space-5) var(--space-6);
     }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
     .page-title {
-      font-size: var(--text-2xl);
+      font-family: var(--font-display);
+      font-size: var(--text-h1);
       font-weight: 700;
-      letter-spacing: -0.03em;
-      color: var(--text-primary);
+      letter-spacing: var(--tracking-tight);
+      color: var(--ink-primary);
       margin: 0 0 4px 0;
     }
+
     .subtitle {
       font-size: var(--text-sm);
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
       margin: 0;
-      line-height: 1.45;
+      line-height: 1.5;
     }
 
     .settings-stack {
@@ -385,58 +493,277 @@ import { CandidateProfile } from '../../core/models/job.model';
       width: 100%;
     }
 
-    .settings-panel {
-      padding: var(--space-5);
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-default);
-      background: var(--bg-surface-1);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
-    }
-
     .panel-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-3);
       padding-bottom: var(--space-3-5);
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-hairline);
       flex-wrap: wrap;
     }
+
     .panel-title-wrap {
       display: flex;
       align-items: center;
       gap: var(--space-3);
       min-width: 0;
     }
+
     .panel-icon-box {
-      width: 34px;
-      height: 34px;
+      width: 36px;
+      height: 36px;
       border-radius: var(--radius-sm);
-      background: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular-sm);
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
     }
+
     .panel-title {
-      font-size: var(--text-sm);
+      font-family: var(--font-display);
+      font-size: var(--text-md);
       font-weight: 600;
-      letter-spacing: -0.015em;
-      color: var(--text-primary);
+      letter-spacing: var(--tracking-snug);
+      color: var(--ink-primary);
       margin: 0 0 2px 0;
     }
+
     .panel-desc {
       font-size: var(--text-xs);
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
       margin: 0;
       line-height: 1.4;
     }
 
     .panel-body {
       padding-top: var(--space-2);
+    }
+
+    /* Theme Grid */
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+
+    .theme-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular-sm);
+      cursor: pointer;
+      transition:
+        border-color var(--dur-fast) var(--ease-spring),
+        background-color var(--dur-fast) var(--ease-spring),
+        box-shadow var(--dur-fast) var(--ease-spring);
+      user-select: none;
+    }
+
+    .theme-card:hover {
+      border-color: var(--border-strong);
+      background: var(--surface-muted);
+    }
+
+    .theme-card.active {
+      border-color: var(--border-copper);
+      background: var(--accent-copper-soft);
+    }
+
+    .theme-card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+    }
+
+    .theme-icon-wrap {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .dark-icon {
+      background: #0C0D10;
+      color: #D95D39;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .light-icon {
+      background: #FFFFFF;
+      color: #D95D39;
+      border: 1px solid rgba(17, 19, 24, 0.12);
+    }
+
+    .theme-meta {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .theme-name {
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--ink-primary);
+    }
+
+    .theme-desc {
+      font-size: var(--text-xs);
+      color: var(--ink-secondary);
+      line-height: 1.4;
+    }
+
+    .theme-radio {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid var(--border-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #FFFFFF;
+      background: var(--surface-elevated);
+    }
+
+    .theme-radio.checked {
+      background: var(--accent-copper);
+      border-color: var(--accent-copper);
+    }
+
+    .theme-preview {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-2) var(--space-2-5);
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border-hairline);
+    }
+
+    .dark-preview {
+      background: #0C0D10;
+      border-color: rgba(255, 255, 255, 0.09);
+    }
+
+    .light-preview {
+      background: #F7F7F5;
+      border-color: rgba(17, 19, 24, 0.08);
+    }
+
+    .preview-bar {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .preview-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .dot-dark-bg { background: #14161B; border: 1px solid rgba(255, 255, 255, 0.14); }
+    .dot-dark-border { background: #2D323E; }
+    .dot-light-bg { background: #FFFFFF; border: 1px solid rgba(17, 19, 24, 0.12); }
+    .dot-light-border { background: #D1D5DB; }
+    .dot-copper { background: #D95D39; }
+
+    .preview-chip {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .dark-chip { color: #9CA3AF; }
+    .light-chip { color: #525866; }
+
+    /* Radar Sources Grid */
+    .sources-header-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .sources-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-2);
+      margin-top: var(--space-4);
+    }
+
+    .source-adapter-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-2-5) var(--space-3);
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      min-width: 0;
+    }
+
+    .source-row-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .source-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--ink-muted);
+      flex-shrink: 0;
+    }
+
+    .source-dot.enabled {
+      background-color: var(--semantic-emerald);
+    }
+
+    .source-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
+    }
+
+    .source-name {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--ink-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .source-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-muted);
+    }
+
+    .source-row-badges {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
     }
 
     /* Setting Items */
@@ -446,8 +773,9 @@ import { CandidateProfile } from '../../core/models/job.model';
       justify-content: space-between;
       gap: var(--space-4);
       padding: var(--space-4) 0;
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-hairline);
     }
+
     .setting-item:last-of-type {
       border-bottom: none;
     }
@@ -458,14 +786,16 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: 3px;
       max-width: 600px;
     }
+
     .item-text strong {
       font-size: var(--text-sm);
-      color: var(--text-primary);
+      color: var(--ink-primary);
       font-weight: 600;
     }
+
     .item-text p {
       font-size: var(--text-xs);
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
       margin: 0;
       line-height: 1.45;
     }
@@ -480,26 +810,20 @@ import { CandidateProfile } from '../../core/models/job.model';
       font-size: var(--text-xs);
       font-weight: 600;
       border-radius: var(--radius-sm);
-      border: 1px solid var(--border-default);
-      background: var(--bg-surface-2);
-      box-shadow: var(--surface-highlight-sm);
-      color: var(--text-secondary);
+      border: 1px solid var(--border-hairline);
+      background: var(--surface-subtle);
+      color: var(--ink-secondary);
       cursor: pointer;
-      transition: all var(--motion-fast);
-      user-select: none;
+      transition:
+        background-color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring),
+        color var(--dur-fast) var(--ease-spring);
     }
-    .toggle-switch-btn:hover {
-      border-color: var(--border-strong);
-      background: var(--bg-surface-3);
-      color: var(--text-primary);
-    }
-    .toggle-switch-btn:active {
-      transform: scale(0.98);
-    }
+
     .toggle-switch-btn.active {
-      background: var(--emerald-bg);
-      border-color: var(--emerald-border);
-      color: var(--emerald-400);
+      background: var(--semantic-emerald-soft);
+      border-color: var(--semantic-emerald-border);
+      color: var(--semantic-emerald-text);
     }
 
     .time-control-group {
@@ -508,32 +832,22 @@ import { CandidateProfile } from '../../core/models/job.model';
       gap: var(--space-2);
       flex-wrap: wrap;
     }
+
     .time-input {
-      width: 112px;
-      min-height: 36px;
+      width: 118px;
+      min-height: 38px;
       text-align: center;
+      font-family: var(--font-mono);
       font-size: var(--text-xs);
       font-weight: 600;
-      padding: 6px 10px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-default);
-      background: var(--bg-surface-2);
-      color: var(--text-primary);
-      transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
     }
-    .time-input:focus {
-      outline: none;
-      border-color: var(--brand-primary);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
-      background: var(--bg-surface-1);
-    }
+
     .tz-pill {
       font-size: 11px;
       font-family: var(--font-mono);
-      color: var(--text-secondary);
-      background: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
+      color: var(--ink-secondary);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
       padding: 6px 10px;
       border-radius: var(--radius-xs);
       white-space: nowrap;
@@ -544,320 +858,185 @@ import { CandidateProfile } from '../../core/models/job.model';
       align-items: center;
       gap: var(--space-3);
     }
+
     .score-range {
       -webkit-appearance: none;
       appearance: none;
       width: 140px;
       height: 6px;
       border-radius: var(--radius-full);
-      background: var(--bg-surface-3);
-      border: 1px solid var(--border-default);
+      background: var(--surface-muted);
+      border: 1px solid var(--border-hairline);
       cursor: pointer;
     }
+
     .score-range::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
-      background: var(--brand-primary);
-      border: 2px solid #ffffff;
+      background: var(--accent-copper);
+      border: 2px solid #FFFFFF;
       box-shadow: var(--shadow-xs);
       cursor: pointer;
-      transition: transform var(--motion-fast), background-color var(--motion-fast);
     }
-    .score-range::-webkit-slider-thumb:hover {
-      background: var(--brand-primary-hover);
-      transform: scale(1.1);
-    }
+
     .score-range::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
-      background: var(--brand-primary);
-      border: 2px solid #ffffff;
+      background: var(--accent-copper);
+      border: 2px solid #FFFFFF;
       box-shadow: var(--shadow-xs);
       cursor: pointer;
-      transition: transform var(--motion-fast), background-color var(--motion-fast);
     }
+
     .score-badge-wrap {
       display: flex;
       align-items: center;
       justify-content: center;
       min-width: 52px;
-      padding: 5px 9px;
-      background: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
+      padding: 6px 10px;
+      background: var(--accent-copper-soft);
+      border: 1px solid var(--border-copper);
       border-radius: var(--radius-xs);
       font-family: var(--font-mono);
       font-size: var(--text-xs);
       font-weight: 700;
-      color: var(--brand-accent);
+      color: var(--accent-copper-text);
     }
 
     .panel-footer {
       display: flex;
       justify-content: flex-end;
       padding-top: var(--space-4);
-      margin-top: var(--space-1);
-      border-top: 1px solid var(--border-subtle);
-    }
-
-    /* Theme Grid */
-    .theme-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: var(--space-3);
       margin-top: var(--space-2);
+      border-top: 1px solid var(--border-hairline);
     }
-    .theme-card {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-      padding: var(--space-4);
-      border-radius: var(--radius-sm);
-      background: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      cursor: pointer;
-      transition: all var(--motion-fast);
-      user-select: none;
-    }
-    .theme-card:hover {
-      border-color: var(--border-strong);
-      background: var(--bg-surface-3);
-      box-shadow: var(--surface-highlight-hover), var(--shadow-xs);
-    }
-    .theme-card:active {
-      transform: scale(0.99);
-    }
-    .theme-card.active {
-      border-color: var(--brand-primary);
-      background: var(--brand-bg-subtle);
-      box-shadow: inset 0 0 0 1px var(--brand-border-subtle), var(--surface-highlight-sm);
-    }
-    .theme-card-top {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--space-3);
-    }
-    .theme-icon-wrap {
-      width: 34px;
-      height: 34px;
-      border-radius: var(--radius-sm);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .dark-icon {
-      background: #09090b;
-      color: #818cf8;
-      border: 1px solid #27272a;
-      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
-    }
-    .light-icon {
-      background: #ffffff;
-      color: #4f46e5;
-      border: 1px solid #cbd5e1;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-    }
-    .theme-meta {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-    }
-    .theme-name {
-      font-size: var(--text-sm);
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    .theme-desc {
-      font-size: var(--text-xs);
-      color: var(--text-secondary);
-      line-height: 1.35;
-    }
-    .theme-radio {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      border: 1px solid var(--border-strong);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      color: #ffffff;
-      background: var(--bg-surface-1);
-      transition: all var(--motion-fast);
-    }
-    .theme-radio.checked {
-      background: var(--brand-primary);
-      border-color: var(--brand-primary);
-    }
-    .theme-preview {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--space-2) var(--space-2-5);
-      border-radius: var(--radius-xs);
-      border: 1px solid var(--border-default);
-    }
-    .dark-preview {
-      background: #09090b;
-      border-color: rgba(255, 255, 255, 0.1);
-    }
-    .light-preview {
-      background: #f8fafc;
-      border-color: rgba(15, 23, 42, 0.12);
-    }
-    .preview-bar {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .preview-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
-    .dot-dark-bg { background: #16161a; border: 1px solid rgba(255,255,255,0.12); }
-    .dot-dark-border { background: #2e2e36; }
-    .dot-indigo-dark { background: #6366f1; }
-    .dot-light-bg { background: #e2e8f0; border: 1px solid rgba(15,23,42,0.1); }
-    .dot-light-border { background: #94a3b8; }
-    .dot-indigo-light { background: #4f46e5; }
-    .preview-chip {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 500;
-    }
-    .dark-chip { color: #a1a1aa; }
-    .light-chip { color: #475569; }
 
-    /* Guardrail Grid */
+    /* Guardrails */
     .guardrail-grid {
       display: flex;
       flex-direction: column;
       gap: var(--space-2-5);
-      margin-top: var(--space-2);
+      margin-top: var(--space-4);
     }
+
     .guardrail-row {
       display: flex;
       align-items: flex-start;
       gap: var(--space-3);
-      padding: var(--space-3) var(--space-3-5);
-      background: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
+      padding: var(--space-3);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
       border-radius: var(--radius-sm);
     }
-    .guardrail-icon-box {
-      margin-top: 2px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
+
     .guardrail-info strong {
       font-size: var(--text-xs);
-      color: var(--text-primary);
+      color: var(--ink-primary);
       font-weight: 600;
       display: block;
       margin-bottom: 2px;
     }
+
     .guardrail-info p {
       font-size: var(--text-xs);
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
       margin: 0;
       line-height: 1.45;
     }
 
     /* Danger Zone */
     .danger-panel {
-      border-color: var(--rose-border);
-      background: linear-gradient(180deg, rgba(244, 63, 94, 0.04) 0%, var(--bg-surface-1) 50%);
-      box-shadow: inset 0 1px 0 0 rgba(244, 63, 94, 0.16), var(--shadow-xs);
+      display: block;
+      border-color: var(--semantic-crimson-border);
     }
-    .danger-panel:hover {
-      border-color: rgba(244, 63, 94, 0.45);
-      box-shadow: inset 0 1px 0 0 rgba(244, 63, 94, 0.24), var(--shadow-sm);
-    }
+
     .danger-header {
-      border-bottom-color: rgba(244, 63, 94, 0.16);
+      border-bottom-color: var(--semantic-crimson-border);
     }
+
     .danger-icon-box {
-      border-color: var(--rose-border);
-      background: var(--rose-bg);
+      border-color: var(--semantic-crimson-border);
+      background: var(--semantic-crimson-soft);
     }
+
     .danger-box {
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
-      padding-top: var(--space-2);
+      gap: var(--space-3-5);
+      padding-top: var(--space-4);
     }
+
     .danger-info strong {
       font-size: var(--text-sm);
-      color: var(--text-primary);
+      color: var(--ink-primary);
       font-weight: 600;
       display: block;
       margin-bottom: 3px;
     }
+
     .danger-info p {
       font-size: var(--text-xs);
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
       margin: 0;
       line-height: 1.45;
     }
+
     .danger-action-flow {
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
       padding: var(--space-3-5);
-      background: var(--bg-surface-2);
-      border: 1px solid var(--rose-border);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      border: 1px solid var(--semantic-crimson-border);
+      border-radius: var(--radius-md);
     }
+
     .admin-key-group {
       display: flex;
       flex-direction: column;
       gap: var(--space-1-5);
     }
+
     .admin-label {
       display: inline-flex;
       align-items: center;
       gap: var(--space-1-5);
       font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
     }
+
     .admin-input {
-      min-height: 36px;
+      min-height: 38px;
       font-family: var(--font-mono);
       font-size: var(--text-xs);
       letter-spacing: 0.04em;
     }
+
     .confirm-box {
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
       padding: var(--space-3);
-      background: var(--rose-bg);
-      border: 1px solid var(--rose-border);
-      border-radius: var(--radius-xs);
+      background: var(--semantic-crimson-soft);
+      border: 1px solid var(--semantic-crimson-border);
+      border-radius: var(--radius-sm);
     }
+
     .confirm-warning {
       display: flex;
       align-items: center;
       gap: var(--space-2);
       font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--rose-400);
+      color: var(--semantic-crimson-text);
       line-height: 1.4;
     }
+
     .confirm-actions {
       display: flex;
       align-items: center;
@@ -865,77 +1044,124 @@ import { CandidateProfile } from '../../core/models/job.model';
       flex-wrap: wrap;
     }
 
-    /* Utilities */
-    .text-brand { color: var(--brand-accent); }
-    .text-sky { color: var(--sky-400); }
-    .text-emerald { color: var(--emerald-400); }
-    .text-rose { color: var(--rose-400); }
+    .text-copper { color: var(--accent-copper-text); }
+    .text-emerald { color: var(--semantic-emerald-text); }
+    .text-crimson { color: var(--semantic-crimson-text); }
 
-    @media (max-width: 768px) {
-      .settings-panel {
+    @media (max-width: 767px) {
+      .settings-hero {
         padding: var(--space-4);
       }
+
+      .theme-grid,
+      .sources-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
       .setting-item {
         flex-direction: column;
         align-items: flex-start;
         gap: var(--space-3);
       }
+
       .toggle-switch-btn,
       .time-input,
       .admin-input {
         min-height: 44px;
       }
+
       .score-range {
         width: 160px;
         height: 8px;
       }
+
       .score-range::-webkit-slider-thumb {
         width: 22px;
         height: 22px;
       }
+
       .score-range::-moz-range-thumb {
         width: 22px;
         height: 22px;
-      }
-      .theme-grid {
-        grid-template-columns: 1fr;
-      }
-      .panel-footer ui-button,
-      .danger-action-flow ui-button {
-        width: 100%;
-      }
-      .panel-footer ::ng-deep .ui-btn,
-      .danger-action-flow ::ng-deep .ui-btn {
-        width: 100%;
-        min-height: 44px;
-      }
-      .confirm-actions ui-button {
-        flex: 1 1 140px;
       }
     }
   `],
 })
 export class SettingsComponent implements OnInit {
   private readonly api = inject(ApiService);
-  private readonly telegram = inject(TelegramService);
+  readonly telegram = inject(TelegramService);
   readonly theme = inject(ThemeService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
-  profile = signal<CandidateProfile | null>(null);
-  digestEnabled = signal<boolean>(true);
-  digestTime: string = '09:00';
-  digestThreshold: number = 70;
-  isSaving = signal<boolean>(false);
-  loadFailed = signal<boolean>(false);
+  readonly profile = signal<CandidateProfile | null>(null);
+  readonly sources = signal<SourceInfo[]>([]);
+  readonly healthMap = signal<Record<string, boolean>>({});
+  readonly isCheckingHealth = signal<boolean>(false);
 
-  // Danger Zone
-  adminKey: string = '';
-  showWipeConfirm = signal<boolean>(false);
-  isWiping = signal<boolean>(false);
+  readonly digestEnabled = signal<boolean>(true);
+  digestTime = '09:00';
+  digestThreshold = 70;
+  readonly isSaving = signal<boolean>(false);
+  readonly loadFailed = signal<boolean>(false);
+
+  adminKey = '';
+  readonly showWipeConfirm = signal<boolean>(false);
+  readonly isWiping = signal<boolean>(false);
 
   ngOnInit(): void {
     this.loadSettings();
+    this.loadSources();
+  }
+
+  enabledSourcesCount(): number {
+    return this.sources().filter((s) => s.is_enabled).length;
+  }
+
+  formatSourceName(name: string): string {
+    const labels: Record<string, string> = {
+      wuzzuf: 'Wuzzuf Egypt',
+      linkedin_jobs: 'LinkedIn Jobs',
+      linkedin_social: 'LinkedIn Social Posts',
+      major_boards_dork: 'Major Boards Search',
+      ats_dork: 'Global ATS Discovery',
+      egypt_community: 'Egypt Community Feeds',
+      himalayas: 'Himalayas Remote',
+      remotive: 'Remotive Remote',
+      jobicy: 'Jobicy Tech',
+    };
+    return labels[name] || name.replace(/_/g, ' ');
+  }
+
+  loadSources(): void {
+    this.api
+      .getSources()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (list) => this.sources.set(list),
+        error: () => {},
+      });
+  }
+
+  probeSourcesHealth(): void {
+    if (this.isCheckingHealth()) return;
+    this.isCheckingHealth.set(true);
+    this.telegram.haptic('selection');
+    this.api
+      .getSourcesHealth()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.healthMap.set(result);
+          this.isCheckingHealth.set(false);
+          this.telegram.haptic('success');
+          this.toast.show('Source adapter health check complete', 'info', 2000);
+        },
+        error: () => {
+          this.isCheckingHealth.set(false);
+          this.toast.show('Could not complete live source probe', 'error');
+        },
+      });
   }
 
   loadSettings(): void {

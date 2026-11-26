@@ -1,16 +1,20 @@
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
 import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
 import { JobDrawerComponent } from '../../core/components/job-drawer/job-drawer.component';
-import { UiBadgeComponent } from '../../shared/ui/ui-badge.component';
-import { UiButtonComponent } from '../../shared/ui/ui-button.component';
-import { UiSkeletonComponent } from '../../shared/ui/ui-skeleton.component';
-import { UiEmptyStateComponent } from '../../shared/ui/ui-empty-state.component';
+import {
+  UiArchitecturalMotifComponent,
+  UiBadgeComponent,
+  UiButtonComponent,
+  UiCardComponent,
+  UiEmptyStateComponent,
+  UiMatchPillComponent,
+  UiSkeletonComponent,
+} from '../../core/components/ui';
 import {
   ApplicationStatus,
   DailyRunRecord,
@@ -23,107 +27,125 @@ import {
   selector: 'app-overview',
   standalone: true,
   imports: [
-    CommonModule,
     RouterLink,
     IconComponent,
     JobDrawerComponent,
+    UiArchitecturalMotifComponent,
     UiBadgeComponent,
     UiButtonComponent,
-    UiSkeletonComponent,
+    UiCardComponent,
     UiEmptyStateComponent,
+    UiMatchPillComponent,
+    UiSkeletonComponent,
   ],
   template: `
     <div class="overview-command-center">
-      <!-- Top Executive KPI Strip (4 Hairline Metric Cards + Sweep Trigger) -->
-      <section class="kpi-strip-section" aria-label="Key performance indicators">
-        <div class="kpi-cards-grid">
-          <!-- KPI 1: Total Verified Roles -->
-          <a routerLink="/jobs" class="kpi-card" (click)="onNavClick()">
-            <div class="kpi-top">
-              <span class="kpi-label">Verified Roles</span>
-              <app-icon name="briefcase" [size]="14" class="kpi-icon"></app-icon>
-            </div>
-            <div class="kpi-num tabular-nums">{{ totalJobs() }}</div>
-            <span class="kpi-subtext">Active on Radar</span>
-          </a>
+      <!-- Architectural Hero Header -->
+      <header class="overview-hero">
+        <ui-architectural-motif variant="header" />
 
-          <!-- KPI 2: Egypt Frontend -->
-          <a routerLink="/jobs" [queryParams]="{ segment: 'EGYPT' }" class="kpi-card" (click)="onNavClick()">
-            <div class="kpi-top">
-              <span class="kpi-label">Egypt Frontend</span>
-              <span class="kpi-flag">🇪🇬</span>
+        <div class="hero-inner">
+          <div class="hero-copy">
+            <div class="hero-status-row">
+              <ui-badge tone="emerald" size="sm" [dot]="true">
+                Cairo 09:00 Radar
+              </ui-badge>
+              <ui-badge tone="neutral" size="sm" [mono]="true">
+                {{ sources().length }} feeds active
+              </ui-badge>
             </div>
-            <div class="kpi-num tabular-nums text-emerald">{{ countEgypt() }}</div>
-            <span class="kpi-subtext">Cairo • Giza • Alex</span>
-          </a>
-
-          <!-- KPI 3: Remote GCC & Abroad -->
-          <a routerLink="/jobs" [queryParams]="{ segment: 'REMOTE_GCC_ABROAD' }" class="kpi-card" (click)="onNavClick()">
-            <div class="kpi-top">
-              <span class="kpi-label">Remote GCC & Abroad</span>
-              <app-icon name="globe" [size]="14" class="kpi-icon text-brand"></app-icon>
-            </div>
-            <div class="kpi-num tabular-nums text-brand">{{ countRemote() }}</div>
-            <span class="kpi-subtext">Gulf & Worldwide</span>
-          </a>
-
-          <!-- KPI 4: Active Pipeline -->
-          <a routerLink="/tracker" class="kpi-card" (click)="onNavClick()">
-            <div class="kpi-top">
-              <span class="kpi-label">Active Pipeline</span>
-              <app-icon name="bookmark" [size]="14" class="kpi-icon text-amber"></app-icon>
-            </div>
-            <div class="kpi-num tabular-nums text-amber">{{ totalPipeline() }}</div>
-            <span class="kpi-subtext">{{ savedCount() }} Saved • {{ appliedCount() }} Applied</span>
-          </a>
-        </div>
-
-        <!-- Sweep Feeds Control Bar -->
-        <div class="sweep-control-bar">
-          <div class="sweep-meta-left">
-            <span class="status-pulse-dot"></span>
-            <span class="sweep-meta-text">
-              <strong>Autonomous Pipeline Active</strong> — Scheduled Cairo 09:00 Daily Digest
-            </span>
+            <h1 class="hero-title">Career Intelligence</h1>
+            <p class="hero-subtitle">
+              Real-time overview of matched frontend roles, regional discovery, and pipeline momentum.
+            </p>
           </div>
 
-          <button
-            type="button"
-            (click)="triggerSweep()"
-            [disabled]="isSweeping()"
-            class="sweep-action-btn"
-            title="Execute immediate feed sweep"
-            aria-label="Sweep feeds now"
-          >
-            <app-icon [name]="isSweeping() ? 'refresh' : 'play'" [size]="13" [class.spin]="isSweeping()"></app-icon>
-            <span>{{ isSweeping() ? 'Sweeping Feeds...' : 'Sweep Feeds Now' }}</span>
-          </button>
+          <div class="hero-actions">
+            <ui-button
+              variant="primary"
+              size="md"
+              [loading]="isSweeping()"
+              [disabled]="isSweeping()"
+              ariaLabel="Sweep feeds now"
+              (clicked)="triggerSweep()"
+            >
+              <app-icon name="play" [size]="14" />
+              <span>{{ isSweeping() ? 'Sweeping Feeds...' : 'Sweep Feeds Now' }}</span>
+            </ui-button>
+          </div>
         </div>
+      </header>
+
+      <!-- KPI Bento Grid -->
+      <section class="kpi-cards-grid" aria-label="Key performance indicators">
+        <a routerLink="/jobs" class="kpi-link" (click)="onNavClick()">
+          <ui-card variant="elevated" padding="md" [interactive]="true">
+            <div class="kpi-top">
+              <span class="kpi-label">Verified Roles</span>
+              <app-icon name="briefcase" [size]="15" class="kpi-icon" />
+            </div>
+            <div class="kpi-num tabular-nums">{{ totalJobs() }}</div>
+            <span class="kpi-subtext">Active on radar</span>
+          </ui-card>
+        </a>
+
+        <a routerLink="/jobs" [queryParams]="{ segment: 'EGYPT' }" class="kpi-link" (click)="onNavClick()">
+          <ui-card variant="elevated" padding="md" [interactive]="true">
+            <div class="kpi-top">
+              <span class="kpi-label">Egypt Frontend</span>
+              <app-icon name="map-pin" [size]="15" class="kpi-icon text-emerald" />
+            </div>
+            <div class="kpi-num tabular-nums text-emerald">{{ countEgypt() }}</div>
+            <span class="kpi-subtext">Cairo, Giza &amp; Alex</span>
+          </ui-card>
+        </a>
+
+        <a routerLink="/jobs" [queryParams]="{ segment: 'REMOTE_GCC_ABROAD' }" class="kpi-link" (click)="onNavClick()">
+          <ui-card variant="elevated" padding="md" [interactive]="true">
+            <div class="kpi-top">
+              <span class="kpi-label">Remote GCC &amp; Abroad</span>
+              <app-icon name="globe" [size]="15" class="kpi-icon text-copper" />
+            </div>
+            <div class="kpi-num tabular-nums text-copper">{{ countRemote() }}</div>
+            <span class="kpi-subtext">Gulf &amp; Worldwide</span>
+          </ui-card>
+        </a>
+
+        <a routerLink="/tracker" class="kpi-link" (click)="onNavClick()">
+          <ui-card variant="glass" padding="md" [interactive]="true">
+            <div class="kpi-top">
+              <span class="kpi-label">Active Pipeline</span>
+              <app-icon name="bookmark" [size]="15" class="kpi-icon text-amber" />
+            </div>
+            <div class="kpi-num tabular-nums text-amber">{{ totalPipeline() }}</div>
+            <span class="kpi-subtext tabular-nums">{{ savedCount() }} Saved · {{ appliedCount() }} Active</span>
+          </ui-card>
+        </a>
       </section>
 
       <!-- Two-Column Bento Layout -->
       <div class="bento-layout-grid">
-        <!-- Left Column (Primary): Top Matches Today -->
-        <section class="bento-primary-card" aria-label="Top matching opportunities">
+        <!-- Left Column (Primary): High-Match Spotlight -->
+        <ui-card variant="elevated" padding="md" class="bento-primary-card">
           <header class="bento-card-header">
             <div class="header-title-wrap">
-              <app-icon name="sparkles" [size]="15" class="header-glyph"></app-icon>
+              <app-icon name="sparkles" [size]="15" class="text-copper" />
               <h2 class="bento-title">Top Opportunity Matches</h2>
             </div>
 
             <a routerLink="/jobs" class="view-all-link" (click)="onNavClick()">
               <span>View all {{ totalJobs() }}</span>
-              <app-icon name="arrow-right" [size]="12"></app-icon>
+              <app-icon name="arrow-right" [size]="13" />
             </a>
           </header>
 
-          <!-- Skeleton Loader -->
-          <div *ngIf="isLoadingTopJobs()" class="skeletons-stack">
-            <ui-skeleton *ngFor="let i of [1, 2, 3, 4, 5]" height="64px" rounded="sm"></ui-skeleton>
-          </div>
-
-          <!-- Empty State -->
-          <div *ngIf="!isLoadingTopJobs() && topJobs().length === 0" class="empty-wrap">
+          @if (isLoadingTopJobs()) {
+            <div class="skeletons-stack">
+              @for (item of [1, 2, 3, 4, 5]; track item) {
+                <ui-skeleton height="76px" rounded="md" />
+              }
+            </div>
+          } @else if (topJobs().length === 0) {
             <ui-empty-state
               icon="briefcase"
               title="No Opportunities Synced Yet"
@@ -131,142 +153,131 @@ import {
             >
               <div action>
                 <ui-button variant="primary" size="sm" (clicked)="triggerSweep()">
-                  <app-icon name="play" [size]="12"></app-icon>
+                  <app-icon name="play" [size]="12" />
                   <span>Sweep Feeds</span>
                 </ui-button>
               </div>
             </ui-empty-state>
-          </div>
+          } @else {
+            <div class="matches-list" role="list">
+              @for (job of topJobs(); track job.id) {
+                <article
+                  (click)="openDrawer(job)"
+                  (keydown.enter)="openDrawer(job)"
+                  class="match-item-row"
+                  tabindex="0"
+                  role="listitem"
+                  [attr.aria-label]="job.title + ' at ' + job.company"
+                >
+                  <div class="match-main-content">
+                    <div class="match-title-line">
+                      <h3 class="role-name" dir="auto">{{ job.title }}</h3>
+                    </div>
 
-          <!-- High-Density Matches List -->
-          <div *ngIf="!isLoadingTopJobs() && topJobs().length > 0" class="matches-compact-list" role="list">
-            <article
-              *ngFor="let job of topJobs()"
-              (click)="openDrawer(job)"
-              class="match-item-row"
-              tabindex="0"
-              (keydown.enter)="openDrawer(job)"
-              [attr.aria-label]="job.title + ' at ' + job.company"
-            >
-              <!-- Score Badge -->
-              <div
-                class="match-score-badge tabular-nums"
-                [attr.data-band]="getScoreBand(job.match_score)"
-              >
-                {{ roundScore(job.match_score) }}%
-              </div>
+                    <div class="match-meta-line">
+                      <span class="company-text" dir="auto">{{ job.company }}</span>
+                      @if (job.raw_location) {
+                        <span class="dot-separator" aria-hidden="true">/</span>
+                        <span class="location-truncate" dir="auto">{{ job.raw_location }}</span>
+                      }
+                      <span class="dot-separator" aria-hidden="true">/</span>
+                      <span class="time-item tabular-nums">
+                        {{ formatRelativeDate(job.published_at || job.first_seen_at) }}
+                      </span>
+                    </div>
 
-              <!-- Main Content -->
-              <div class="match-main-content">
-                <div class="match-title-line">
-                  <h3 class="role-name" dir="auto">{{ job.title }}</h3>
-                  <ui-badge
-                    *ngIf="job.is_social_post"
-                    variant="social"
-                    size="sm"
-                    [dot]="true"
-                  >
-                    LinkedIn
-                  </ui-badge>
-                  <ui-badge
-                    *ngIf="job.opportunity_segment === 'EGYPT'"
-                    variant="default"
-                    size="sm"
-                  >
-                    Egypt
-                  </ui-badge>
-                  <ui-badge
-                    *ngIf="job.opportunity_segment === 'REMOTE_GCC_ABROAD'"
-                    variant="brand"
-                    size="sm"
-                  >
-                    Remote Abroad
-                  </ui-badge>
-                </div>
+                    <div class="match-badges-row">
+                      @if (hasDirectContact(job)) {
+                        <ui-badge tone="copper" size="sm">
+                          <app-icon name="mail" [size]="10" />
+                          <span>{{ job.direct_email ? 'Direct Email' : 'Direct Contact' }}</span>
+                        </ui-badge>
+                      }
+                      @if (job.is_social_post) {
+                        <ui-badge tone="glass" size="sm" [dot]="true">LinkedIn</ui-badge>
+                      } @else if (job.origin_board) {
+                        <ui-badge tone="glass" size="sm">{{ job.origin_board }}</ui-badge>
+                      }
+                      <ui-badge
+                        [tone]="job.workplace_type === 'REMOTE' ? 'emerald' : 'neutral'"
+                        size="sm"
+                      >
+                        {{ formatWorkplace(job.workplace_type) }}
+                      </ui-badge>
+                    </div>
+                  </div>
 
-                <div class="match-meta-line">
-                  <span class="company-text" dir="auto">{{ job.company }}</span>
-                  <span class="dot-separator">•</span>
-                  <span class="meta-item">{{ formatWorkplace(job.workplace_type) }}</span>
-                  <span class="dot-separator" *ngIf="job.raw_location">•</span>
-                  <span class="meta-item location-truncate" dir="auto" *ngIf="job.raw_location">
-                    {{ job.raw_location }}
-                  </span>
-                  <span class="dot-separator">•</span>
-                  <span class="time-item tabular-nums">
-                    {{ formatRelativeDate(job.published_at || job.first_seen_at) }}
-                  </span>
-                </div>
-              </div>
+                  <div class="match-right-col">
+                    <ui-match-pill [score]="roundScore(job.match_score)" size="sm" />
+                    <app-icon name="chevron-right" [size]="15" class="match-chevron" />
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </ui-card>
 
-              <!-- Action Indicator -->
-              <div class="match-arrow-wrap">
-                <app-icon name="chevron-right" [size]="14"></app-icon>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <!-- Right Column (Secondary): Source Health & Recent Sweeps -->
+        <!-- Right Column (Secondary): Source Health, Latest Sweep & Alignment -->
         <aside class="bento-secondary-col" aria-label="Platform telemetry and source health">
-          <!-- Feed Adapters Health Card -->
-          <section class="bento-card">
+          <ui-card variant="glass" padding="md">
             <header class="bento-card-header">
               <div class="header-title-wrap">
-                <app-icon name="database" [size]="14" class="header-glyph"></app-icon>
-                <h2 class="bento-title">Feed Health & Ingestion</h2>
+                <app-icon name="database" [size]="14" class="text-copper" />
+                <h2 class="bento-title">Feed Health &amp; Ingestion</h2>
               </div>
-              <ui-badge variant="success" size="sm" [dot]="true">
+              <ui-badge tone="emerald" size="sm" [dot]="true">
                 {{ sources().length }} Active
               </ui-badge>
             </header>
 
             <div class="sources-health-list">
-              <div *ngFor="let s of sources()" class="source-status-row">
-                <div class="source-info-left">
-                  <span class="source-live-dot" [class.enabled]="s.is_enabled"></span>
-                  <span class="source-title">{{ s.name }}</span>
+              @for (s of sources(); track s.name) {
+                <div class="source-status-row">
+                  <div class="source-info-left">
+                    <span class="source-live-dot" [class.enabled]="s.is_enabled" aria-hidden="true"></span>
+                    <span class="source-title">{{ s.name }}</span>
+                  </div>
+                  <span class="source-type-pill">{{ s.source_type }}</span>
                 </div>
-                <span class="source-type-pill">{{ s.source_type }}</span>
-              </div>
+              }
             </div>
-          </section>
+          </ui-card>
 
-          <!-- Last Daily Sweep Telemetry -->
-          <section class="bento-card" *ngIf="lastRun()">
+          @if (lastRun(); as run) {
+            <ui-card variant="elevated" padding="md">
+              <header class="bento-card-header">
+                <div class="header-title-wrap">
+                  <app-icon name="activity" [size]="14" class="text-copper" />
+                  <h2 class="bento-title">Latest Sweep Metrics</h2>
+                </div>
+                <span class="run-date-tag tabular-nums">{{ run.run_date }}</span>
+              </header>
+
+              <div class="sweep-metrics-grid tabular-nums">
+                <div class="metric-block">
+                  <span class="metric-num">{{ run.jobs_discovered || 0 }}</span>
+                  <span class="metric-lbl">Discovered</span>
+                </div>
+                <div class="metric-block">
+                  <span class="metric-num text-emerald">{{ run.jobs_new || 0 }}</span>
+                  <span class="metric-lbl">New</span>
+                </div>
+                <div class="metric-block">
+                  <span class="metric-num text-amber">{{ run.jobs_notified || 0 }}</span>
+                  <span class="metric-lbl">Notified</span>
+                </div>
+                <div class="metric-block">
+                  <span class="metric-num text-copper status-text">{{ run.status || 'OK' }}</span>
+                  <span class="metric-lbl">Status</span>
+                </div>
+              </div>
+            </ui-card>
+          }
+
+          <ui-card variant="subtle" padding="md">
             <header class="bento-card-header">
               <div class="header-title-wrap">
-                <app-icon name="activity" [size]="14" class="header-glyph text-brand"></app-icon>
-                <h2 class="bento-title">Latest Sweep Metrics</h2>
-              </div>
-              <span class="run-date-tag tabular-nums">{{ lastRun()?.run_date }}</span>
-            </header>
-
-            <div class="sweep-metrics-grid tabular-nums">
-              <div class="metric-block">
-                <span class="metric-num">{{ lastRun()?.jobs_discovered || 0 }}</span>
-                <span class="metric-lbl">Discovered</span>
-              </div>
-              <div class="metric-block">
-                <span class="metric-num text-emerald">{{ lastRun()?.jobs_new || 0 }}</span>
-                <span class="metric-lbl">New Added</span>
-              </div>
-              <div class="metric-block">
-                <span class="metric-num text-amber">{{ lastRun()?.jobs_notified || 0 }}</span>
-                <span class="metric-lbl">Notified</span>
-              </div>
-              <div class="metric-block">
-                <span class="metric-num text-brand status-text">{{ lastRun()?.status || 'OK' }}</span>
-                <span class="metric-lbl">Status</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Engineering Taxonomy Card -->
-          <section class="bento-card">
-            <header class="bento-card-header">
-              <div class="header-title-wrap">
-                <app-icon name="shield-check" [size]="14" class="header-glyph text-emerald"></app-icon>
+                <app-icon name="shield-check" [size]="14" class="text-emerald" />
                 <h2 class="bento-title">Candidate Alignment</h2>
               </div>
             </header>
@@ -282,14 +293,14 @@ import {
               </div>
               <div class="taxonomy-row">
                 <span class="tax-label">Primary Segments</span>
-                <span class="tax-value">Egypt On-site/Hybrid & Worldwide Remote</span>
+                <span class="tax-value">Egypt On-site/Hybrid &amp; Worldwide Remote</span>
               </div>
               <div class="taxonomy-row">
-                <span class="tax-label">Core Tech Stack</span>
+                <span class="tax-label">Core Stack</span>
                 <span class="tax-value">Angular, TypeScript, RxJS, NgRx, Signals</span>
               </div>
             </div>
-          </section>
+          </ui-card>
         </aside>
       </div>
 
@@ -299,7 +310,7 @@ import {
         [job]="selectedJob()"
         (closeDrawer)="closeDrawer()"
         (statusUpdated)="onJobStatusUpdated($event)"
-      ></app-job-drawer>
+      />
     </div>
   `,
   styles: [`
@@ -313,305 +324,226 @@ import {
       flex-direction: column;
       gap: var(--space-5);
       width: 100%;
-      max-width: 1240px;
+      max-width: 1160px;
       margin: 0 auto;
     }
 
-    /* ==========================================================================
-       Top Executive KPI Strip
-       ========================================================================== */
-    .kpi-strip-section {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
+    /* Architectural Hero Header */
+    .overview-hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular), var(--shadow-sm);
+      padding: var(--space-5) var(--space-6);
     }
 
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+    }
+
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1-5);
+      max-width: 60ch;
+    }
+
+    .hero-status-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: var(--text-h1);
+      font-weight: 700;
+      letter-spacing: var(--tracking-tight);
+      color: var(--ink-primary);
+      margin: 0;
+    }
+
+    .hero-subtitle {
+      font-size: var(--text-sm);
+      color: var(--ink-secondary);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    /* KPI Bento Grid */
     .kpi-cards-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: var(--space-3);
     }
 
-    .kpi-card {
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-sm);
-      padding: var(--space-3-5) var(--space-4);
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
+    .kpi-link {
+      display: block;
       text-decoration: none;
       color: inherit;
-      transition: all var(--motion-fast);
-      position: relative;
+      border-radius: var(--radius-lg);
       outline: none;
     }
-    .kpi-card:hover {
-      background-color: var(--bg-surface-2);
-      border-color: var(--border-strong);
-      box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
-      transform: translateY(-2px);
-    }
-    .kpi-card:focus-visible {
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
+
+    .kpi-link:focus-visible {
+      outline: 2px solid var(--accent-copper);
+      outline-offset: 2px;
     }
 
     .kpi-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: var(--space-2);
     }
+
     .kpi-label {
-      font-size: 11px;
+      font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--text-secondary);
-      letter-spacing: -0.01em;
+      color: var(--ink-secondary);
     }
+
     .kpi-icon {
-      color: var(--text-tertiary);
-    }
-    .kpi-flag {
-      font-size: 13px;
-      line-height: 1;
+      color: var(--ink-muted);
     }
 
     .kpi-num {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: var(--tracking-tight);
+      color: var(--ink-primary);
       line-height: 1.15;
-      margin: 2px 0;
+      margin: var(--space-1-5) 0 var(--space-1) 0;
     }
 
     .kpi-subtext {
-      font-size: 11px;
-      color: var(--text-tertiary);
-      letter-spacing: -0.01em;
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
     }
 
-    /* Sweep Control Bar */
-    .sweep-control-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      padding: 10px 14px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-sm);
-      flex-wrap: wrap;
-    }
-
-    .sweep-meta-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .status-pulse-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background-color: var(--emerald-500);
-      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
-    }
-    .sweep-meta-text {
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-    .sweep-meta-text strong {
-      color: var(--text-primary);
-    }
-
-    .sweep-action-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      background-color: var(--brand-primary);
-      border: 1px solid var(--brand-primary);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-      color: #ffffff;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all var(--motion-fast);
-      outline: none;
-    }
-    .sweep-action-btn:hover:not(:disabled) {
-      background-color: var(--brand-primary-hover);
-      box-shadow: var(--shadow-glow-brand);
-    }
-    .sweep-action-btn:active:not(:disabled) {
-      transform: scale(0.97);
-    }
-    .sweep-action-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .spin {
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    /* ==========================================================================
-       Two-Column Bento Grid
-       ========================================================================== */
+    /* Two-Column Bento Grid */
     .bento-layout-grid {
       display: grid;
-      grid-template-columns: 1fr 340px;
+      grid-template-columns: minmax(0, 1fr) 340px;
       gap: var(--space-4);
       align-items: start;
     }
 
     .bento-primary-card {
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-sm);
-      padding: var(--space-4);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
+      display: block;
     }
 
     .bento-secondary-col {
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
-    }
-
-    .bento-card {
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-sm);
-      padding: var(--space-3-5) var(--space-4);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
+      min-width: 0;
     }
 
     .bento-card-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: var(--space-2-5);
+      gap: var(--space-2);
+      border-bottom: 1px solid var(--border-hairline);
+      padding-bottom: var(--space-3);
+      margin-bottom: var(--space-3);
     }
 
     .header-title-wrap {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-    }
-    .header-glyph {
-      color: var(--brand-accent);
+      min-width: 0;
     }
 
     .bento-title {
       margin: 0;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: -0.015em;
-      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      letter-spacing: var(--tracking-snug);
+      color: var(--ink-primary);
     }
 
     .view-all-link {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      font-size: 11px;
+      font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--brand-accent);
+      color: var(--accent-copper-text);
       text-decoration: none;
-      transition: color var(--motion-fast);
+      padding: 4px 8px;
+      border-radius: var(--radius-xs);
+      transition: background-color var(--dur-fast) var(--ease-spring);
     }
+
     .view-all-link:hover {
-      color: var(--brand-primary);
+      background-color: var(--accent-copper-soft);
     }
 
     .run-date-tag {
       font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-tertiary);
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
     }
 
-    /* Top Matches Compact List */
+    /* Spotlight Matches List */
     .skeletons-stack {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--space-2);
     }
 
-    .matches-compact-list {
+    .matches-list {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--space-2);
     }
 
     .match-item-row {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: var(--space-3);
-      padding: 9px 12px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
+      padding: var(--space-3) var(--space-3-5);
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
       cursor: pointer;
-      transition: all var(--motion-fast);
       outline: none;
-    }
-    .match-item-row:hover {
-      background-color: var(--bg-surface-3);
-      border-color: var(--border-strong);
-      transform: translateX(2px);
-    }
-    .match-item-row:focus-visible {
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
+      transition:
+        background-color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring),
+        transform var(--dur-fast) var(--ease-spring);
     }
 
-    .match-score-badge {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 42px;
-      height: 28px;
-      border-radius: 3px;
-      font-size: 11px;
-      font-weight: 700;
-      border: 1px solid var(--border-default);
-      background-color: var(--bg-surface-1);
-      box-shadow: var(--surface-highlight-sm);
-      flex-shrink: 0;
+    .match-item-row:hover {
+      background-color: var(--surface-elevated);
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
     }
-    .match-score-badge[data-band="emerald"] {
-      border-color: var(--emerald-border);
-      background-color: var(--emerald-bg);
-      color: var(--emerald-400);
-    }
-    .match-score-badge[data-band="indigo"] {
-      border-color: var(--brand-border-subtle);
-      background-color: var(--brand-bg-subtle);
-      color: var(--brand-accent);
-    }
-    .match-score-badge[data-band="amber"] {
-      border-color: var(--amber-border);
-      background-color: var(--amber-bg);
-      color: var(--amber-400);
-    }
-    .match-score-badge[data-band="muted"] {
-      color: var(--text-tertiary);
+
+    .match-item-row:focus-visible {
+      outline: 2px solid var(--accent-copper);
+      outline-offset: 2px;
     }
 
     .match-main-content {
@@ -619,109 +551,136 @@ import {
       min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 4px;
     }
 
     .match-title-line {
       display: flex;
       align-items: center;
       gap: 6px;
-      flex-wrap: wrap;
     }
 
     .role-name {
       margin: 0;
-      font-size: 13px;
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
       font-weight: 600;
-      color: var(--text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 320px;
+      letter-spacing: var(--tracking-snug);
+      color: var(--ink-primary);
+      line-height: 1.35;
     }
 
     .match-meta-line {
       display: flex;
       align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      color: var(--text-tertiary);
+      gap: 6px;
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
       flex-wrap: wrap;
     }
+
     .company-text {
-      color: var(--text-secondary);
-      font-weight: 500;
+      color: var(--ink-secondary);
+      font-weight: 600;
     }
+
     .dot-separator {
-      color: var(--text-tertiary);
+      color: var(--border-strong);
     }
+
     .location-truncate {
-      max-width: 120px;
+      max-width: 160px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .match-arrow-wrap {
-      color: var(--text-tertiary);
+    .time-item {
+      font-family: var(--font-mono);
+    }
+
+    .match-badges-row {
       display: flex;
       align-items: center;
-      flex-shrink: 0;
-      transition: transform var(--motion-fast), color var(--motion-fast);
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 2px;
     }
-    .match-item-row:hover .match-arrow-wrap {
+
+    .match-right-col {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-shrink: 0;
+    }
+
+    .match-chevron {
+      color: var(--ink-muted);
+      transition: transform var(--dur-fast) var(--ease-spring), color var(--dur-fast) var(--ease-spring);
+    }
+
+    .match-item-row:hover .match-chevron {
       transform: translateX(2px);
-      color: var(--text-primary);
+      color: var(--ink-primary);
     }
 
     /* Sources Health List */
     .sources-health-list {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
     }
 
     .source-status-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 8px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
+      gap: var(--space-2);
+      padding: 7px 10px;
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
     }
 
     .source-info-left {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      min-width: 0;
     }
+
     .source-live-dot {
-      width: 6px;
-      height: 6px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
-      background-color: var(--text-tertiary);
+      background-color: var(--ink-muted);
+      flex-shrink: 0;
     }
+
     .source-live-dot.enabled {
-      background-color: var(--emerald-500);
-      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+      background-color: var(--semantic-emerald);
     }
+
     .source-title {
-      font-size: 12px;
+      font-size: var(--text-xs);
       font-weight: 500;
-      color: var(--text-primary);
+      color: var(--ink-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
+
     .source-type-pill {
       font-family: var(--font-mono);
       font-size: 10px;
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
+      flex-shrink: 0;
     }
 
     /* Sweep Metrics Grid */
     .sweep-metrics-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: var(--space-2);
     }
 
@@ -730,24 +689,28 @@ import {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-      padding: 6px 4px;
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      padding: 8px 4px;
     }
+
     .metric-num {
-      font-size: 16px;
+      font-family: var(--font-mono);
+      font-size: var(--text-md);
       font-weight: 700;
-      color: var(--text-primary);
+      color: var(--ink-primary);
       line-height: 1.2;
     }
+
+    .metric-num.status-text {
+      font-size: var(--text-xs);
+    }
+
     .metric-lbl {
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-tertiary);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--ink-muted);
       margin-top: 2px;
     }
 
@@ -761,53 +724,67 @@ import {
     .taxonomy-row {
       display: flex;
       flex-direction: column;
-      gap: 1px;
-      padding: 5px 8px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-    }
-    .tax-label {
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-tertiary);
-    }
-    .tax-value {
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--text-primary);
+      gap: 2px;
+      padding: 7px 10px;
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
     }
 
-    .text-emerald { color: var(--emerald-400); }
-    .text-brand { color: var(--brand-accent); }
-    .text-amber { color: var(--amber-400); }
+    .tax-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .tax-value {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      color: var(--ink-primary);
+    }
+
+    .text-emerald { color: var(--semantic-emerald-text); }
+    .text-copper { color: var(--accent-copper-text); }
+    .text-amber { color: var(--semantic-amber-text); }
 
     @media (max-width: 992px) {
       .kpi-cards-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
+
       .bento-layout-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
     }
 
-    @media (max-width: 500px) {
-      .kpi-cards-grid {
-        grid-template-columns: 1fr;
+    @media (max-width: 600px) {
+      .overview-hero {
+        padding: var(--space-4);
       }
-      .sweep-control-bar {
+
+      .hero-actions {
+        width: 100%;
+      }
+
+      .kpi-cards-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .match-item-row {
         flex-direction: column;
         align-items: stretch;
       }
-      .sweep-action-btn {
-        width: 100%;
-        justify-content: center;
+
+      .match-right-col {
+        justify-content: space-between;
+        padding-top: var(--space-2);
+        border-top: 1px solid var(--border-hairline);
       }
-      .role-name {
-        max-width: 200px;
+    }
+
+    @media (max-width: 380px) {
+      .kpi-cards-grid {
+        grid-template-columns: minmax(0, 1fr);
       }
     }
   `],
@@ -847,7 +824,6 @@ export class OverviewComponent implements OnInit {
   loadOverviewData(): void {
     this.isLoadingTopJobs.set(true);
 
-    // 1. Fetch top matching opportunities
     this.api
       .getJobs({ limit: 8, sort_by: 'match_score' })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -863,7 +839,6 @@ export class OverviewComponent implements OnInit {
         },
       });
 
-    // 2. Fetch Egypt count
     this.api
       .getJobs({ segment: 'EGYPT', limit: 1 })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -872,7 +847,6 @@ export class OverviewComponent implements OnInit {
         error: () => {},
       });
 
-    // 3. Fetch Remote GCC / Abroad count
     this.api
       .getJobs({ segment: 'REMOTE_GCC_ABROAD', limit: 1 })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -881,7 +855,6 @@ export class OverviewComponent implements OnInit {
         error: () => {},
       });
 
-    // 4. Fetch Tracker pipeline count
     this.api
       .getTrackedJobs()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -896,7 +869,6 @@ export class OverviewComponent implements OnInit {
         error: (e: unknown) => console.error('Failed to load tracker stats', e),
       });
 
-    // 5. Fetch Sources
     this.api
       .getSources()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -905,7 +877,6 @@ export class OverviewComponent implements OnInit {
         error: (e: unknown) => console.error('Failed to load sources', e),
       });
 
-    // 6. Fetch Runs
     this.api
       .getRuns()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -967,15 +938,12 @@ export class OverviewComponent implements OnInit {
     this.loadOverviewData();
   }
 
-  roundScore(score: number): number {
-    return Math.round(score);
+  hasDirectContact(job: JobSummary): boolean {
+    return Boolean(job.direct_email || job.whatsapp_contact || job.apply_form_url);
   }
 
-  getScoreBand(score: number): 'emerald' | 'indigo' | 'amber' | 'muted' {
-    if (score >= 80) return 'emerald';
-    if (score >= 65) return 'indigo';
-    if (score >= 50) return 'amber';
-    return 'muted';
+  roundScore(score: number): number {
+    return Math.round(score);
   }
 
   formatWorkplace(w?: WorkplaceType): string {

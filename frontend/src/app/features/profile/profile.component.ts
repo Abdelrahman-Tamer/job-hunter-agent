@@ -10,14 +10,18 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { TelegramService } from '../../core/services/telegram.service';
 import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
-import { UiBadgeComponent } from '../../shared/ui/ui-badge.component';
-import { UiButtonComponent } from '../../shared/ui/ui-button.component';
+import {
+  UiArchitecturalMotifComponent,
+  UiBadgeComponent,
+  UiButtonComponent,
+  UiCardComponent,
+  UiMatchPillComponent,
+} from '../../core/components/ui';
 import {
   CandidateProfile,
   ParsedCVResult,
@@ -35,6 +39,7 @@ interface CvReviewData {
   experience_years: number | null;
   linkedin_url: string;
   github_url: string;
+  portfolio_url: string;
   confirmed_skills: string[];
   target_skills: string[];
   learning_or_exposure_skills: string[];
@@ -46,76 +51,91 @@ interface CvReviewData {
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, UiBadgeComponent, UiButtonComponent],
+  imports: [
+    FormsModule,
+    IconComponent,
+    UiArchitecturalMotifComponent,
+    UiBadgeComponent,
+    UiButtonComponent,
+    UiCardComponent,
+    UiMatchPillComponent,
+  ],
   template: `
     <div class="profile-intelligence-view">
-      <!-- Executive Header -->
-      <header class="profile-header">
-        <div class="header-titles">
-          <div class="title-row">
-            <h1 class="page-title">Candidate Intelligence Profile</h1>
-            <ui-badge variant="brand" size="sm">Algorithm Grounding</ui-badge>
-          </div>
-          <p class="page-subtitle">
-            Calibrate your verified skills, academic credentials, and targeting parameters used by the autonomous matching engine.
-          </p>
-        </div>
-      </header>
+      <!-- Architectural Hero Header -->
+      <header class="profile-hero">
+        <ui-architectural-motif variant="header" />
 
-      <!-- Sticky Calibration Strip -->
-      <section class="calibration-strip" aria-label="Engine calibration telemetry">
-        <div class="calibration-left">
-          <div class="completeness-score-box tabular-nums">
-            <span class="score-number">{{ calculateCompleteness() }}%</span>
-            <span class="score-tag">Complete</span>
-          </div>
-
-          <div class="calibration-meta">
-            <div class="meta-title-row">
-              <span class="calibration-headline">Candidate Matching Calibrated</span>
-              <span class="live-dot-indicator" aria-hidden="true"></span>
+        <div class="hero-inner">
+          <div class="header-titles">
+            <div class="title-row">
+              <h1 class="page-title">Candidate Profile</h1>
+              <ui-badge tone="copper" size="sm">Algorithm Grounding</ui-badge>
             </div>
-            <p class="calibration-detail-text">
-              Verified skills, graduation credentials, and experience weightings directly calibrate match scoring and Telegram digests.
+            <p class="page-subtitle">
+              Calibrate verified skills, academic credentials, target tracks, and portfolio links used for matching.
             </p>
           </div>
         </div>
+      </header>
 
-        <div class="calibration-actions">
-          <ui-button
-            variant="primary"
-            size="md"
-            [loading]="isSaving()"
-            (clicked)="saveProfile()"
-          >
-            <app-icon name="check" [size]="14"></app-icon>
-            <span>{{ isSaving() ? 'Saving Profile...' : 'Save Profile Changes' }}</span>
-          </ui-button>
+      <!-- Frosted Calibration & Save Strip -->
+      <ui-card variant="glass" padding="md" class="calibration-strip">
+        <div class="calibration-inner">
+          <div class="calibration-left">
+            <ui-match-pill
+              [score]="calculateCompleteness()"
+              label="Complete"
+              size="md"
+            />
+            <div class="calibration-meta">
+              <div class="meta-title-row">
+                <span class="calibration-headline">Matching Engine Calibrated</span>
+                <span class="live-dot-indicator" aria-hidden="true"></span>
+              </div>
+              <p class="calibration-detail-text">
+                Verified skills, experience years, and target tracks directly calibrate match scores and morning digests.
+              </p>
+            </div>
+          </div>
 
-          <button
-            type="button"
-            (click)="exportProfile()"
-            class="export-json-btn"
-            title="Export Profile as JSON"
-          >
-            <app-icon name="file-text" [size]="13"></app-icon>
-            <span>Export JSON</span>
-          </button>
+          <div class="calibration-actions">
+            <ui-button
+              variant="secondary"
+              size="md"
+              ariaLabel="Export profile as JSON"
+              (clicked)="exportProfile()"
+            >
+              <app-icon name="file-text" [size]="14" />
+              <span>Export JSON</span>
+            </ui-button>
+
+            <ui-button
+              variant="primary"
+              size="md"
+              [loading]="isSaving()"
+              ariaLabel="Save profile changes"
+              (clicked)="saveProfile()"
+            >
+              <app-icon name="check" [size]="14" />
+              <span>{{ isSaving() ? 'Saving...' : 'Save Profile Changes' }}</span>
+            </ui-button>
+          </div>
         </div>
-      </section>
+      </ui-card>
 
       <!-- Two-Column Architectural Workspace -->
       <div class="profile-grid-workspace">
-        <!-- Left Column: Identity & Skills Matrix -->
+        <!-- Left Column: Identity, Tracks & Skills Tag Matrix -->
         <div class="specs-column">
-          <!-- 1. Identity & Academic Credentials Card -->
-          <section class="profile-card">
+          <!-- 1. Identity & Academic Credentials -->
+          <ui-card variant="elevated" padding="lg">
             <header class="card-header">
               <div class="header-left-title">
-                <app-icon name="user" [size]="15" class="header-icon-accent"></app-icon>
-                <h2 class="card-heading">Identity & Academic Credentials</h2>
+                <app-icon name="user" [size]="15" class="text-copper" />
+                <h2 class="card-heading">Identity &amp; Academic Credentials</h2>
               </div>
-              <ui-badge variant="success" size="sm">Verified Identity</ui-badge>
+              <ui-badge tone="emerald" size="sm">Verified</ui-badge>
             </header>
 
             <div class="form-layout-fields">
@@ -205,19 +225,19 @@ interface CvReviewData {
                 </div>
               </div>
 
-              <div class="form-row-2">
+              <div class="form-row-3">
                 <div class="form-field">
-                  <label for="linkedin">LinkedIn Profile URL</label>
+                  <label for="linkedin">LinkedIn URL</label>
                   <input
                     id="linkedin"
                     type="url"
                     [(ngModel)]="linkedinUrl"
-                    placeholder="https://www.linkedin.com/in/..."
+                    placeholder="https://linkedin.com/in/..."
                     class="form-input"
                   />
                 </div>
                 <div class="form-field">
-                  <label for="github">GitHub Profile URL</label>
+                  <label for="github">GitHub URL</label>
                   <input
                     id="github"
                     type="url"
@@ -226,15 +246,98 @@ interface CvReviewData {
                     class="form-input"
                   />
                 </div>
+                <div class="form-field">
+                  <label for="portfolio">Portfolio / CV Link</label>
+                  <input
+                    id="portfolio"
+                    type="url"
+                    [(ngModel)]="portfolioUrl"
+                    placeholder="https://your-site.dev"
+                    class="form-input"
+                  />
+                </div>
               </div>
             </div>
-          </section>
+          </ui-card>
 
-          <!-- 2. Confirmed Skills Card (Emerald) -->
-          <section class="profile-card">
+          <!-- 2. Target Tracks & Career Direction -->
+          <ui-card variant="elevated" padding="lg">
             <header class="card-header">
               <div class="header-left-title">
-                <app-icon name="check-circle" [size]="15" class="text-emerald"></app-icon>
+                <app-icon name="compass" [size]="15" class="text-copper" />
+                <h2 class="card-heading">Target Tracks &amp; Seniority</h2>
+              </div>
+              <ui-badge tone="neutral" size="sm" [mono]="true">
+                {{ targetRoleTerms().length }} role terms
+              </ui-badge>
+            </header>
+
+            <div class="form-layout-fields">
+              <div class="form-row-2">
+                <div class="form-field">
+                  <label for="careerDirection">Career Direction</label>
+                  <input
+                    id="careerDirection"
+                    type="text"
+                    dir="auto"
+                    [(ngModel)]="careerDirection"
+                    placeholder="Frontend Engineering (Angular / Modern Web)"
+                    class="form-input"
+                  />
+                </div>
+                <div class="form-field">
+                  <label for="priorityTarget">Priority Track &amp; Seniority</label>
+                  <input
+                    id="priorityTarget"
+                    type="text"
+                    dir="auto"
+                    [(ngModel)]="priorityTarget"
+                    placeholder="Junior / Mid Frontend — Egypt & Worldwide Remote"
+                    class="form-input"
+                  />
+                </div>
+              </div>
+
+              <div class="skills-manager-block">
+                <div class="chips-flex-wrap">
+                  @for (roleTerm of targetRoleTerms(); track roleTerm; let i = $index) {
+                    <span class="skill-tag neutral">
+                      <span class="tag-title" dir="auto">{{ roleTerm }}</span>
+                      <button
+                        type="button"
+                        (click)="removeRoleTerm(i)"
+                        class="tag-remove-btn"
+                        [attr.aria-label]="'Remove target role ' + roleTerm"
+                      >
+                        <app-icon name="x" [size]="10" />
+                      </button>
+                    </span>
+                  }
+                </div>
+
+                <div class="custom-add-field-row">
+                  <input
+                    type="text"
+                    dir="auto"
+                    [(ngModel)]="newRoleTerm"
+                    (keyup.enter)="addRoleTerm()"
+                    placeholder="Add target role title (e.g. Angular Engineer, UI Developer)..."
+                    aria-label="Add target role title"
+                    class="custom-skill-input"
+                  />
+                  <ui-button variant="secondary" size="md" (clicked)="addRoleTerm()">
+                    <span>Add Role</span>
+                  </ui-button>
+                </div>
+              </div>
+            </div>
+          </ui-card>
+
+          <!-- 3. Verified Technical Stack (Emerald) -->
+          <ui-card variant="elevated" padding="lg">
+            <header class="card-header">
+              <div class="header-left-title">
+                <app-icon name="check-circle" [size]="15" class="text-emerald" />
                 <h2 class="card-heading">Verified Technical Stack</h2>
               </div>
               <span class="counter-tag text-emerald tabular-nums">
@@ -242,44 +345,44 @@ interface CvReviewData {
               </span>
             </header>
             <p class="card-sub-description">
-              Verified technical proficiencies extracted from your resume or approved projects. Heavily boosted in match scoring.
+              Verified technical proficiencies extracted from your resume or approved projects. Heavily weighted in match scoring.
             </p>
 
             <div class="skills-manager-block">
-              <!-- Active Confirmed Chips -->
               <div class="chips-flex-wrap">
-                <span *ngFor="let s of confirmedSkills(); let i = index" class="skill-tag confirmed">
-                  <app-icon name="check" [size]="10"></app-icon>
-                  <span class="tag-title" dir="auto">{{ s }}</span>
-                  <button
-                    type="button"
-                    (click)="removeSkill('confirmed', i)"
-                    class="tag-remove-btn"
-                    [attr.aria-label]="'Remove confirmed skill ' + s"
-                  >
-                    <app-icon name="x" [size]="10"></app-icon>
-                  </button>
-                </span>
+                @for (s of confirmedSkills(); track s; let i = $index) {
+                  <span class="skill-tag confirmed">
+                    <app-icon name="check" [size]="10" />
+                    <span class="tag-title" dir="auto">{{ s }}</span>
+                    <button
+                      type="button"
+                      (click)="removeSkill('confirmed', i)"
+                      class="tag-remove-btn"
+                      [attr.aria-label]="'Remove confirmed skill ' + s"
+                    >
+                      <app-icon name="x" [size]="10" />
+                    </button>
+                  </span>
+                }
               </div>
 
-              <!-- Quick Suggestions -->
               <div class="quick-suggest-strip">
                 <span class="suggest-label">Quick Add</span>
                 <div class="suggestions-list">
-                  <button
-                    *ngFor="let sug of popularSuggestions"
-                    type="button"
-                    (click)="quickAddSkill('confirmed', sug)"
-                    [disabled]="confirmedSkills().includes(sug)"
-                    class="quick-pill-btn"
-                  >
-                    <app-icon name="plus" [size]="9"></app-icon>
-                    <span>{{ sug }}</span>
-                  </button>
+                  @for (sug of popularSuggestions; track sug) {
+                    <button
+                      type="button"
+                      (click)="quickAddSkill('confirmed', sug)"
+                      [disabled]="confirmedSkills().includes(sug)"
+                      class="quick-pill-btn"
+                    >
+                      <app-icon name="plus" [size]="10" />
+                      <span>{{ sug }}</span>
+                    </button>
+                  }
                 </div>
               </div>
 
-              <!-- Custom Add Row -->
               <div class="custom-add-field-row">
                 <input
                   type="text"
@@ -290,41 +393,43 @@ interface CvReviewData {
                   aria-label="Add custom confirmed skill"
                   class="custom-skill-input"
                 />
-                <button type="button" (click)="addSkill('confirmed')" class="btn-add-skill">
+                <ui-button variant="secondary" size="md" (clicked)="addSkill('confirmed')">
                   <span>Add Skill</span>
-                </button>
+                </ui-button>
               </div>
             </div>
-          </section>
+          </ui-card>
 
-          <!-- 3. Target Skills Card (Brand Indigo) -->
-          <section class="profile-card">
+          <!-- 4. Target Learning Goals (Warm Copper) -->
+          <ui-card variant="elevated" padding="lg">
             <header class="card-header">
               <div class="header-left-title">
-                <app-icon name="sparkles" [size]="15" class="text-brand"></app-icon>
+                <app-icon name="sparkles" [size]="15" class="text-copper" />
                 <h2 class="card-heading">Target Learning Goals</h2>
               </div>
-              <span class="counter-tag text-brand tabular-nums">
+              <span class="counter-tag text-copper tabular-nums">
                 {{ targetSkills().length }} Goals
               </span>
             </header>
             <p class="card-sub-description">
-              Technologies and areas you are actively learning. Kept distinct from verified competence to avoid misrepresenting experience.
+              Technologies you are actively targeting next, kept distinct from verified competence.
             </p>
 
             <div class="skills-manager-block">
               <div class="chips-flex-wrap">
-                <span *ngFor="let s of targetSkills(); let i = index" class="skill-tag target">
-                  <span class="tag-title" dir="auto">{{ s }}</span>
-                  <button
-                    type="button"
-                    (click)="removeSkill('target', i)"
-                    class="tag-remove-btn"
-                    [attr.aria-label]="'Remove target skill ' + s"
-                  >
-                    <app-icon name="x" [size]="10"></app-icon>
-                  </button>
-                </span>
+                @for (s of targetSkills(); track s; let i = $index) {
+                  <span class="skill-tag target">
+                    <span class="tag-title" dir="auto">{{ s }}</span>
+                    <button
+                      type="button"
+                      (click)="removeSkill('target', i)"
+                      class="tag-remove-btn"
+                      [attr.aria-label]="'Remove target skill ' + s"
+                    >
+                      <app-icon name="x" [size]="10" />
+                    </button>
+                  </span>
+                }
               </div>
 
               <div class="custom-add-field-row">
@@ -337,41 +442,43 @@ interface CvReviewData {
                   aria-label="Add target technology goal"
                   class="custom-skill-input"
                 />
-                <button type="button" (click)="addSkill('target')" class="btn-add-skill">
+                <ui-button variant="secondary" size="md" (clicked)="addSkill('target')">
                   <span>Add Goal</span>
-                </button>
+                </ui-button>
               </div>
             </div>
-          </section>
+          </ui-card>
 
-          <!-- 4. Exposure & Familiarity Skills Card (Muted Neutral) -->
-          <section class="profile-card">
+          <!-- 5. Exposure & Familiarity -->
+          <ui-card variant="elevated" padding="lg">
             <header class="card-header">
               <div class="header-left-title">
-                <app-icon name="layers" [size]="15" class="text-muted"></app-icon>
-                <h2 class="card-heading">Exposure & Familiarity</h2>
+                <app-icon name="layers" [size]="15" class="text-muted" />
+                <h2 class="card-heading">Exposure &amp; Familiarity</h2>
               </div>
               <span class="counter-tag text-muted tabular-nums">
                 {{ exposureSkills().length }} Skills
               </span>
             </header>
             <p class="card-sub-description">
-              Tools, platforms, and peripheral technologies you have used or been exposed to in past projects.
+              Tools, platforms, and peripheral technologies used across supporting work.
             </p>
 
             <div class="skills-manager-block">
               <div class="chips-flex-wrap">
-                <span *ngFor="let s of exposureSkills(); let i = index" class="skill-tag exposure">
-                  <span class="tag-title" dir="auto">{{ s }}</span>
-                  <button
-                    type="button"
-                    (click)="removeSkill('exposure', i)"
-                    class="tag-remove-btn"
-                    [attr.aria-label]="'Remove exposure skill ' + s"
-                  >
-                    <app-icon name="x" [size]="10"></app-icon>
-                  </button>
-                </span>
+                @for (s of exposureSkills(); track s; let i = $index) {
+                  <span class="skill-tag exposure">
+                    <span class="tag-title" dir="auto">{{ s }}</span>
+                    <button
+                      type="button"
+                      (click)="removeSkill('exposure', i)"
+                      class="tag-remove-btn"
+                      [attr.aria-label]="'Remove exposure skill ' + s"
+                    >
+                      <app-icon name="x" [size]="10" />
+                    </button>
+                  </span>
+                }
               </div>
 
               <div class="custom-add-field-row">
@@ -384,58 +491,71 @@ interface CvReviewData {
                   aria-label="Add exposure skill"
                   class="custom-skill-input"
                 />
-                <button type="button" (click)="addSkill('exposure')" class="btn-add-skill">
+                <ui-button variant="secondary" size="md" (clicked)="addSkill('exposure')">
                   <span>Add Exposure</span>
-                </button>
+                </ui-button>
               </div>
             </div>
-          </section>
+          </ui-card>
 
-          <!-- 5. Indexed Projects Card (when parsed/saved from CV) -->
-          <section class="profile-card" *ngIf="profile()?.projects?.length">
-            <header class="card-header">
-              <div class="header-left-title">
-                <app-icon name="briefcase" [size]="15" class="header-icon-accent"></app-icon>
-                <h2 class="card-heading">Indexed Engineering Projects</h2>
+          <!-- 6. Indexed Engineering Projects -->
+          @if (profile()?.projects?.length) {
+            <ui-card variant="elevated" padding="lg">
+              <header class="card-header">
+                <div class="header-left-title">
+                  <app-icon name="briefcase" [size]="15" class="text-copper" />
+                  <h2 class="card-heading">Indexed Engineering Projects</h2>
+                </div>
+                <span class="counter-tag text-muted tabular-nums">
+                  {{ profile()!.projects!.length }} Projects
+                </span>
+              </header>
+
+              <div class="projects-list">
+                @for (proj of profile()!.projects; track proj.name) {
+                  <article class="project-item-card">
+                    <div class="project-head">
+                      <h3 class="project-name" dir="auto">{{ proj.name }}</h3>
+                      @if (proj.context) {
+                        <span class="project-context" dir="auto">{{ proj.context }}</span>
+                      }
+                    </div>
+                    @if (proj.technologies.length) {
+                      <div class="project-tech-row">
+                        @for (tech of proj.technologies; track tech) {
+                          <span class="project-tech-chip" dir="auto">{{ tech }}</span>
+                        }
+                      </div>
+                    }
+                    @if (proj.bullets.length) {
+                      <ul class="project-bullets">
+                        @for (bullet of proj.bullets; track bullet) {
+                          <li dir="auto">{{ bullet }}</li>
+                        }
+                      </ul>
+                    }
+                  </article>
+                }
               </div>
-              <span class="counter-tag text-muted tabular-nums">
-                {{ profile()!.projects!.length }} Projects
-              </span>
-            </header>
-
-            <div class="projects-list">
-              <article *ngFor="let proj of profile()!.projects" class="project-item-card">
-                <div class="project-head">
-                  <h3 class="project-name" dir="auto">{{ proj.name }}</h3>
-                  <span *ngIf="proj.context" class="project-context" dir="auto">{{ proj.context }}</span>
-                </div>
-                <div *ngIf="proj.technologies.length" class="project-tech-row">
-                  <span *ngFor="let tech of proj.technologies" class="project-tech-chip" dir="auto">{{ tech }}</span>
-                </div>
-                <ul *ngIf="proj.bullets.length" class="project-bullets">
-                  <li *ngFor="let bullet of proj.bullets" dir="auto">{{ bullet }}</li>
-                </ul>
-              </article>
-            </div>
-          </section>
+            </ui-card>
+          }
         </div>
 
         <!-- Right Column: Document Intelligence & Resume Parser -->
         <div class="parser-column">
-          <section class="profile-card parser-card">
+          <ui-card variant="elevated" padding="lg">
             <header class="card-header">
               <div class="header-left-title">
-                <app-icon name="upload-cloud" [size]="15" class="header-icon-accent"></app-icon>
+                <app-icon name="upload-cloud" [size]="15" class="text-copper" />
                 <h2 class="card-heading">Resume Intelligence</h2>
               </div>
-              <ui-badge variant="default" size="sm">Local Ingestion</ui-badge>
+              <ui-badge tone="neutral" size="sm">Local Ingestion</ui-badge>
             </header>
 
             <p class="card-sub-description">
               Upload your CV or paste raw text to extract confirmed skills, degree facts, and projects locally before updating your profile.
             </p>
 
-            <!-- Dropzone -->
             <div
               class="cv-dropzone"
               [class.dragover]="isDragging"
@@ -443,15 +563,20 @@ interface CvReviewData {
               (dragleave)="onDragLeave($event)"
               (drop)="onDrop($event)"
             >
-              <div class="dropzone-icon-box">
-                <app-icon name="upload-cloud" [size]="22"></app-icon>
+              <div class="dropzone-icon-box" aria-hidden="true">
+                <app-icon name="upload-cloud" [size]="22" />
               </div>
               <div class="dropzone-text-group">
-                <span class="dropzone-main-text">Drag & drop resume file here</span>
+                <span class="dropzone-main-text">Drag &amp; drop resume file here</span>
                 <span class="dropzone-sub-text tabular-nums">PDF, DOCX, or TXT (Max 10 MB)</span>
               </div>
-              <label class="btn-choose-file" tabindex="0" (keydown.enter)="fileInput.click()" (keydown.space)="$event.preventDefault(); fileInput.click()">
-                <app-icon name="file-text" [size]="12"></app-icon>
+              <label
+                class="btn-choose-file"
+                tabindex="0"
+                (keydown.enter)="fileInput.click()"
+                (keydown.space)="$event.preventDefault(); fileInput.click()"
+              >
+                <app-icon name="file-text" [size]="13" />
                 <span>Browse Files</span>
                 <input
                   #fileInput
@@ -463,18 +588,23 @@ interface CvReviewData {
               </label>
             </div>
 
-            <!-- Selected File Badge -->
-            <div *ngIf="selectedFileName" class="selected-file-chip">
-              <div class="file-name-left">
-                <app-icon name="file-text" [size]="13"></app-icon>
-                <span class="file-label" dir="auto">{{ selectedFileName }}</span>
+            @if (selectedFileName) {
+              <div class="selected-file-chip">
+                <div class="file-name-left">
+                  <app-icon name="file-text" [size]="13" />
+                  <span class="file-label" dir="auto">{{ selectedFileName }}</span>
+                </div>
+                <button
+                  type="button"
+                  (click)="clearSelectedFile()"
+                  class="chip-dismiss-btn"
+                  aria-label="Clear selected file"
+                >
+                  <app-icon name="x" [size]="13" />
+                </button>
               </div>
-              <button type="button" (click)="clearSelectedFile()" class="chip-dismiss-btn" aria-label="Clear selected file">
-                <app-icon name="x" [size]="12"></app-icon>
-              </button>
-            </div>
+            }
 
-            <!-- Plain Text Fallback -->
             <div class="paste-fallback-field">
               <label for="rawText">Or paste plain CV text directly:</label>
               <textarea
@@ -487,98 +617,108 @@ interface CvReviewData {
               ></textarea>
             </div>
 
-            <!-- Action Button -->
-            <button
-              type="button"
-              (click)="triggerParse()"
+            <ui-button
+              variant="primary"
+              size="md"
+              [fullWidth]="true"
+              [loading]="isParsing()"
               [disabled]="isParsing() || (!selectedFile && !rawCvText.trim())"
-              class="parse-submit-btn"
+              (clicked)="triggerParse()"
             >
-              <app-icon
-                [name]="isParsing() ? 'refresh' : 'sparkles'"
-                [size]="13"
-                [class.spin]="isParsing()"
-              ></app-icon>
-              <span>{{ isParsing() ? 'Extracting Technical Facts...' : 'Extract & Parse Skills' }}</span>
-            </button>
-          </section>
+              <app-icon name="sparkles" [size]="14" />
+              <span>{{ isParsing() ? 'Extracting Facts...' : 'Extract & Parse Skills' }}</span>
+            </ui-button>
+          </ui-card>
         </div>
       </div>
 
       <!-- CV Review Confirmation Dialog -->
-      <div
-        *ngIf="parsedCvResult()"
-        class="cv-modal-backdrop"
-        (click)="parsedCvResult.set(null)"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="review-title"
-      >
-        <div class="cv-modal-panel" (click)="$event.stopPropagation()">
-          <header class="modal-top">
-            <div class="modal-top-left">
-              <app-icon name="check-circle" [size]="16" class="text-emerald"></app-icon>
-              <h2 id="review-title" class="modal-title">Review Extracted Facts</h2>
-            </div>
-            <button type="button" (click)="parsedCvResult.set(null)" class="modal-close-btn" aria-label="Close dialog">
-              <app-icon name="x" [size]="14"></app-icon>
-            </button>
-          </header>
+      @if (parsedCvResult()) {
+        <div
+          class="cv-modal-backdrop"
+          (click)="parsedCvResult.set(null)"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="review-title"
+        >
+          <div class="cv-modal-panel" (click)="$event.stopPropagation()">
+            <header class="modal-top">
+              <div class="modal-top-left">
+                <app-icon name="check-circle" [size]="16" class="text-emerald" />
+                <h2 id="review-title" class="modal-title">Review Extracted Facts</h2>
+              </div>
+              <button
+                type="button"
+                (click)="parsedCvResult.set(null)"
+                class="modal-close-btn"
+                aria-label="Close dialog"
+              >
+                <app-icon name="x" [size]="15" />
+              </button>
+            </header>
 
-          <div class="modal-body custom-scrollbar">
-            <p class="modal-intro">
-              Review and confirm the technical competencies discovered from your resume before updating your profile.
-            </p>
+            <div class="modal-body custom-scrollbar">
+              <p class="modal-intro">
+                Review and confirm the technical competencies discovered from your resume before updating your profile.
+              </p>
 
-            <div *ngIf="reviewData.full_name || reviewData.education_institution" class="review-meta-summary">
-              <div *ngIf="reviewData.full_name" class="review-meta-row">
-                <span class="review-meta-key">Name</span>
-                <span class="review-meta-val" dir="auto">{{ reviewData.full_name }}</span>
-              </div>
-              <div *ngIf="reviewData.education_institution" class="review-meta-row">
-                <span class="review-meta-key">Education</span>
-                <span class="review-meta-val" dir="auto">{{ reviewData.education_institution }}</span>
-              </div>
-              <div *ngIf="reviewData.projects.length" class="review-meta-row">
-                <span class="review-meta-key">Projects</span>
-                <span class="review-meta-val tabular-nums">{{ reviewData.projects.length }} detected</span>
+              @if (reviewData.full_name || reviewData.education_institution) {
+                <div class="review-meta-summary">
+                  @if (reviewData.full_name) {
+                    <div class="review-meta-row">
+                      <span class="review-meta-key">Name</span>
+                      <span class="review-meta-val" dir="auto">{{ reviewData.full_name }}</span>
+                    </div>
+                  }
+                  @if (reviewData.education_institution) {
+                    <div class="review-meta-row">
+                      <span class="review-meta-key">Education</span>
+                      <span class="review-meta-val" dir="auto">{{ reviewData.education_institution }}</span>
+                    </div>
+                  }
+                  @if (reviewData.projects.length) {
+                    <div class="review-meta-row">
+                      <span class="review-meta-key">Projects</span>
+                      <span class="review-meta-val tabular-nums">{{ reviewData.projects.length }} detected</span>
+                    </div>
+                  }
+                </div>
+              }
+
+              <div class="review-section">
+                <h3 class="review-section-title tabular-nums">
+                  Confirmed Skills ({{ reviewData.confirmed_skills.length }})
+                </h3>
+                <div class="chips-flex-wrap">
+                  @for (s of reviewData.confirmed_skills; track s; let i = $index) {
+                    <span class="skill-tag confirmed">
+                      <app-icon name="check" [size]="10" />
+                      <span class="tag-title" dir="auto">{{ s }}</span>
+                      <button
+                        type="button"
+                        (click)="removeReviewSkill(i)"
+                        class="tag-remove-btn"
+                        [attr.aria-label]="'Remove extracted skill ' + s"
+                      >
+                        <app-icon name="x" [size]="10" />
+                      </button>
+                    </span>
+                  }
+                </div>
               </div>
             </div>
 
-            <div class="review-section">
-              <h3 class="review-section-title tabular-nums">
-                Confirmed Skills ({{ reviewData.confirmed_skills.length }})
-              </h3>
-              <div class="chips-flex-wrap">
-                <span
-                  *ngFor="let s of reviewData.confirmed_skills; let i = index"
-                  class="skill-tag confirmed"
-                >
-                  <app-icon name="check" [size]="10"></app-icon>
-                  <span class="tag-title" dir="auto">{{ s }}</span>
-                  <button
-                    type="button"
-                    (click)="removeReviewSkill(i)"
-                    class="tag-remove-btn"
-                    [attr.aria-label]="'Remove extracted skill ' + s"
-                  >
-                    <app-icon name="x" [size]="10"></app-icon>
-                  </button>
-                </span>
-              </div>
-            </div>
+            <footer class="modal-footer">
+              <ui-button variant="secondary" size="md" (clicked)="parsedCvResult.set(null)">
+                <span>Cancel</span>
+              </ui-button>
+              <ui-button variant="primary" size="md" [loading]="isSaving()" (clicked)="confirmAndSaveProfile()">
+                <span>Confirm &amp; Apply</span>
+              </ui-button>
+            </footer>
           </div>
-
-          <footer class="modal-footer">
-            <ui-button variant="primary" size="md" [loading]="isSaving()" (clicked)="confirmAndSaveProfile()">
-              <span>Confirm & Apply to Profile</span>
-            </ui-button>
-            <button type="button" (click)="parsedCvResult.set(null)" class="modal-cancel-btn">
-              Cancel
-            </button>
-          </footer>
         </div>
-      </div>
+      }
     </div>
   `,
   styles: [`
@@ -592,15 +732,25 @@ interface CvReviewData {
       flex-direction: column;
       gap: var(--space-4);
       width: 100%;
-      max-width: 1240px;
+      max-width: 1160px;
       margin: 0 auto;
       min-width: 0;
     }
 
-    .profile-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    /* Architectural Hero */
+    .profile-hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular), var(--shadow-sm);
+      padding: var(--space-5) var(--space-6);
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
     }
 
     .title-row {
@@ -612,30 +762,30 @@ interface CvReviewData {
 
     .page-title {
       margin: 0;
-      font-size: var(--text-2xl);
+      font-family: var(--font-display);
+      font-size: var(--text-h1);
       font-weight: 700;
-      letter-spacing: -0.03em;
-      color: var(--text-primary);
+      letter-spacing: var(--tracking-tight);
+      color: var(--ink-primary);
     }
 
     .page-subtitle {
-      margin: 3px 0 0 0;
+      margin: var(--space-1) 0 0 0;
       font-size: var(--text-sm);
-      color: var(--text-secondary);
-      line-height: 1.45;
+      color: var(--ink-secondary);
+      line-height: 1.5;
     }
 
     /* Calibration Strip */
     .calibration-strip {
+      display: block;
+    }
+
+    .calibration-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-4);
-      padding: var(--space-3-5) var(--space-4);
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-sm);
       flex-wrap: wrap;
     }
 
@@ -644,36 +794,7 @@ interface CvReviewData {
       align-items: center;
       gap: var(--space-3-5);
       min-width: 0;
-    }
-
-    .completeness-score-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-width: 64px;
-      height: 54px;
-      padding: 0 var(--space-2);
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-      flex-shrink: 0;
-    }
-    .score-number {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      color: var(--brand-accent);
-      line-height: 1;
-    }
-    .score-tag {
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-tertiary);
-      margin-top: 3px;
+      flex: 1 1 280px;
     }
 
     .calibration-meta {
@@ -688,26 +809,28 @@ interface CvReviewData {
       align-items: center;
       gap: 7px;
     }
+
     .calibration-headline {
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--ink-primary);
     }
+
     .live-dot-indicator {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background-color: var(--emerald-500);
-      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+      background-color: var(--semantic-emerald);
       flex-shrink: 0;
     }
+
     .calibration-detail-text {
       margin: 0;
-      font-size: 11px;
-      color: var(--text-tertiary);
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
       max-width: 540px;
-      line-height: 1.4;
+      line-height: 1.45;
     }
 
     .calibration-actions {
@@ -717,36 +840,10 @@ interface CvReviewData {
       flex-wrap: wrap;
     }
 
-    .export-json-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      height: 36px;
-      padding: 0 12px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-sm);
-      color: var(--text-secondary);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .export-json-btn:hover {
-      background-color: var(--bg-surface-3);
-      color: var(--text-primary);
-      border-color: var(--border-strong);
-    }
-    .export-json-btn:active {
-      transform: scale(0.98);
-    }
-
     /* Workspace 2-Column Grid */
     .profile-grid-workspace {
       display: grid;
-      grid-template-columns: 1fr 360px;
+      grid-template-columns: minmax(0, 1fr) 360px;
       gap: var(--space-4);
       align-items: start;
     }
@@ -759,58 +856,43 @@ interface CvReviewData {
       min-width: 0;
     }
 
-    .profile-card {
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-sm);
-      padding: var(--space-4);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-      transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
-    }
-    .profile-card:hover {
-      border-color: var(--border-strong);
-    }
-
     .card-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-2);
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: var(--space-2-5);
+      border-bottom: 1px solid var(--border-hairline);
+      padding-bottom: var(--space-3);
+      margin-bottom: var(--space-3);
     }
 
     .header-left-title {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-    }
-    .header-icon-accent {
-      color: var(--brand-accent);
+      min-width: 0;
     }
 
     .card-heading {
       margin: 0;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: -0.015em;
-      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      letter-spacing: var(--tracking-snug);
+      color: var(--ink-primary);
     }
 
     .counter-tag {
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: var(--text-xs);
       font-weight: 600;
     }
 
     .card-sub-description {
-      margin: 0;
-      font-size: 12px;
-      color: var(--text-secondary);
-      line-height: 1.45;
+      margin: 0 0 var(--space-3) 0;
+      font-size: var(--text-xs);
+      color: var(--ink-secondary);
+      line-height: 1.5;
     }
 
     /* Form Fields */
@@ -822,86 +904,106 @@ interface CvReviewData {
 
     .form-row-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+
+    .form-row-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: var(--space-3);
     }
 
     .form-field {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
       min-width: 0;
     }
+
     .form-field label {
-      font-size: 11px;
+      font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
     }
 
-    .form-input, .form-textarea {
+    .form-input,
+    .form-textarea {
       width: 100%;
-      min-height: 36px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-xs);
-      padding: 7px 10px;
-      font-family: inherit;
-      font-size: 13px;
-      color: var(--text-primary);
-      transition: border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
-      box-sizing: border-box;
+      min-height: 38px;
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-family: var(--font-sans);
+      font-size: var(--text-sm);
+      color: var(--ink-primary);
+      transition:
+        border-color var(--dur-fast) var(--ease-spring),
+        background-color var(--dur-fast) var(--ease-spring),
+        box-shadow var(--dur-fast) var(--ease-spring);
     }
-    .form-input:hover:not(.readonly), .form-textarea:hover {
+
+    .form-input:hover:not(.readonly),
+    .form-textarea:hover {
       border-color: var(--border-strong);
     }
-    .form-input:focus, .form-textarea:focus {
+
+    .form-input:focus,
+    .form-textarea:focus {
       outline: none;
-      border-color: var(--brand-primary);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
-      background-color: var(--bg-surface-1);
+      border-color: var(--accent-copper);
+      box-shadow: 0 0 0 2px var(--accent-copper-focus);
+      background-color: var(--surface-elevated);
     }
+
     .form-input.readonly {
       opacity: 0.65;
       cursor: not-allowed;
     }
 
-    /* Skills Manager */
+    /* Skills Tag Matrix */
     .skills-manager-block {
       display: flex;
       flex-direction: column;
-      gap: var(--space-2-5);
+      gap: var(--space-3);
     }
 
     .chips-flex-wrap {
       display: flex;
       flex-wrap: wrap;
-      gap: var(--space-1-5);
+      gap: 6px;
     }
 
     .skill-tag {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 4px 8px;
-      border-radius: var(--radius-xs);
-      font-size: 11px;
+      padding: 4px 9px;
+      border-radius: var(--radius-full);
+      font-size: var(--text-xs);
       font-weight: 500;
-      border: 1px solid var(--border-default);
-      background-color: var(--bg-surface-2);
-      box-shadow: var(--surface-highlight-sm);
+      border: 1px solid var(--border-hairline);
+      background-color: var(--surface-subtle);
+      color: var(--ink-secondary);
     }
+
     .skill-tag.confirmed {
-      border-color: var(--emerald-border);
-      background-color: var(--emerald-bg);
-      color: var(--emerald-400);
+      border-color: var(--semantic-emerald-border);
+      background-color: var(--semantic-emerald-soft);
+      color: var(--semantic-emerald-text);
     }
+
     .skill-tag.target {
-      border-color: var(--brand-border-subtle);
-      background-color: var(--brand-bg-subtle);
-      color: var(--brand-accent);
+      border-color: var(--border-copper);
+      background-color: var(--accent-copper-soft);
+      color: var(--accent-copper-text);
     }
-    .skill-tag.exposure {
-      color: var(--text-secondary);
+
+    .skill-tag.neutral {
+      border-color: var(--border-hairline);
+      background-color: var(--surface-subtle);
+      color: var(--ink-primary);
     }
 
     .tag-remove-btn {
@@ -914,55 +1016,58 @@ interface CvReviewData {
       align-items: center;
       justify-content: center;
       padding: 2px;
-      border-radius: 2px;
-      transition: opacity var(--motion-fast), background-color var(--motion-fast);
+      border-radius: var(--radius-full);
+      transition: opacity var(--dur-fast) var(--ease-spring), background-color var(--dur-fast) var(--ease-spring);
     }
+
     .tag-remove-btn:hover {
       opacity: 1;
-      background-color: rgba(255, 255, 255, 0.08);
+      background-color: var(--surface-active);
     }
 
     .quick-suggest-strip {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       flex-wrap: wrap;
     }
+
     .suggest-label {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
     }
+
     .suggestions-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 4px;
+      gap: 5px;
     }
+
     .quick-pill-btn {
       display: inline-flex;
       align-items: center;
-      gap: 3px;
-      padding: 3px 7px;
-      font-size: 11px;
+      gap: 4px;
+      padding: 4px 9px;
+      font-size: var(--text-xs);
       font-weight: 500;
-      border-radius: var(--radius-xs);
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      color: var(--text-secondary);
+      border-radius: var(--radius-full);
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      color: var(--ink-secondary);
       cursor: pointer;
-      transition: all var(--motion-fast);
+      transition:
+        background-color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring),
+        color var(--dur-fast) var(--ease-spring);
     }
+
     .quick-pill-btn:hover:not(:disabled) {
-      background-color: var(--bg-surface-3);
+      background-color: var(--surface-muted);
       border-color: var(--border-strong);
-      color: var(--text-primary);
+      color: var(--ink-primary);
     }
-    .quick-pill-btn:active:not(:disabled) {
-      transform: scale(0.97);
-    }
+
     .quick-pill-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
@@ -973,49 +1078,33 @@ interface CvReviewData {
       gap: var(--space-2);
       min-width: 0;
     }
+
     .custom-skill-input {
       flex: 1;
       min-width: 0;
-      height: 34px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-xs);
-      padding: 0 10px;
-      font-family: inherit;
-      font-size: 12px;
-      color: var(--text-primary);
-      transition: border-color var(--motion-fast), box-shadow var(--motion-fast), background-color var(--motion-fast);
+      height: 36px;
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      padding: 0 12px;
+      font-family: var(--font-sans);
+      font-size: var(--text-sm);
+      color: var(--ink-primary);
+      transition:
+        border-color var(--dur-fast) var(--ease-spring),
+        box-shadow var(--dur-fast) var(--ease-spring),
+        background-color var(--dur-fast) var(--ease-spring);
     }
+
     .custom-skill-input:hover {
       border-color: var(--border-strong);
     }
+
     .custom-skill-input:focus {
       outline: none;
-      border-color: var(--brand-primary);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
-      background-color: var(--bg-surface-1);
-    }
-    .btn-add-skill {
-      padding: 0 12px;
-      height: 34px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-      color: var(--text-primary);
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-      flex-shrink: 0;
-      transition: all var(--motion-fast);
-    }
-    .btn-add-skill:hover {
-      background-color: var(--bg-surface-3);
-      border-color: var(--border-strong);
-    }
-    .btn-add-skill:active {
-      transform: scale(0.98);
+      border-color: var(--accent-copper);
+      box-shadow: 0 0 0 2px var(--accent-copper-focus);
+      background-color: var(--surface-elevated);
     }
 
     /* Projects Card */
@@ -1024,16 +1113,17 @@ interface CvReviewData {
       flex-direction: column;
       gap: var(--space-2-5);
     }
+
     .project-item-card {
       padding: var(--space-3);
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
       display: flex;
       flex-direction: column;
       gap: var(--space-2);
     }
+
     .project-head {
       display: flex;
       align-items: baseline;
@@ -1041,79 +1131,85 @@ interface CvReviewData {
       gap: var(--space-2);
       flex-wrap: wrap;
     }
+
     .project-name {
       margin: 0;
-      font-size: 13px;
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
       font-weight: 600;
-      color: var(--text-primary);
+      color: var(--ink-primary);
     }
+
     .project-context {
-      font-size: 11px;
-      color: var(--text-tertiary);
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
     }
+
     .project-tech-row {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
     }
+
     .project-tech-chip {
       font-family: var(--font-mono);
       font-size: 10px;
-      padding: 1px 6px;
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-subtle);
-      border-radius: 3px;
-      color: var(--text-secondary);
+      padding: 2px 6px;
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-xs);
+      color: var(--ink-secondary);
     }
+
     .project-bullets {
       margin: 0;
       padding-left: 16px;
       display: flex;
       flex-direction: column;
       gap: 3px;
-      font-size: 12px;
-      color: var(--text-secondary);
+      font-size: var(--text-xs);
+      color: var(--ink-secondary);
     }
 
-    /* Resume Parser Card & Dropzone */
+    /* Resume Dropzone */
     .cv-dropzone {
       border: 1.5px dashed var(--border-strong);
-      background-color: var(--bg-surface-2);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-sm);
+      background-color: var(--surface-subtle);
+      border-radius: var(--radius-md);
       padding: var(--space-5) var(--space-4);
       display: flex;
       flex-direction: column;
       align-items: center;
       text-align: center;
       gap: var(--space-2-5);
-      transition: border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
+      margin-bottom: var(--space-3);
+      transition:
+        border-color var(--dur-fast) var(--ease-spring),
+        background-color var(--dur-fast) var(--ease-spring),
+        box-shadow var(--dur-fast) var(--ease-spring);
     }
+
     .cv-dropzone:hover {
-      border-color: var(--brand-border-subtle);
-      background-color: var(--bg-surface-3);
+      border-color: var(--border-copper);
     }
+
     .cv-dropzone.dragover {
-      border-color: var(--brand-primary);
-      background-color: var(--brand-bg-subtle);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring), var(--surface-highlight-sm);
+      border-color: var(--accent-copper);
+      background-color: var(--accent-copper-soft);
+      box-shadow: 0 0 0 2px var(--accent-copper-focus);
     }
 
     .dropzone-icon-box {
-      width: 42px;
-      height: 42px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm), var(--shadow-xs);
-      color: var(--brand-accent);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular-sm), var(--shadow-xs);
+      color: var(--accent-copper-text);
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform var(--motion-fast);
-    }
-    .cv-dropzone.dragover .dropzone-icon-box {
-      transform: scale(1.08);
     }
 
     .dropzone-text-group {
@@ -1121,14 +1217,16 @@ interface CvReviewData {
       flex-direction: column;
       gap: 2px;
     }
+
     .dropzone-main-text {
-      font-size: 13px;
+      font-size: var(--text-sm);
       font-weight: 600;
-      color: var(--text-primary);
+      color: var(--ink-primary);
     }
+
     .dropzone-sub-text {
-      font-size: 11px;
-      color: var(--text-tertiary);
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
     }
 
     .btn-choose-file {
@@ -1136,26 +1234,22 @@ interface CvReviewData {
       align-items: center;
       justify-content: center;
       gap: 6px;
-      min-height: 34px;
+      min-height: 36px;
       padding: 6px 14px;
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm), var(--shadow-xs);
-      border-radius: var(--radius-xs);
-      font-size: 12px;
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular-sm), var(--shadow-xs);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--text-primary);
+      color: var(--ink-primary);
       cursor: pointer;
-      margin-top: 2px;
-      transition: all var(--motion-fast);
     }
+
     .btn-choose-file:hover {
-      background-color: var(--bg-surface-3);
       border-color: var(--border-strong);
     }
-    .btn-choose-file:active {
-      transform: scale(0.98);
-    }
+
     .visually-hidden {
       position: absolute;
       width: 1px;
@@ -1173,91 +1267,66 @@ interface CvReviewData {
       align-items: center;
       justify-content: space-between;
       gap: var(--space-2);
-      padding: 7px 10px;
-      background-color: var(--brand-bg-subtle);
-      border: 1px solid var(--brand-border-subtle);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
+      padding: 8px 10px;
+      margin-bottom: var(--space-3);
+      background-color: var(--accent-copper-soft);
+      border: 1px solid var(--border-copper);
+      border-radius: var(--radius-sm);
     }
+
     .file-name-left {
       display: flex;
       align-items: center;
       gap: 6px;
-      color: var(--brand-accent);
+      color: var(--accent-copper-text);
       min-width: 0;
     }
+
     .file-label {
-      font-size: 12px;
+      font-size: var(--text-xs);
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
     .chip-dismiss-btn {
       background: transparent;
       border: none;
-      color: var(--brand-accent);
+      color: var(--accent-copper-text);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 4px;
+      min-width: 28px;
+      min-height: 28px;
       border-radius: var(--radius-xs);
-    }
-    .chip-dismiss-btn:hover {
-      background-color: rgba(99, 102, 241, 0.16);
     }
 
     .paste-fallback-field {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
+      margin-bottom: var(--space-3);
     }
+
     .paste-fallback-field label {
-      font-size: 11px;
+      font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
     }
+
     .paste-area {
       resize: vertical;
     }
 
-    .parse-submit-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      width: 100%;
-      height: 38px;
-      background-color: var(--brand-primary);
-      border: 1px solid var(--brand-primary);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-      color: #ffffff;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .parse-submit-btn:hover:not(:disabled) {
-      background-color: var(--brand-primary-hover);
-      box-shadow: var(--shadow-glow-brand);
-    }
-    .parse-submit-btn:active:not(:disabled) {
-      transform: scale(0.98);
-    }
-    .parse-submit-btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    /* Modal Backdrop */
+    /* CV Modal */
     .cv-modal-backdrop {
       position: fixed;
       inset: 0;
-      background-color: rgba(9, 9, 11, 0.78);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background-color: rgba(12, 13, 16, 0.68);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       z-index: 1200;
       display: flex;
       align-items: center;
@@ -1268,62 +1337,51 @@ interface CvReviewData {
     .cv-modal-panel {
       width: 100%;
       max-width: 560px;
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-sm);
-      box-shadow: var(--surface-highlight), var(--shadow-lg);
+      background-color: var(--surface-glass-strong);
+      backdrop-filter: var(--blur-glass);
+      -webkit-backdrop-filter: var(--blur-glass);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--border-specular), var(--shadow-lg);
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      animation: modalEnter 0.2s var(--ease-spring);
-    }
-    @keyframes modalEnter {
-      from {
-        opacity: 0;
-        transform: translateY(6px) scale(0.98);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
+      animation: studioFadeUp var(--dur-base) var(--ease-out-expo) both;
     }
 
     .modal-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: var(--space-3-5) var(--space-4);
-      border-bottom: 1px solid var(--border-subtle);
-      box-shadow: var(--surface-highlight-sm);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-hairline);
     }
+
     .modal-top-left {
       display: flex;
       align-items: center;
       gap: var(--space-2);
     }
+
     .modal-title {
       margin: 0;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-primary);
+      font-family: var(--font-display);
+      font-size: var(--text-md);
+      font-weight: 600;
+      color: var(--ink-primary);
     }
+
     .modal-close-btn {
-      background: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-xs);
-      color: var(--text-secondary);
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      color: var(--ink-secondary);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
-      transition: all var(--motion-fast);
-    }
-    .modal-close-btn:hover {
-      color: var(--text-primary);
-      border-color: var(--border-strong);
-      background: var(--bg-surface-3);
+      min-width: 36px;
+      min-height: 36px;
     }
 
     .modal-body {
@@ -1334,44 +1392,48 @@ interface CvReviewData {
       max-height: 420px;
       overflow-y: auto;
     }
+
     .modal-intro {
       margin: 0;
-      font-size: 12px;
-      color: var(--text-secondary);
-      line-height: 1.45;
+      font-size: var(--text-xs);
+      color: var(--ink-secondary);
+      line-height: 1.5;
     }
 
     .review-meta-summary {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      padding: var(--space-2-5) var(--space-3);
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-xs);
+      padding: var(--space-3);
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-md);
     }
+
     .review-meta-row {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
       gap: var(--space-3);
-      font-size: 12px;
+      font-size: var(--text-xs);
     }
+
     .review-meta-key {
       font-weight: 600;
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
     }
+
     .review-meta-val {
       font-weight: 500;
-      color: var(--text-primary);
+      color: var(--ink-primary);
       text-align: right;
     }
 
     .review-section-title {
       margin: 0 0 var(--space-2) 0;
-      font-size: 12px;
+      font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--text-primary);
+      color: var(--ink-primary);
     }
 
     .modal-footer {
@@ -1379,91 +1441,48 @@ interface CvReviewData {
       align-items: center;
       justify-content: flex-end;
       gap: var(--space-2);
-      padding: var(--space-3) var(--space-4);
-      border-top: 1px solid var(--border-subtle);
-      background-color: var(--bg-surface-2);
+      padding: var(--space-3-5) var(--space-4);
+      border-top: 1px solid var(--border-hairline);
+      background-color: var(--surface-elevated);
     }
 
-    .modal-cancel-btn {
-      padding: 7px 14px;
-      min-height: 36px;
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-      color: var(--text-secondary);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .modal-cancel-btn:hover {
-      background-color: var(--bg-surface-3);
-      border-color: var(--border-strong);
-      color: var(--text-primary);
-    }
-    .modal-cancel-btn:active {
-      transform: scale(0.98);
-    }
+    .text-emerald { color: var(--semantic-emerald-text); }
+    .text-copper { color: var(--accent-copper-text); }
+    .text-muted { color: var(--ink-muted); }
 
-    .text-emerald { color: var(--emerald-400); }
-    .text-brand { color: var(--brand-accent); }
-    .text-muted { color: var(--text-tertiary); }
-
-    .spin {
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    @media (max-width: 860px) {
+    @media (max-width: 960px) {
       .profile-grid-workspace {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
-      .calibration-strip {
-        flex-direction: column;
-        align-items: stretch;
+      .form-row-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      .calibration-actions {
-        width: 100%;
+    }
+
+    @media (max-width: 767px) {
+      .profile-hero {
+        padding: var(--space-4);
       }
-      .calibration-actions ui-button {
-        flex: 1;
+
+      .form-row-2,
+      .form-row-3 {
+        grid-template-columns: minmax(0, 1fr);
       }
-      .calibration-actions ::ng-deep .ui-btn {
-        width: 100%;
-        min-height: 44px;
-      }
-      .export-json-btn {
-        min-height: 44px;
-      }
-      .form-row-2 {
-        grid-template-columns: 1fr;
-      }
+
       .form-input,
       .custom-skill-input,
-      .btn-add-skill,
       .btn-choose-file,
-      .parse-submit-btn {
+      .quick-pill-btn {
         min-height: 44px;
       }
-      .modal-close-btn {
-        width: 44px;
-        height: 44px;
-      }
-      .modal-cancel-btn {
-        min-height: 44px;
-      }
-    }
 
-    @media (max-width: 400px) {
+      .modal-close-btn {
+        min-width: 44px;
+        min-height: 44px;
+      }
+
       .custom-add-field-row {
         flex-direction: column;
-      }
-      .btn-add-skill {
-        width: 100%;
       }
     }
   `],
@@ -1487,15 +1506,20 @@ export class ProfileComponent implements OnInit {
   experienceYears: number | null = null;
   linkedinUrl = '';
   githubUrl = '';
+  portfolioUrl = '';
+  careerDirection = '';
+  priorityTarget = '';
 
-  // Skills
+  // Skills & Target Roles
   readonly confirmedSkills = signal<string[]>([]);
   readonly targetSkills = signal<string[]>([]);
   readonly exposureSkills = signal<string[]>([]);
+  readonly targetRoleTerms = signal<string[]>([]);
 
   newConfirmedSkill = '';
   newTargetSkill = '';
   newExposureSkill = '';
+  newRoleTerm = '';
 
   readonly popularSuggestions = [
     'Angular',
@@ -1526,6 +1550,7 @@ export class ProfileComponent implements OnInit {
     experience_years: null,
     linkedin_url: '',
     github_url: '',
+    portfolio_url: '',
     confirmed_skills: [],
     target_skills: [],
     learning_or_exposure_skills: [],
@@ -1560,9 +1585,13 @@ export class ProfileComponent implements OnInit {
           this.experienceYears = p.experience_years;
           this.linkedinUrl = p.linkedin_url || '';
           this.githubUrl = p.github_url || '';
+          this.portfolioUrl = p.portfolio_url || '';
+          this.careerDirection = p.career_direction || '';
+          this.priorityTarget = p.priority_target || '';
           this.confirmedSkills.set([...(p.confirmed_skills || [])]);
           this.targetSkills.set([...(p.target_skills || [])]);
           this.exposureSkills.set([...(p.learning_or_exposure_skills || [])]);
+          this.targetRoleTerms.set([...(p.target_role_terms || [])]);
         },
         error: (e: unknown) => console.error('Failed to load profile:', e),
       });
@@ -1575,8 +1604,22 @@ export class ProfileComponent implements OnInit {
     if (this.educationInst) score += 10;
     if (this.confirmedSkills().length >= 3) score += 20;
     if (this.confirmedSkills().length >= 6) score += 10;
-    if (this.linkedinUrl || this.githubUrl) score += 5;
+    if (this.linkedinUrl || this.githubUrl || this.portfolioUrl) score += 5;
     return Math.min(score, 100);
+  }
+
+  addRoleTerm(): void {
+    const term = this.newRoleTerm.trim();
+    if (term && !this.targetRoleTerms().includes(term)) {
+      this.targetRoleTerms.update((list) => [...list, term]);
+      this.newRoleTerm = '';
+      this.telegram.haptic('selection');
+    }
+  }
+
+  removeRoleTerm(index: number): void {
+    this.telegram.haptic('light');
+    this.targetRoleTerms.update((list) => list.filter((_, i) => i !== index));
   }
 
   addSkill(type: 'confirmed' | 'target' | 'exposure'): void {
@@ -1636,6 +1679,10 @@ export class ProfileComponent implements OnInit {
         experience_years: this.experienceYears,
         linkedin_url: this.linkedinUrl,
         github_url: this.githubUrl,
+        portfolio_url: this.portfolioUrl,
+        career_direction: this.careerDirection,
+        priority_target: this.priorityTarget,
+        target_role_terms: this.targetRoleTerms(),
         confirmed_skills: this.confirmedSkills(),
         target_skills: this.targetSkills(),
         learning_or_exposure_skills: this.exposureSkills(),
@@ -1740,6 +1787,7 @@ export class ProfileComponent implements OnInit {
             result.experience_years ?? this.experienceYears ?? 1.0,
           linkedin_url: result.personal_info?.linkedin_url || this.linkedinUrl || '',
           github_url: result.personal_info?.github_url || this.githubUrl || '',
+          portfolio_url: result.personal_info?.portfolio_url || this.portfolioUrl || '',
           confirmed_skills: [...(result.confirmed_skills || [])],
           target_skills: [...(result.target_skills || [])],
           learning_or_exposure_skills: [

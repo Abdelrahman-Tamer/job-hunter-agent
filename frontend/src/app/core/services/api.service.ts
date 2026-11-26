@@ -137,6 +137,10 @@ export class ApiService {
     return this.http.get<SourceInfo[]>(`${this.baseUrl}/api/v1/sources`);
   }
 
+  getSourcesHealth(): Observable<Record<string, boolean>> {
+    return this.http.get<Record<string, boolean>>(`${this.baseUrl}/api/v1/sources/health`);
+  }
+
   getRuns(): Observable<DailyRunRecord[]> {
     return this.http.get<DailyRunRecord[]>(`${this.baseUrl}/api/v1/runs`);
   }

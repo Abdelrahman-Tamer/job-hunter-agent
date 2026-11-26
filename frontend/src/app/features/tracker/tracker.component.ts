@@ -1,6 +1,5 @@
 import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -8,9 +7,15 @@ import { TelegramService } from '../../core/services/telegram.service';
 import { ToastService } from '../../core/services/toast.service';
 import { IconComponent } from '../../core/components/icon/icon.component';
 import { JobDrawerComponent } from '../../core/components/job-drawer/job-drawer.component';
-import { UiBadgeComponent } from '../../shared/ui/ui-badge.component';
-import { UiSkeletonComponent } from '../../shared/ui/ui-skeleton.component';
-import { UiEmptyStateComponent } from '../../shared/ui/ui-empty-state.component';
+import {
+  UiArchitecturalMotifComponent,
+  UiBadgeComponent,
+  UiButtonComponent,
+  UiCardComponent,
+  UiEmptyStateComponent,
+  UiMatchPillComponent,
+  UiSkeletonComponent,
+} from '../../core/components/ui';
 import {
   ApplicationStatus,
   JobSummary,
@@ -27,61 +32,67 @@ interface StatusColumn {
   selector: 'app-tracker',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     RouterLink,
     IconComponent,
     JobDrawerComponent,
+    UiArchitecturalMotifComponent,
     UiBadgeComponent,
-    UiSkeletonComponent,
+    UiButtonComponent,
+    UiCardComponent,
     UiEmptyStateComponent,
+    UiMatchPillComponent,
+    UiSkeletonComponent,
   ],
   template: `
     <div class="tracker-pipeline-view">
-      <!-- Top Command Header & View Switcher -->
-      <header class="tracker-header">
-        <div class="header-titles">
-          <div class="title-row">
-            <h1 class="page-title">Application Pipeline</h1>
-            <ui-badge variant="brand" size="sm" class="tabular-nums">
-              {{ allItems().length }} Tracked
-            </ui-badge>
-          </div>
-          <p class="page-subtitle">
-            Manage stage transitions, track recruiter follow-ups, and progress opportunities.
-          </p>
-        </div>
+      <!-- Architectural Hero Header -->
+      <header class="tracker-hero">
+        <ui-architectural-motif variant="header" />
 
-        <!-- View Switcher -->
-        <div class="header-controls">
-          <div class="segmented-control" role="tablist" aria-label="Pipeline view layout">
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="viewMode() === 'kanban'"
-              (click)="setViewMode('kanban')"
-              [class.active]="viewMode() === 'kanban'"
-              class="segment-btn"
-            >
-              <app-icon name="grid" [size]="13"></app-icon>
-              <span>Board</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="viewMode() === 'list'"
-              (click)="setViewMode('list')"
-              [class.active]="viewMode() === 'list'"
-              class="segment-btn"
-            >
-              <app-icon name="list" [size]="13"></app-icon>
-              <span>List</span>
-            </button>
+        <div class="hero-inner">
+          <div class="header-titles">
+            <div class="title-row">
+              <h1 class="page-title">Application Pipeline</h1>
+              <ui-badge tone="copper" size="sm" [mono]="true">
+                {{ allItems().length }} tracked
+              </ui-badge>
+            </div>
+            <p class="page-subtitle">
+              Track stage progression, follow-up deadlines, and application outcomes in one place.
+            </p>
+          </div>
+
+          <div class="header-controls">
+            <div class="segmented-control" role="tablist" aria-label="Pipeline view layout">
+              <button
+                type="button"
+                role="tab"
+                [attr.aria-selected]="viewMode() === 'kanban'"
+                (click)="setViewMode('kanban')"
+                [class.active]="viewMode() === 'kanban'"
+                class="segment-btn"
+              >
+                <app-icon name="grid" [size]="13" />
+                <span>Board</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                [attr.aria-selected]="viewMode() === 'list'"
+                (click)="setViewMode('list')"
+                [class.active]="viewMode() === 'list'"
+                class="segment-btn"
+              >
+                <app-icon name="list" [size]="13" />
+                <span>List</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
-      <!-- Stage Funnel Metrics Bar -->
+      <!-- Stage Distribution Funnel Bar -->
       <section class="funnel-metrics-bar tabular-nums" aria-label="Stage distribution">
         <button
           type="button"
@@ -91,8 +102,9 @@ interface StatusColumn {
           [attr.aria-pressed]="filterStatus() === 'ALL'"
         >
           <span class="stat-count">{{ allItems().length }}</span>
-          <span class="stat-name">Total Roles</span>
+          <span class="stat-name">Total</span>
         </button>
+
         <button
           type="button"
           class="funnel-stat-card"
@@ -100,9 +112,10 @@ interface StatusColumn {
           [class.active]="filterStatus() === 'SAVED'"
           [attr.aria-pressed]="filterStatus() === 'SAVED'"
         >
-          <span class="stat-count text-brand">{{ getCountForStatus('SAVED') }}</span>
+          <span class="stat-count text-steel">{{ getCountForStatus('SAVED') }}</span>
           <span class="stat-name">Saved</span>
         </button>
+
         <button
           type="button"
           class="funnel-stat-card"
@@ -110,9 +123,10 @@ interface StatusColumn {
           [class.active]="filterStatus() === 'APPLIED'"
           [attr.aria-pressed]="filterStatus() === 'APPLIED'"
         >
-          <span class="stat-count text-indigo">{{ getCountForStatus('APPLIED') }}</span>
+          <span class="stat-count text-copper">{{ getCountForStatus('APPLIED') }}</span>
           <span class="stat-name">Applied</span>
         </button>
+
         <button
           type="button"
           class="funnel-stat-card"
@@ -120,9 +134,10 @@ interface StatusColumn {
           [class.active]="filterStatus() === 'INTERVIEW'"
           [attr.aria-pressed]="filterStatus() === 'INTERVIEW'"
         >
-          <span class="stat-count text-purple">{{ getCountForStatus('INTERVIEW') }}</span>
-          <span class="stat-name">Interviews</span>
+          <span class="stat-count text-amber">{{ getCountForStatus('INTERVIEW') }}</span>
+          <span class="stat-name">Interviewing</span>
         </button>
+
         <button
           type="button"
           class="funnel-stat-card"
@@ -131,8 +146,9 @@ interface StatusColumn {
           [attr.aria-pressed]="filterStatus() === 'OFFER'"
         >
           <span class="stat-count text-emerald">{{ getCountForStatus('OFFER') }}</span>
-          <span class="stat-name">Offers</span>
+          <span class="stat-name">Offer</span>
         </button>
+
         <button
           type="button"
           class="funnel-stat-card"
@@ -140,251 +156,250 @@ interface StatusColumn {
           [class.active]="filterStatus() === 'REJECTED'"
           [attr.aria-pressed]="filterStatus() === 'REJECTED'"
         >
-          <span class="stat-count text-muted">{{ getCountForStatus('REJECTED') + getCountForStatus('ARCHIVED') }}</span>
-          <span class="stat-name">Archived</span>
+          <span class="stat-count text-crimson">{{ getCountForStatus('REJECTED') + getCountForStatus('ARCHIVED') }}</span>
+          <span class="stat-name">Rejected</span>
         </button>
       </section>
 
       <!-- Loading State -->
-      <div *ngIf="isLoading()" class="skeletons-container">
+      @if (isLoading()) {
         <div class="skeletons-grid">
-          <ui-skeleton *ngFor="let col of [1, 2, 3, 4]" height="320px" rounded="sm"></ui-skeleton>
+          @for (col of [1, 2, 3, 4]; track col) {
+            <ui-skeleton height="280px" rounded="lg" />
+          }
         </div>
-      </div>
-
-      <!-- Empty State -->
-      <div *ngIf="!isLoading() && allItems().length === 0" class="empty-feed-container">
+      } @else if (allItems().length === 0) {
+        <!-- Empty State -->
         <ui-empty-state
           icon="bookmark"
           title="Your Pipeline Is Clean"
           subtitle="Discover verified opportunities on the radar and save them to track your application journey."
         >
           <div action>
-            <a routerLink="/jobs" class="find-roles-btn">
-              <app-icon name="search" [size]="13"></app-icon>
-              <span>Explore Opportunities</span>
+            <a routerLink="/jobs" class="find-roles-link">
+              <ui-button variant="primary" size="sm">
+                <app-icon name="search" [size]="13" />
+                <span>Explore Opportunities</span>
+              </ui-button>
             </a>
           </div>
         </ui-empty-state>
-      </div>
-
-      <!-- VIEW 1: KANBAN BOARD -->
-      <section
-        *ngIf="!isLoading() && allItems().length > 0 && viewMode() === 'kanban'"
-        class="kanban-workspace custom-scrollbar"
-        aria-label="Kanban pipeline board"
-      >
-        <div class="kanban-columns-container">
-          <!-- Stage Column Loop -->
-          <div
-            *ngFor="let col of kanbanColumns"
-            class="kanban-column"
-            [class.is-highlighted]="filterStatus() === col.status"
-            [class.is-dimmed]="filterStatus() !== 'ALL' && filterStatus() !== col.status && filterStatus() !== 'REJECTED'"
-          >
-            <header class="column-header">
-              <div class="column-title-left">
-                <span class="column-dot" [style.background-color]="col.dotColor" aria-hidden="true"></span>
-                <span class="column-label">{{ col.label }}</span>
-              </div>
-              <div class="column-metrics-right tabular-nums">
-                <span
-                  *ngIf="getCountForStatus(col.status) > 0"
-                  class="column-avg-pill"
-                  title="Average fit score in stage"
-                >
-                  Avg {{ getAvgFitForStage(col.status) }}%
-                </span>
-                <span class="column-count-badge">{{ getCountForStatus(col.status) }}</span>
-              </div>
-            </header>
-
-            <div class="column-cards-list custom-scrollbar">
-              <div *ngIf="getItemsForStage(col.status).length === 0" class="empty-column-slot">
-                <span>No roles in {{ col.label.toLowerCase() }}</span>
-              </div>
-
-              <!-- Kanban Card -->
-              <article
-                *ngFor="let item of getItemsForStage(col.status)"
-                (click)="openDrawer(item)"
-                class="kanban-card"
-                tabindex="0"
-                (keydown.enter)="openDrawer(item)"
-                (keydown.space)="$event.preventDefault(); openDrawer(item)"
-                [attr.aria-label]="item.title + ' at ' + item.company + ', ' + roundScore(item.match_score) + '% match'"
+      } @else if (viewMode() === 'kanban') {
+        <!-- VIEW 1: STAGE RAIL / KANBAN BOARD -->
+        <section class="kanban-workspace custom-scrollbar" aria-label="Pipeline stage board">
+          <div class="kanban-columns-container">
+            @for (col of visibleKanbanColumns(); track col.status) {
+              <div
+                class="kanban-column"
+                [class.is-highlighted]="filterStatus() === col.status"
+                [class.is-dimmed]="filterStatus() !== 'ALL' && filterStatus() !== col.status"
               >
-                <!-- Card Header -->
-                <div class="card-head-row">
-                  <span class="company-badge-name" dir="auto">{{ item.company }}</span>
-                  <span
-                    class="score-pill tabular-nums"
-                    [attr.data-band]="getScoreBand(item.match_score)"
-                  >
-                    {{ roundScore(item.match_score) }}%
-                  </span>
-                </div>
-
-                <h3 class="role-title-heading" dir="auto">{{ item.title }}</h3>
-
-                <!-- Follow-Up Alert Pill (when due or active) -->
-                <div
-                  *ngIf="item.follow_up_at"
-                  class="follow-up-badge tabular-nums"
-                  [class.due]="isFollowUpDue(item.follow_up_at)"
-                >
-                  <app-icon name="clock" [size]="11"></app-icon>
-                  <span>{{ formatFollowUpLabel(item.follow_up_at) }}</span>
-                </div>
-
-                <!-- Stage Transition Actions -->
-                <div class="card-footer-actions" (click)="$event.stopPropagation()">
-                  <div class="stage-advance-btn-group">
-                    <button
-                      *ngIf="col.status === 'SAVED'"
-                      type="button"
-                      (click)="advanceStatus(item, 'APPLIED')"
-                      class="advance-action-btn"
-                      title="Move to Applied"
-                    >
-                      <span>Applied</span>
-                      <app-icon name="arrow-right" [size]="11"></app-icon>
-                    </button>
-
-                    <button
-                      *ngIf="col.status === 'APPLIED'"
-                      type="button"
-                      (click)="advanceStatus(item, 'INTERVIEW')"
-                      class="advance-action-btn"
-                      title="Move to Interview"
-                    >
-                      <span>Interview</span>
-                      <app-icon name="arrow-right" [size]="11"></app-icon>
-                    </button>
-
-                    <button
-                      *ngIf="col.status === 'INTERVIEW'"
-                      type="button"
-                      (click)="advanceStatus(item, 'OFFER')"
-                      class="advance-action-btn offer"
-                      title="Mark as Offer"
-                    >
-                      <app-icon name="star" [size]="11"></app-icon>
-                      <span>Offer</span>
-                    </button>
+                <header class="column-header">
+                  <div class="column-title-left">
+                    <span class="column-dot" [style.background-color]="col.dotColor" aria-hidden="true"></span>
+                    <span class="column-label">{{ col.label }}</span>
                   </div>
 
-                  <a
-                    *ngIf="item.original_application_url"
-                    [href]="item.original_application_url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    (click)="onOpenLink($event, item.original_application_url)"
-                    class="card-external-link"
-                    title="Direct portal link"
-                    aria-label="Direct apply link"
-                  >
-                    <app-icon name="external-link" [size]="13"></app-icon>
-                  </a>
+                  <div class="column-metrics-right tabular-nums">
+                    @if (getCountForStatus(col.status) > 0) {
+                      <span class="column-avg-pill" title="Average fit score in stage">
+                        Avg {{ getAvgFitForStage(col.status) }}%
+                      </span>
+                    }
+                    <span class="column-count-badge">{{ getCountForStatus(col.status) }}</span>
+                  </div>
+                </header>
+
+                <div class="column-cards-list custom-scrollbar">
+                  @if (getItemsForStage(col.status).length === 0) {
+                    <div class="empty-column-slot">
+                      <span>No roles in {{ col.label.toLowerCase() }}</span>
+                    </div>
+                  }
+
+                  @for (item of getItemsForStage(col.status); track item.job_id) {
+                    <ui-card
+                      variant="subtle"
+                      padding="sm"
+                      [interactive]="true"
+                      class="kanban-card"
+                      tabindex="0"
+                      role="article"
+                      (click)="openDrawer(item)"
+                      (keydown.enter)="openDrawer(item)"
+                      (keydown.space)="$event.preventDefault(); openDrawer(item)"
+                      [attr.aria-label]="item.title + ' at ' + item.company + ', ' + roundScore(item.match_score) + '% match'"
+                    >
+                      <div class="card-head-row">
+                        <span class="company-badge-name" dir="auto">{{ item.company }}</span>
+                        <ui-match-pill [score]="roundScore(item.match_score)" label="" size="sm" />
+                      </div>
+
+                      <h3 class="role-title-heading" dir="auto">{{ item.title }}</h3>
+
+                      @if (item.follow_up_at) {
+                        <div>
+                          <ui-badge
+                            [tone]="isFollowUpDue(item.follow_up_at) ? 'crimson' : 'glass'"
+                            size="sm"
+                            [mono]="true"
+                          >
+                            <app-icon name="clock" [size]="10" />
+                            <span>{{ formatFollowUpLabel(item.follow_up_at) }}</span>
+                          </ui-badge>
+                        </div>
+                      }
+
+                      <div class="card-footer-actions" (click)="$event.stopPropagation()">
+                        <div class="stage-advance-btn-group">
+                          @if (col.status === 'SAVED') {
+                            <ui-button
+                              variant="secondary"
+                              size="sm"
+                              ariaLabel="Move to Applied"
+                              (clicked)="advanceStatus(item, 'APPLIED')"
+                            >
+                              <span>Applied</span>
+                              <app-icon name="arrow-right" [size]="11" />
+                            </ui-button>
+                          }
+                          @if (col.status === 'APPLIED') {
+                            <ui-button
+                              variant="secondary"
+                              size="sm"
+                              ariaLabel="Move to Interviewing"
+                              (clicked)="advanceStatus(item, 'INTERVIEW')"
+                            >
+                              <span>Interview</span>
+                              <app-icon name="arrow-right" [size]="11" />
+                            </ui-button>
+                          }
+                          @if (col.status === 'INTERVIEW') {
+                            <ui-button
+                              variant="primary"
+                              size="sm"
+                              ariaLabel="Mark as Offer"
+                              (clicked)="advanceStatus(item, 'OFFER')"
+                            >
+                              <app-icon name="star" [size]="11" />
+                              <span>Offer</span>
+                            </ui-button>
+                          }
+                        </div>
+
+                        @if (item.original_application_url) {
+                          <a
+                            [href]="item.original_application_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            (click)="onOpenLink($event, item.original_application_url)"
+                            class="card-external-link"
+                            title="Direct portal link"
+                            aria-label="Direct apply link"
+                          >
+                            <app-icon name="external-link" [size]="13" />
+                          </a>
+                        }
+                      </div>
+                    </ui-card>
+                  }
                 </div>
-              </article>
+              </div>
+            }
+          </div>
+        </section>
+      } @else {
+        <!-- VIEW 2: LIST VIEW -->
+        <ui-card variant="elevated" padding="none" class="list-table-workspace">
+          @if (filteredItems().length === 0) {
+            <div class="list-empty-slot">
+              <span>No tracked opportunities match the selected stage filter.</span>
+              <ui-button variant="secondary" size="sm" (clicked)="selectFilterStatus('ALL')">
+                <span>Show All Roles</span>
+              </ui-button>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- VIEW 2: HIGH-DENSITY LIST / TABLE VIEW -->
-      <section
-        *ngIf="!isLoading() && allItems().length > 0 && viewMode() === 'list'"
-        class="list-table-workspace"
-        aria-label="List table view"
-      >
-        <div *ngIf="filteredItems().length === 0" class="list-empty-slot">
-          <span>No tracked opportunities match the selected stage filter.</span>
-          <button type="button" (click)="selectFilterStatus('ALL')" class="reset-stage-btn">
-            Show All Roles
-          </button>
-        </div>
-
-        <div *ngIf="filteredItems().length > 0" class="table-container">
-          <div class="table-header-row">
-            <span class="col-th th-company">Opportunity & Company</span>
-            <span class="col-th th-score">Fit Score</span>
-            <span class="col-th th-stage">Current Stage</span>
-            <span class="col-th th-followup">Follow-Up Alert</span>
-            <span class="col-th th-actions">Actions</span>
-          </div>
-
-          <div class="table-body">
-            <article
-              *ngFor="let item of filteredItems()"
-              (click)="openDrawer(item)"
-              class="table-item-row"
-              tabindex="0"
-              (keydown.enter)="openDrawer(item)"
-              (keydown.space)="$event.preventDefault(); openDrawer(item)"
-              [attr.aria-label]="item.title + ' at ' + item.company"
-            >
-              <div class="col-td td-company">
-                <span class="item-role-title" dir="auto">{{ item.title }}</span>
-                <span class="item-company-name" dir="auto">{{ item.company }}</span>
+          } @else {
+            <div class="table-container">
+              <div class="table-header-row">
+                <span class="col-th">Opportunity &amp; Company</span>
+                <span class="col-th">Fit Score</span>
+                <span class="col-th">Current Stage</span>
+                <span class="col-th">Follow-Up Alert</span>
+                <span class="col-th">Link</span>
               </div>
 
-              <div class="col-td td-score">
-                <span
-                  class="score-pill tabular-nums"
-                  [attr.data-band]="getScoreBand(item.match_score)"
-                >
-                  {{ roundScore(item.match_score) }}%
-                </span>
-              </div>
+              <div class="table-body">
+                @for (item of filteredItems(); track item.job_id) {
+                  <article
+                    (click)="openDrawer(item)"
+                    (keydown.enter)="openDrawer(item)"
+                    (keydown.space)="$event.preventDefault(); openDrawer(item)"
+                    class="table-item-row"
+                    tabindex="0"
+                    [attr.aria-label]="item.title + ' at ' + item.company"
+                  >
+                    <div class="col-td td-company">
+                      <span class="item-role-title" dir="auto">{{ item.title }}</span>
+                      <span class="item-company-name" dir="auto">{{ item.company }}</span>
+                    </div>
 
-              <div class="col-td td-stage" (click)="$event.stopPropagation()">
-                <select
-                  [ngModel]="item.status"
-                  (ngModelChange)="onStatusChange(item.job_id, $event)"
-                  class="stage-select-compact"
-                  aria-label="Change stage"
-                >
-                  <option value="DISCOVERED">Discovered</option>
-                  <option value="SAVED">Saved</option>
-                  <option value="APPLIED">Applied</option>
-                  <option value="INTERVIEW">Interview</option>
-                  <option value="OFFER">Offer</option>
-                  <option value="REJECTED">Rejected</option>
-                  <option value="ARCHIVED">Archived</option>
-                </select>
-              </div>
+                    <div class="col-td td-score">
+                      <ui-match-pill [score]="roundScore(item.match_score)" label="" size="sm" />
+                    </div>
 
-              <div class="col-td td-followup tabular-nums">
-                <span
-                  *ngIf="item.follow_up_at"
-                  class="follow-up-pill"
-                  [class.due]="isFollowUpDue(item.follow_up_at)"
-                >
-                  {{ formatFollowUpLabel(item.follow_up_at) }}
-                </span>
-                <span *ngIf="!item.follow_up_at" class="text-muted">—</span>
-              </div>
+                    <div class="col-td td-stage" (click)="$event.stopPropagation()">
+                      <select
+                        [ngModel]="item.status"
+                        (ngModelChange)="onStatusChange(item.job_id, $event)"
+                        class="stage-select-compact"
+                        aria-label="Change stage"
+                      >
+                        <option value="DISCOVERED">Discovered</option>
+                        <option value="SAVED">Saved</option>
+                        <option value="APPLIED">Applied</option>
+                        <option value="INTERVIEW">Interview</option>
+                        <option value="OFFER">Offer</option>
+                        <option value="REJECTED">Rejected</option>
+                        <option value="ARCHIVED">Archived</option>
+                      </select>
+                    </div>
 
-              <div class="col-td td-actions" (click)="$event.stopPropagation()">
-                <a
-                  *ngIf="item.original_application_url"
-                  [href]="item.original_application_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  (click)="onOpenLink($event, item.original_application_url)"
-                  class="table-icon-btn"
-                  title="Direct link"
-                  aria-label="Direct link"
-                >
-                  <app-icon name="external-link" [size]="14"></app-icon>
-                </a>
+                    <div class="col-td td-followup tabular-nums">
+                      @if (item.follow_up_at) {
+                        <ui-badge
+                          [tone]="isFollowUpDue(item.follow_up_at) ? 'crimson' : 'neutral'"
+                          size="sm"
+                          [mono]="true"
+                        >
+                          {{ formatFollowUpLabel(item.follow_up_at) }}
+                        </ui-badge>
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </div>
+
+                    <div class="col-td td-actions" (click)="$event.stopPropagation()">
+                      @if (item.original_application_url) {
+                        <a
+                          [href]="item.original_application_url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          (click)="onOpenLink($event, item.original_application_url)"
+                          class="table-icon-btn"
+                          title="Direct link"
+                          aria-label="Direct link"
+                        >
+                          <app-icon name="external-link" [size]="14" />
+                        </a>
+                      }
+                    </div>
+                  </article>
+                }
               </div>
-            </article>
-          </div>
-        </div>
-      </section>
+            </div>
+          }
+        </ui-card>
+      }
 
       <!-- Job Detail Drawer Integration -->
       <app-job-drawer
@@ -392,7 +407,7 @@ interface StatusColumn {
         [job]="selectedJob()"
         (closeDrawer)="closeDrawer()"
         (statusUpdated)="onDrawerStatusUpdated($event)"
-      ></app-job-drawer>
+      />
     </div>
   `,
   styles: [`
@@ -406,17 +421,27 @@ interface StatusColumn {
       flex-direction: column;
       gap: var(--space-4);
       width: 100%;
-      max-width: 1240px;
+      max-width: 1200px;
       margin: 0 auto;
       min-width: 0;
     }
 
-    /* ==========================================================================
-       Header
-       ========================================================================== */
-    .tracker-header {
+    /* Architectural Header */
+    .tracker-hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular), var(--shadow-sm);
+      padding: var(--space-5) var(--space-6);
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: space-between;
       gap: var(--space-4);
       flex-wrap: wrap;
@@ -425,7 +450,7 @@ interface StatusColumn {
     .header-titles {
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: var(--space-1);
     }
 
     .title-row {
@@ -437,29 +462,28 @@ interface StatusColumn {
 
     .page-title {
       margin: 0;
-      font-size: var(--text-2xl);
+      font-family: var(--font-display);
+      font-size: var(--text-h1);
       font-weight: 700;
-      letter-spacing: -0.03em;
-      color: var(--text-primary);
+      letter-spacing: var(--tracking-tight);
+      color: var(--ink-primary);
     }
 
     .page-subtitle {
       margin: 0;
       font-size: var(--text-sm);
-      color: var(--text-secondary);
-      line-height: 1.45;
+      color: var(--ink-secondary);
+      line-height: 1.5;
     }
 
-    /* Recessed Track Segmented Control */
     .segmented-control {
       display: inline-flex;
       align-items: center;
-      gap: 2px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
+      gap: 3px;
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
       border-radius: var(--radius-sm);
       padding: 3px;
-      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
     }
 
     .segment-btn {
@@ -467,122 +491,99 @@ interface StatusColumn {
       align-items: center;
       justify-content: center;
       gap: 6px;
-      padding: 6px 13px;
+      min-height: 34px;
+      padding: 6px 14px;
       background: transparent;
       border: 1px solid transparent;
       border-radius: var(--radius-xs);
-      font-size: 12px;
+      font-size: var(--text-xs);
       font-weight: 500;
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
       cursor: pointer;
-      user-select: none;
-      transition: all var(--motion-fast);
       white-space: nowrap;
-    }
-    .segment-btn:hover {
-      color: var(--text-primary);
-      background-color: var(--bg-surface-hover);
-    }
-    .segment-btn:active {
-      transform: scale(0.98);
-    }
-    .segment-btn.active {
-      background-color: var(--bg-surface-1);
-      color: var(--text-primary);
-      border-color: var(--border-default);
-      font-weight: 600;
-      box-shadow: var(--surface-highlight-sm), var(--shadow-xs);
+      transition:
+        background-color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring),
+        color var(--dur-fast) var(--ease-spring);
     }
 
-    /* ==========================================================================
-       Stage Funnel Metrics Bar
-       ========================================================================== */
+    .segment-btn:hover {
+      color: var(--ink-primary);
+      background-color: var(--surface-hover);
+    }
+
+    .segment-btn.active {
+      background-color: var(--surface-elevated);
+      color: var(--ink-primary);
+      border-color: var(--border-hairline);
+      font-weight: 600;
+      box-shadow: var(--border-specular-sm), var(--shadow-xs);
+    }
+
+    /* Funnel Metrics Bar */
     .funnel-metrics-bar {
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: var(--space-2);
     }
 
     .funnel-stat-card {
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-xs);
-      padding: 9px 11px;
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular-sm), var(--shadow-xs);
+      border-radius: var(--radius-md);
+      padding: var(--space-3);
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 2px;
+      gap: 3px;
       text-align: left;
       cursor: pointer;
-      transition: all var(--motion-fast);
+      transition:
+        background-color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring),
+        transform var(--dur-fast) var(--ease-spring);
     }
+
     .funnel-stat-card:hover {
-      background-color: var(--bg-surface-2);
+      background-color: var(--surface-subtle);
       border-color: var(--border-strong);
-      box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
       transform: translateY(-1px);
     }
-    .funnel-stat-card:active {
-      transform: scale(0.98);
-    }
+
     .funnel-stat-card.active {
-      border-color: var(--brand-primary);
-      background-color: var(--brand-bg-subtle);
-      box-shadow: inset 0 0 0 1px var(--brand-border-subtle), var(--surface-highlight-sm);
+      border-color: var(--border-copper);
+      background-color: var(--accent-copper-soft);
     }
 
     .stat-count {
-      font-size: 17px;
+      font-family: var(--font-mono);
+      font-size: var(--text-lg);
       font-weight: 700;
-      letter-spacing: -0.02em;
-      color: var(--text-primary);
-      line-height: 1.2;
-    }
-    .stat-name {
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-tertiary);
+      color: var(--ink-primary);
+      line-height: 1.15;
     }
 
-    /* Skeletons */
+    .stat-name {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      color: var(--ink-muted);
+    }
+
     .skeletons-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: var(--space-3);
     }
 
-    /* Empty state */
-    .find-roles-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      background-color: var(--brand-primary);
-      border: 1px solid var(--brand-primary);
-      box-shadow: var(--surface-highlight-sm);
-      color: #ffffff;
-      border-radius: var(--radius-xs);
-      font-size: 12px;
-      font-weight: 600;
+    .find-roles-link {
       text-decoration: none;
-      transition: all var(--motion-fast);
-    }
-    .find-roles-btn:hover {
-      background-color: var(--brand-primary-hover);
-      box-shadow: var(--shadow-glow-brand);
-    }
-    .find-roles-btn:active {
-      transform: scale(0.98);
     }
 
-    /* ==========================================================================
-       Kanban Board Workspace
-       ========================================================================== */
+    /* Kanban Workspace */
     .kanban-workspace {
       width: 100%;
+      max-width: 100%;
       overflow-x: auto;
       padding-bottom: var(--space-3);
       -webkit-overflow-scrolling: touch;
@@ -591,31 +592,35 @@ interface StatusColumn {
 
     .kanban-columns-container {
       display: grid;
-      grid-template-columns: repeat(4, minmax(260px, 1fr));
+      grid-template-columns: repeat(5, minmax(195px, 1fr));
       gap: var(--space-3);
       align-items: start;
     }
 
     .kanban-column {
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-sm);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
+      box-shadow: var(--border-specular), var(--shadow-xs);
+      border-radius: var(--radius-lg);
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      max-height: calc(100vh - 240px);
-      transition: border-color var(--motion-fast), opacity var(--motion-fast), box-shadow var(--motion-fast);
+      max-height: calc(100vh - 260px);
+      transition:
+        border-color var(--dur-fast) var(--ease-spring),
+        opacity var(--dur-fast) var(--ease-spring);
     }
+
     .kanban-column.is-highlighted {
-      border-color: var(--brand-primary);
-      box-shadow: inset 0 0 0 1px var(--brand-border-subtle), var(--surface-highlight), var(--shadow-sm);
+      border-color: var(--border-copper);
     }
+
     .kanban-column.is-dimmed {
       opacity: 0.52;
     }
+
     .kanban-column.is-dimmed:hover {
-      opacity: 0.9;
+      opacity: 0.92;
     }
 
     .column-header {
@@ -623,10 +628,9 @@ interface StatusColumn {
       align-items: center;
       justify-content: space-between;
       gap: var(--space-2);
-      padding: 9px 12px;
-      border-bottom: 1px solid var(--border-subtle);
-      background-color: var(--bg-surface-2);
-      box-shadow: var(--surface-highlight-sm);
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--border-hairline);
+      background-color: var(--surface-subtle);
     }
 
     .column-title-left {
@@ -635,99 +639,92 @@ interface StatusColumn {
       gap: 7px;
       min-width: 0;
     }
+
     .column-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       flex-shrink: 0;
     }
+
     .column-label {
-      font-size: 12px;
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
       font-weight: 600;
-      letter-spacing: -0.01em;
-      color: var(--text-primary);
+      color: var(--ink-primary);
     }
 
     .column-metrics-right {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       flex-shrink: 0;
     }
+
     .column-avg-pill {
       font-family: var(--font-mono);
       font-size: 10px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-subtle);
+      font-weight: 500;
+      color: var(--ink-muted);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-hairline);
       border-radius: var(--radius-xs);
-      padding: 1px 6px;
+      padding: 2px 5px;
     }
+
     .column-count-badge {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 20px;
-      height: 18px;
+      min-width: 22px;
+      height: 20px;
       padding: 0 5px;
       border-radius: var(--radius-xs);
-      background-color: var(--bg-surface-3);
-      font-size: 11px;
-      color: var(--text-primary);
+      background-color: var(--surface-muted);
       font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-primary);
       font-weight: 600;
     }
 
     .column-cards-list {
-      padding: 8px;
+      padding: var(--space-2-5);
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: var(--space-2);
       overflow-y: auto;
     }
 
     .empty-column-slot {
       padding: var(--space-5) var(--space-2);
       text-align: center;
-      font-size: 11px;
-      color: var(--text-tertiary);
+      font-size: var(--text-xs);
+      color: var(--ink-muted);
     }
 
-    /* Kanban Card */
     .kanban-card {
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      border-radius: var(--radius-xs);
-      padding: 10px;
       display: flex;
       flex-direction: column;
-      gap: 7px;
-      cursor: pointer;
-      transition: all var(--motion-fast);
+      gap: var(--space-2);
+      outline: none;
     }
-    .kanban-card:hover {
-      background-color: var(--bg-surface-3);
-      border-color: var(--border-strong);
-      box-shadow: var(--surface-highlight-hover), var(--shadow-sm);
-      transform: translateY(-1px);
-    }
-    .kanban-card:active {
-      transform: scale(0.985);
+
+    .kanban-card:focus-visible {
+      outline: 2px solid var(--accent-copper);
+      outline-offset: 2px;
     }
 
     .card-head-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
+      gap: var(--space-2);
     }
 
     .company-badge-name {
-      font-size: 11px;
+      font-size: var(--text-xs);
       font-weight: 600;
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -735,77 +732,27 @@ interface StatusColumn {
       flex: 1;
     }
 
-    .score-pill {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 700;
-      padding: 2px 6px;
-      border-radius: 3px;
-      border: 1px solid var(--border-default);
-      background-color: var(--bg-surface-1);
-      box-shadow: var(--surface-highlight-sm);
-      flex-shrink: 0;
-    }
-    .score-pill[data-band="emerald"] {
-      border-color: var(--emerald-border);
-      background-color: var(--emerald-bg);
-      color: var(--emerald-400);
-    }
-    .score-pill[data-band="indigo"] {
-      border-color: var(--brand-border-subtle);
-      background-color: var(--brand-bg-subtle);
-      color: var(--brand-accent);
-    }
-    .score-pill[data-band="amber"] {
-      border-color: var(--amber-border);
-      background-color: var(--amber-bg);
-      color: var(--amber-400);
-    }
-    .score-pill[data-band="muted"] {
-      color: var(--text-tertiary);
-    }
-
     .role-title-heading {
       margin: 0;
-      font-size: 13px;
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
       font-weight: 600;
-      letter-spacing: -0.015em;
-      color: var(--text-primary);
-      line-height: 1.38;
+      letter-spacing: var(--tracking-snug);
+      color: var(--ink-primary);
+      line-height: 1.35;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
 
-    /* Follow up alert pill */
-    .follow-up-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      align-self: flex-start;
-      font-size: 10px;
-      font-weight: 600;
-      padding: 2px 7px;
-      border-radius: 3px;
-      background-color: var(--sky-bg);
-      border: 1px solid var(--sky-border);
-      color: var(--sky-400);
-    }
-    .follow-up-badge.due {
-      background-color: var(--rose-bg);
-      border-color: var(--rose-border);
-      color: var(--rose-400);
-    }
-
-    /* Card Footer Actions */
     .card-footer-actions {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-top: 7px;
-      border-top: 1px solid var(--border-subtle);
-      margin-top: 2px;
+      gap: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--border-hairline);
     }
 
     .stage-advance-btn-group {
@@ -814,64 +761,30 @@ interface StatusColumn {
       gap: 4px;
     }
 
-    .advance-action-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 8px;
-      border-radius: var(--radius-xs);
-      font-size: 11px;
-      font-weight: 600;
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .advance-action-btn:hover {
-      background-color: var(--brand-bg-subtle);
-      border-color: var(--brand-border-subtle);
-      color: var(--brand-accent);
-    }
-    .advance-action-btn:active {
-      transform: scale(0.97);
-    }
-    .advance-action-btn.offer {
-      color: var(--emerald-400);
-      border-color: var(--emerald-border);
-      background-color: var(--emerald-bg);
-    }
-
     .card-external-link {
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
+      min-width: 32px;
+      min-height: 32px;
       border-radius: var(--radius-xs);
-      border: 1px solid transparent;
-      transition: all var(--motion-fast);
-    }
-    .card-external-link:hover {
-      color: var(--brand-accent);
-      background-color: var(--bg-surface-1);
-      border-color: var(--border-default);
-    }
-    .card-external-link:active {
-      transform: scale(0.96);
+      border: 1px solid var(--border-hairline);
+      background-color: var(--surface-elevated);
+      transition:
+        color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring);
     }
 
-    /* ==========================================================================
-       List Table Workspace
-       ========================================================================== */
+    .card-external-link:hover {
+      color: var(--accent-copper-text);
+      border-color: var(--border-copper);
+    }
+
+    /* List Table Workspace */
     .list-table-workspace {
+      display: block;
       width: 100%;
-      background-color: var(--bg-surface-1);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight), var(--shadow-xs);
-      border-radius: var(--radius-sm);
       overflow: hidden;
     }
 
@@ -879,30 +792,11 @@ interface StatusColumn {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: var(--space-2-5);
+      gap: var(--space-3);
       padding: var(--space-8) var(--space-4);
       font-size: var(--text-sm);
-      color: var(--text-secondary);
+      color: var(--ink-secondary);
       text-align: center;
-    }
-    .reset-stage-btn {
-      padding: 6px 12px;
-      border-radius: var(--radius-xs);
-      border: 1px solid var(--border-default);
-      background-color: var(--bg-surface-2);
-      box-shadow: var(--surface-highlight-sm);
-      color: var(--text-primary);
-      font-size: var(--text-xs);
-      font-weight: 600;
-      cursor: pointer;
-      transition: all var(--motion-fast);
-    }
-    .reset-stage-btn:hover {
-      background-color: var(--bg-surface-3);
-      border-color: var(--border-strong);
-    }
-    .reset-stage-btn:active {
-      transform: scale(0.98);
     }
 
     .table-container {
@@ -913,15 +807,13 @@ interface StatusColumn {
 
     .table-header-row {
       display: grid;
-      grid-template-columns: 2fr 100px 148px 150px 64px;
-      padding: 9px 14px;
-      background-color: var(--bg-surface-2);
-      border-bottom: 1px solid var(--border-default);
-      font-size: 11px;
+      grid-template-columns: 2fr 110px 156px 150px 64px;
+      padding: var(--space-3) var(--space-4);
+      background-color: var(--surface-subtle);
+      border-bottom: 1px solid var(--border-hairline);
+      font-size: var(--text-xs);
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-tertiary);
+      color: var(--ink-muted);
     }
 
     .table-body {
@@ -931,22 +823,21 @@ interface StatusColumn {
 
     .table-item-row {
       display: grid;
-      grid-template-columns: 2fr 100px 148px 150px 64px;
+      grid-template-columns: 2fr 110px 156px 150px 64px;
       align-items: center;
       gap: var(--space-2);
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border-subtle);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--border-hairline);
       cursor: pointer;
-      transition: background-color var(--motion-fast);
+      transition: background-color var(--dur-fast) var(--ease-spring);
     }
+
     .table-item-row:last-child {
       border-bottom: none;
     }
+
     .table-item-row:hover {
-      background-color: var(--bg-surface-hover);
-    }
-    .table-item-row:active {
-      background-color: var(--bg-surface-active);
+      background-color: var(--surface-hover);
     }
 
     .td-company {
@@ -955,154 +846,154 @@ interface StatusColumn {
       gap: 2px;
       min-width: 0;
     }
+
     .item-role-title {
-      font-size: 13px;
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
       font-weight: 600;
-      letter-spacing: -0.01em;
-      color: var(--text-primary);
+      color: var(--ink-primary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
     .item-company-name {
-      font-size: 11px;
-      color: var(--text-secondary);
+      font-size: var(--text-xs);
+      color: var(--ink-secondary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .stage-select-compact {
-      height: 30px;
+      height: 34px;
       width: 100%;
-      max-width: 140px;
-      padding: 0 8px;
-      background-color: var(--bg-surface-2);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
+      max-width: 146px;
+      padding: 0 10px;
+      background-color: var(--surface-subtle);
+      border: 1px solid var(--border-hairline);
       border-radius: var(--radius-xs);
-      font-size: 11px;
+      font-size: var(--text-xs);
       font-weight: 500;
-      color: var(--text-primary);
+      color: var(--ink-primary);
       cursor: pointer;
-      transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
-    }
-    .stage-select-compact:hover {
-      border-color: var(--border-strong);
-    }
-    .stage-select-compact:focus {
-      outline: none;
-      border-color: var(--brand-primary);
-      box-shadow: 0 0 0 2px var(--brand-focus-ring);
     }
 
-    .follow-up-pill {
-      font-size: 11px;
-      color: var(--text-secondary);
-    }
-    .follow-up-pill.due {
-      color: var(--rose-400);
-      font-weight: 600;
+    .stage-select-compact:focus {
+      outline: none;
+      border-color: var(--accent-copper);
+      box-shadow: 0 0 0 2px var(--accent-copper-focus);
     }
 
     .table-icon-btn {
-      width: 30px;
-      height: 30px;
+      min-width: 34px;
+      min-height: 34px;
       border-radius: var(--radius-xs);
-      border: 1px solid var(--border-default);
-      box-shadow: var(--surface-highlight-sm);
-      background-color: var(--bg-surface-2);
-      color: var(--text-secondary);
+      border: 1px solid var(--border-hairline);
+      background-color: var(--surface-subtle);
+      color: var(--ink-secondary);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      transition: all var(--motion-fast);
+      transition:
+        color var(--dur-fast) var(--ease-spring),
+        border-color var(--dur-fast) var(--ease-spring);
     }
+
     .table-icon-btn:hover {
-      color: var(--brand-accent);
-      background-color: var(--bg-surface-3);
-      border-color: var(--border-strong);
-    }
-    .table-icon-btn:active {
-      transform: scale(0.96);
+      color: var(--accent-copper-text);
+      border-color: var(--border-copper);
     }
 
-    .text-emerald { color: var(--emerald-400); }
-    .text-brand { color: var(--brand-accent); }
-    .text-indigo { color: var(--brand-primary); }
-    .text-purple { color: #c084fc; }
-    .text-amber { color: var(--amber-400); }
-    .text-muted { color: var(--text-tertiary); }
+    .text-emerald { color: var(--semantic-emerald-text); }
+    .text-copper { color: var(--accent-copper-text); }
+    .text-amber { color: var(--semantic-amber-text); }
+    .text-crimson { color: var(--semantic-crimson-text); }
+    .text-steel { color: var(--semantic-steel-text); }
+    .text-muted { color: var(--ink-muted); }
 
+    /* Mobile Stacked / Clean Ergonomics (<= 860px, 360x800) */
     @media (max-width: 860px) {
+      .tracker-hero {
+        padding: var(--space-4);
+      }
+
       .funnel-metrics-bar {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
+
       .funnel-stat-card {
-        min-height: 52px;
+        min-height: 54px;
       }
+
       .segment-btn {
         min-height: 44px;
         padding: 8px 16px;
       }
+
+      .skeletons-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
       .kanban-workspace {
-        scroll-snap-type: x proximity;
-        margin: 0 calc(var(--space-1) * -1);
-        padding: 0 var(--space-1) var(--space-3) var(--space-1);
+        overflow-x: visible;
+        padding-bottom: 0;
       }
+
       .kanban-columns-container {
-        grid-template-columns: repeat(4, minmax(272px, 84vw));
+        grid-template-columns: minmax(0, 1fr);
       }
+
       .kanban-column {
-        scroll-snap-align: start;
-        max-height: 64vh;
+        max-height: none;
       }
-      .advance-action-btn {
-        min-height: 44px;
-        padding: 0 12px;
-      }
+
       .card-external-link {
-        width: 44px;
-        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
       }
+
       .table-header-row {
         display: none;
       }
+
       .table-item-row {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
         gap: var(--space-2-5);
-        padding: 12px;
+        padding: var(--space-3);
       }
+
       .td-company {
         flex: 1 1 100%;
       }
+
       .item-role-title {
         white-space: normal;
         line-height: 1.35;
       }
+
       .td-stage {
         flex: 1 1 140px;
       }
+
       .stage-select-compact {
         min-height: 44px;
         max-width: none;
-        font-size: 12px;
+        font-size: var(--text-sm);
       }
+
       .table-icon-btn {
-        width: 44px;
-        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
       }
     }
 
-    @media (max-width: 400px) {
+    @media (max-width: 420px) {
       .funnel-metrics-bar {
-        grid-template-columns: repeat(2, 1fr);
-      }
-      .kanban-columns-container {
-        grid-template-columns: repeat(4, minmax(260px, 86vw));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
   `],
@@ -1119,15 +1010,15 @@ export class TrackerComponent implements OnInit {
   readonly isLoading = signal<boolean>(false);
   readonly pendingJobIds = signal<Set<number>>(new Set());
 
-  // Drawer integration
   readonly isDrawerOpen = signal<boolean>(false);
   readonly selectedJob = signal<JobSummary | null>(null);
 
   readonly kanbanColumns: StatusColumn[] = [
-    { status: 'SAVED', label: 'Saved', dotColor: '#38BDF8' },
-    { status: 'APPLIED', label: 'Applied', dotColor: '#6366F1' },
-    { status: 'INTERVIEW', label: 'Interview', dotColor: '#A855F7' },
-    { status: 'OFFER', label: 'Offer', dotColor: '#10B981' },
+    { status: 'SAVED', label: 'Saved', dotColor: 'var(--semantic-steel)' },
+    { status: 'APPLIED', label: 'Applied', dotColor: 'var(--accent-copper)' },
+    { status: 'INTERVIEW', label: 'Interviewing', dotColor: 'var(--semantic-amber)' },
+    { status: 'OFFER', label: 'Offer', dotColor: 'var(--semantic-emerald)' },
+    { status: 'REJECTED', label: 'Rejected', dotColor: 'var(--semantic-crimson)' },
   ];
 
   ngOnInit(): void {
@@ -1162,9 +1053,14 @@ export class TrackerComponent implements OnInit {
   selectFilterStatus(status: string): void {
     this.telegram.haptic('selection');
     this.filterStatus.set(status);
-    if (status === 'REJECTED' && this.viewMode() === 'kanban') {
-      this.viewMode.set('list');
+  }
+
+  visibleKanbanColumns(): StatusColumn[] {
+    const filter = this.filterStatus();
+    if (filter === 'ALL') {
+      return this.kanbanColumns;
     }
+    return this.kanbanColumns.filter((c) => c.status === filter);
   }
 
   filteredItems(): TrackedJobItem[] {
@@ -1179,11 +1075,21 @@ export class TrackerComponent implements OnInit {
   }
 
   getItemsForStage(stage: ApplicationStatus): TrackedJobItem[] {
+    if (stage === 'REJECTED') {
+      return this.allItems().filter(
+        (item) => item.status === 'REJECTED' || item.status === 'ARCHIVED'
+      );
+    }
     return this.allItems().filter((item) => item.status === stage);
   }
 
   getCountForStatus(status: string): number {
     if (status === 'ALL') return this.allItems().length;
+    if (status === 'REJECTED') {
+      return this.allItems().filter(
+        (item) => item.status === 'REJECTED' || item.status === 'ARCHIVED'
+      ).length;
+    }
     return this.allItems().filter((item) => item.status === status).length;
   }
 
@@ -1298,13 +1204,6 @@ export class TrackerComponent implements OnInit {
     return Math.round(score);
   }
 
-  getScoreBand(score: number): 'emerald' | 'indigo' | 'amber' | 'muted' {
-    if (score >= 80) return 'emerald';
-    if (score >= 65) return 'indigo';
-    if (score >= 50) return 'amber';
-    return 'muted';
-  }
-
   formatStatus(st: string): string {
     return st.charAt(0) + st.slice(1).toLowerCase();
   }
@@ -1318,8 +1217,8 @@ export class TrackerComponent implements OnInit {
     const now = Date.now();
     const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
     if (diffDays <= 0) {
-      return 'Follow-Up Due Today!';
+      return 'Due Today';
     }
-    return `Follow-Up in ${diffDays}d`;
+    return `In ${diffDays}d`;
   }
 }
