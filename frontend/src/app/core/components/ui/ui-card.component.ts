@@ -37,9 +37,8 @@ export type CardPadding = 'none' | 'sm' | 'md' | 'lg';
     }
 
     :host([data-variant="glass"]) {
-      background-color: var(--surface-glass);
-      backdrop-filter: var(--blur-glass);
-      -webkit-backdrop-filter: var(--blur-glass);
+      background-color: var(--surface-elevated);
+      border-color: var(--border-strong);
       box-shadow: var(--border-specular), var(--shadow-sm);
     }
 

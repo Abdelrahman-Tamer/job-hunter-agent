@@ -111,9 +111,7 @@ const LEGACY_VARIANT_TONE_MAP: Record<BadgeVariant, BadgeTone> = {
     }
 
     .ui-badge[data-tone="glass"] {
-      background-color: var(--surface-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      background-color: var(--surface-subtle);
       color: var(--semantic-steel-text);
       border-color: var(--border-hairline);
       box-shadow: var(--border-specular-sm);

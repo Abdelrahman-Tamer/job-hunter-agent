@@ -30,9 +30,10 @@
 /* Telegram Mini App Native Polish */
 .app-shell.telegram-app,
 :host-context(html.in-telegram) .app-shell {
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100%;
   height: auto;
+  overflow-x: clip;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }
@@ -58,10 +59,8 @@
   align-items: center;
   gap: var(--space-2-5);
   padding: 10px 14px;
-  background: var(--surface-glass-strong);
-  backdrop-filter: var(--blur-glass);
-  -webkit-backdrop-filter: var(--blur-glass);
-  border: 1px solid var(--border-hairline);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
   box-shadow: var(--border-specular), var(--shadow-md);
   border-radius: var(--radius-md);
   color: var(--ink-primary);
@@ -138,6 +137,7 @@
   top: 0;
   left: 0;
   bottom: 0;
+  height: 100dvh;
   width: var(--sidebar-width);
   background-color: var(--surface-glass);
   backdrop-filter: var(--blur-glass);
@@ -150,6 +150,7 @@
   padding: var(--space-4);
   z-index: 100;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 
 .sidebar-top {
@@ -369,9 +370,11 @@
   margin-left: var(--sidebar-width);
   flex: 1;
   min-width: 0;
+  height: auto;
   min-height: 100vh;
   min-height: 100dvh;
   padding: var(--space-6) var(--space-8);
+  touch-action: pan-y;
 }
 
 /* ==========================================================================
@@ -405,9 +408,7 @@
     height: calc(56px + env(safe-area-inset-top, 0px));
     padding-top: env(safe-area-inset-top, 0px);
     width: 100%;
-    background-color: var(--surface-glass);
-    backdrop-filter: var(--blur-glass);
-    -webkit-backdrop-filter: var(--blur-glass);
+    background-color: var(--surface-elevated);
     border-bottom: 1px solid var(--border-hairline);
     box-shadow: var(--border-specular-sm);
   }

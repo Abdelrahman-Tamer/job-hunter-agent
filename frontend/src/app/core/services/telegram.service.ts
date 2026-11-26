@@ -103,13 +103,13 @@ export class TelegramService {
       try {
         tg.ready();
         tg.expand();
-        tg.setHeaderColor('#111520');
-        tg.setBackgroundColor('#090c13');
+        const themeSurface =
+          document.documentElement.getAttribute('data-theme') === 'light' ? '#F7F7F5' : '#0C0D10';
+        tg.setHeaderColor?.(themeSurface);
+        tg.setBackgroundColor?.(themeSurface);
 
-        // Disable vertical swipes so Telegram Mobile modal sheet does not intercept swipes
-        if (typeof tg.disableVerticalSwipes === 'function') {
-          tg.disableVerticalSwipes();
-        }
+        // Disable vertical swipes (Bot API 7.7+) so Telegram does not hijack sheet/trackpad scrolling
+        (tg as { disableVerticalSwipes?: () => void }).disableVerticalSwipes?.();
 
         // Keep viewport height in CSS variable
         const updateViewport = () => {

@@ -606,11 +606,9 @@ type StatusFilter = 'ALL' | 'SAVED' | 'APPLIED';
       position: sticky;
       top: 12px;
       z-index: 40;
-      background-color: var(--surface-glass);
-      backdrop-filter: var(--blur-glass);
-      -webkit-backdrop-filter: var(--blur-glass);
-      border: 1px solid var(--border-hairline);
-      box-shadow: var(--border-specular), var(--shadow-sm);
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--border-specular), var(--shadow-md);
       border-radius: var(--radius-lg);
       padding: var(--space-3-5) var(--space-4);
       display: flex;
@@ -878,6 +876,7 @@ type StatusFilter = 'ALL' | 'SAVED' | 'APPLIED';
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+      touch-action: pan-y;
     }
 
     .job-card-motion {

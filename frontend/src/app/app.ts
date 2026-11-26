@@ -52,46 +52,19 @@ export class App implements OnInit, OnDestroy {
   ];
 
   private focusListener?: () => void;
-  private wheelListener?: (e: WheelEvent) => void;
   private keydownListener?: (e: KeyboardEvent) => void;
   private pendingSequence: string | null = null;
   private lastKeyTimestamp = 0;
 
   ngOnInit(): void {
     if (typeof window !== 'undefined') {
-      window.focus();
+      if (this.telegram.isTelegram()) {
+        window.focus();
 
-      // Ensure iframe retains focus for mouse wheel events on Telegram Desktop
-      this.focusListener = () => window.focus();
-      window.addEventListener('mouseenter', this.focusListener, { passive: true });
-      window.addEventListener('pointerdown', this.focusListener, { passive: true });
-
-      // Active mouse wheel fallback for Telegram Desktop / CEF iframe wrappers
-      this.wheelListener = (e: WheelEvent) => {
-        let target = e.target as HTMLElement | null;
-        let insideScrollable = false;
-        while (target && target !== document.body && target !== document.documentElement) {
-          const style = window.getComputedStyle(target);
-          if (
-            (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
-            target.scrollHeight > target.clientHeight
-          ) {
-            insideScrollable = true;
-            break;
-          }
-          target = target.parentElement;
-        }
-
-        if (!insideScrollable) {
-          const before = window.scrollY;
-          requestAnimationFrame(() => {
-            if (window.scrollY === before && Math.abs(e.deltaY) > 0) {
-              window.scrollBy({ top: e.deltaY, behavior: 'auto' });
-            }
-          });
-        }
-      };
-      window.addEventListener('wheel', this.wheelListener, { passive: true });
+        // Keep iframe focused inside Telegram Desktop wrappers for native wheel/trackpad events
+        this.focusListener = () => window.focus();
+        window.addEventListener('pointerdown', this.focusListener, { passive: true });
+      }
 
       // Global keyboard shortcut sequence listener (e.g. G O, G J, G T, G P, G S)
       this.keydownListener = (e: KeyboardEvent) => this.handleGlobalKeyDown(e);
@@ -102,11 +75,7 @@ export class App implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (typeof window !== 'undefined') {
       if (this.focusListener) {
-        window.removeEventListener('mouseenter', this.focusListener);
         window.removeEventListener('pointerdown', this.focusListener);
-      }
-      if (this.wheelListener) {
-        window.removeEventListener('wheel', this.wheelListener);
       }
       if (this.keydownListener) {
         window.removeEventListener('keydown', this.keydownListener);

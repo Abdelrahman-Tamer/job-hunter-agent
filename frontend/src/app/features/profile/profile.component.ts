@@ -1325,8 +1325,8 @@ interface CvReviewData {
       position: fixed;
       inset: 0;
       background-color: rgba(12, 13, 16, 0.68);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       z-index: 1200;
       display: flex;
       align-items: center;
@@ -1337,9 +1337,7 @@ interface CvReviewData {
     .cv-modal-panel {
       width: 100%;
       max-width: 560px;
-      background-color: var(--surface-glass-strong);
-      backdrop-filter: var(--blur-glass);
-      -webkit-backdrop-filter: var(--blur-glass);
+      background-color: var(--surface-elevated);
       border: 1px solid var(--border-hairline);
       border-radius: var(--radius-lg);
       box-shadow: var(--border-specular), var(--shadow-lg);

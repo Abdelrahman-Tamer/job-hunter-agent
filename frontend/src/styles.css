@@ -16,8 +16,8 @@
   --surface-hover: rgba(255, 255, 255, 0.045);
   --surface-active: rgba(255, 255, 255, 0.08);
   --surface-glass: rgba(20, 22, 27, 0.78);
-  --surface-glass-strong: rgba(20, 22, 27, 0.90);
-  --blur-glass: blur(18px) saturate(150%);
+  --surface-glass-strong: rgba(20, 22, 27, 0.92);
+  --blur-glass: blur(10px) saturate(140%);
 
   /* Hairlines & Specular Edge Highlights */
   --border-hairline: rgba(255, 255, 255, 0.09);
@@ -186,8 +186,8 @@
   --surface-hover: rgba(17, 19, 24, 0.04);
   --surface-active: rgba(17, 19, 24, 0.075);
   --surface-glass: rgba(255, 255, 255, 0.78);
-  --surface-glass-strong: rgba(255, 255, 255, 0.92);
-  --blur-glass: blur(18px) saturate(160%);
+  --surface-glass-strong: rgba(255, 255, 255, 0.94);
+  --blur-glass: blur(10px) saturate(140%);
 
   /* Architectural Hairlines & Specular Top Highlight */
   --border-hairline: rgba(17, 19, 24, 0.08);
@@ -340,21 +340,23 @@ html {
   min-height: 100%;
   height: auto;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
   color-scheme: dark light;
 }
 
 body {
   width: 100%;
-  min-height: 100%;
+  height: auto;
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
-  overflow-y: visible;
+  overflow-x: clip;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--surface-canvas);
@@ -371,8 +373,15 @@ body {
 /* Telegram Mini App & WebApp Viewport Polish */
 html.in-telegram,
 body.in-telegram {
-  min-height: 100% !important;
-  overscroll-behavior-y: none;
+  min-height: 100%;
+  height: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+html.drawer-scroll-locked,
+body.drawer-scroll-locked {
+  overflow: hidden !important;
 }
 
 /* Arabic / RTL Text Polish */
@@ -536,9 +545,7 @@ textarea {
 }
 
 .glass-panel {
-  background-color: var(--surface-glass);
-  backdrop-filter: var(--blur-glass);
-  -webkit-backdrop-filter: var(--blur-glass);
+  background-color: var(--surface-elevated);
   border: 1px solid var(--border-hairline);
   box-shadow: var(--border-specular-sm);
 }
@@ -686,9 +693,7 @@ button {
 }
 
 .btn-secondary {
-  background-color: var(--surface-glass);
-  backdrop-filter: var(--blur-glass);
-  -webkit-backdrop-filter: var(--blur-glass);
+  background-color: var(--surface-elevated);
   color: var(--ink-primary);
   border-color: var(--border-hairline);
   box-shadow: var(--border-specular-sm), var(--shadow-xs);

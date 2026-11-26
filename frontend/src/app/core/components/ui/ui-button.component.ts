@@ -121,11 +121,9 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
       border-color: var(--accent-copper-active);
     }
 
-    /* Secondary — Frosted Glass Hairline */
+    /* Secondary — Crisp Elevated Hairline */
     .ui-btn[data-variant="secondary"] {
-      background-color: var(--surface-glass);
-      backdrop-filter: var(--blur-glass);
-      -webkit-backdrop-filter: var(--blur-glass);
+      background-color: var(--surface-elevated);
       color: var(--ink-primary);
       border-color: var(--border-hairline);
       box-shadow: var(--border-specular-sm), var(--shadow-xs);

@@ -583,8 +583,8 @@ import {
       position: fixed;
       inset: 0;
       background-color: rgba(12, 13, 16, 0.64);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       z-index: 1100;
       display: flex;
       justify-content: flex-end;
@@ -602,9 +602,7 @@ import {
       width: 100%;
       max-width: 560px;
       height: 100%;
-      background-color: var(--surface-glass-strong);
-      backdrop-filter: var(--blur-glass);
-      -webkit-backdrop-filter: var(--blur-glass);
+      background-color: var(--surface-elevated);
       border-left: 1px solid var(--border-hairline);
       box-shadow: var(--shadow-lg);
       display: flex;
@@ -820,6 +818,9 @@ import {
     .drawer-body {
       flex: 1;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+      touch-action: pan-y;
       padding: var(--space-5);
       display: flex;
       flex-direction: column;
@@ -1402,6 +1403,7 @@ export class JobDrawerComponent implements OnChanges {
     this.destroyRef.onDestroy(() => {
       if (this.copyTimer) clearTimeout(this.copyTimer);
       if (this.copyLinkTimer) clearTimeout(this.copyLinkTimer);
+      this.syncBodyScrollLock(false);
     });
   }
 
@@ -1414,6 +1416,7 @@ export class JobDrawerComponent implements OnChanges {
 
   ngOnChanges(): void {
     this.jobSignal.set(this.job);
+    this.syncBodyScrollLock(Boolean(this.isOpen && this.job));
 
     if (!this.isOpen || !this.job) {
       this.resetTransientState();
@@ -1434,6 +1437,12 @@ export class JobDrawerComponent implements OnChanges {
     } else if (this.job.tracker_status) {
       this.currentStatus.set(this.job.tracker_status);
     }
+  }
+
+  private syncBodyScrollLock(locked: boolean): void {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.toggle('drawer-scroll-locked', locked);
+    document.body.classList.toggle('drawer-scroll-locked', locked);
   }
 
   private resetTransientState(): void {
